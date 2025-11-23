@@ -12,27 +12,57 @@ class FirstCourseSchedulePageController extends Controller
      */
     public function index()
     {
-        $items = DB::table('first_course_schedules as s')
-            ->leftJoin('groups as g', 's.group_id', '=', 'g.id')
-            ->leftJoin('first_course_subjects as subj', 's.subject_id', '=', 'subj.id')
-            ->leftJoin('frist_course_teachers as t', 's.teacher_id', '=', 't.id')
+        $subjects = DB::table('first_course_subjects')
+            ->select('id', DB::raw('COALESCE(name_ru, subject_name) as title'))
+            ->pluck('title', 'id');
+
+        $teachers = DB::table('frist_course_teachers')
+            ->pluck('teacher_name', 'id');
+
+        $groups = DB::table('first_course_group')
+            ->pluck('group_name', 'id');
+
+        $raw = DB::table('first_course_schedules as s')
             ->orderBy('s.study_day')
             ->orderBy('s.lesson_number')
-            ->select(
-                's.id',
-                's.study_day',
-                's.lesson_number',
-                's.room_id',
-                's.subgroup',
-                'g.group_name',
-                'subj.name_ru as subject_name_ru',
-                'subj.subject_name as subject_fallback',
-                't.teacher_name'
-            )
             ->get();
 
+        $schedule = [];
+
+        $addSub = function (&$pair, $slot, $subjectId, $teacherId, $roomId, $label) use ($subjects, $teachers) {
+            $pair["sub{$slot}"] = [
+                'subject' => $subjectId ? ($subjects[$subjectId] ?? '—') : null,
+                'teacher' => $teacherId ? ($teachers[$teacherId] ?? '—') : null,
+                'room'    => $roomId ?: null,
+                'label'   => $label ?: (string)$slot,
+            ];
+        };
+
+        foreach ($raw as $row) {
+            $groupName = $groups[$row->group_id] ?? 'Без группы';
+            $day = $row->study_day;
+            $lesson = $row->lesson_number;
+
+            if (!isset($schedule[$groupName][$day][$lesson])) {
+                $schedule[$groupName][$day][$lesson] = [
+                    'lesson' => $lesson,
+                    'sub1' => null,
+                    'sub2' => null,
+                ];
+            }
+
+            // Подгруппа из строки
+            $slotFromRow = $row->subgroup === '2' ? 2 : 1;
+            $addSub($schedule[$groupName][$day][$lesson], $slotFromRow, $row->subject_id, $row->teacher_id, $row->room_id, $row->subgroup);
+
+            // Данные второй подгруппы в той же строке
+            if ($row->subject_id_2 || $row->teacher_id_2 || $row->room_id_2) {
+                $addSub($schedule[$groupName][$day][$lesson], 2, $row->subject_id_2, $row->teacher_id_2, $row->room_id_2, '2');
+            }
+        }
+
         return view('first_course.schedule.index', [
-            'items' => $items,
+            'schedule' => $schedule,
         ]);
     }
 

@@ -41,23 +41,30 @@
                         <div class="grid-cell day-col">{{ $day }}</div>
                         @for($i = 1; $i <= 5; $i++)
                             @php $pair = $groupItems[$day][$i] ?? null; @endphp
-                            <div class="grid-cell pair-cell">
+                            @php
+                                $filled = !empty($pair['sub1']['subject']);
+                            @endphp
+                            <div class="grid-cell pair-cell {{ $filled ? 'filled' : 'empty' }}">
                                 <a href="{{ route('first.schedule.week') }}" class="cell-edit" title="Редактировать">✏️</a>
                                 <div class="cell-line">
-                                    <span class="badge-num">{{ $i }}</span>
-                                    <span class="cell-title">{{ $pair['sub1']['subject'] ?? '—' }}</span>
+                                    <span class="cell-title">{{ $pair['sub1']['subject'] ?? ':' }}</span>
                                 </div>
                                 <div class="cell-meta">
-                                    <span>Преподаватель: {{ $pair['sub1']['teacher'] ?? '—' }}</span>
-                                    <span>Кабинет: {{ $pair['sub1']['room'] ?? '—' }}</span>
-                                    <span>Подгруппа: {{ $pair['sub1']['label'] ?? '—' }}</span>
-                                    @if(!empty($pair['sub2']))
-                                        <span class="text-strong">2 подгруппа</span>
-                                        <span>{{ $pair['sub2']['subject'] ?? '—' }}</span>
-                                        <span>Преподаватель: {{ $pair['sub2']['teacher'] ?? '—' }}</span>
-                                        <span>Кабинет: {{ $pair['sub2']['room'] ?? '—' }}</span>
-                                    @endif
+                                    <span class="pill"><span>👤</span>{{ $pair['sub1']['teacher'] ?? ':' }}</span>
+                                    <span class="pill"><span>Кабинет</span>{{ $pair['sub1']['room'] ?? ':' }}</span>
+                                    <span class="pill"><span>🔸</span>{{ $pair['sub1']['label'] ?? '—' }}</span>
                                 </div>
+                                @if(!empty($pair['sub2']))
+                                <div class="cell-line subpair-line">
+                                    <span class="label-sub">2 подгруппа</span>
+                                    <span class="cell-title sub2">{{ $pair['sub2']['subject'] ?? '—' }}</span>
+                                </div>
+                                <div class="cell-meta subpair">
+                                    <span class="pill"><span>👤</span>{{ $pair['sub2']['teacher'] ?? '—' }}</span>
+                                    <span class="pill"><span>🏫</span>{{ $pair['sub2']['room'] ?? '—' }}</span>
+                                    <span class="pill"><span>🔸</span>{{ $pair['sub2']['label'] ?? '—' }}</span>
+                                </div>
+                                @endif
                             </div>
                         @endfor
                     </div>

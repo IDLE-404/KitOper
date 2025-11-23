@@ -313,7 +313,7 @@ body {
 .grid-cell {
     border-bottom: 1px solid #e5e7eb;
     border-right: 1px solid #e5e7eb;
-    padding: 10px 12px;
+    padding: 16px;
     background: #fff;
 }
 
@@ -344,11 +344,11 @@ body {
 
 .pair-cell {
     position: relative;
-    min-height: 68px;
+    min-height: 70px;
     background: #fff;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     justify-content: center;
 }
 
@@ -367,6 +367,7 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-size: 16px;
 }
 
 .cell-meta {
@@ -374,7 +375,7 @@ body {
     flex-wrap: wrap;
     gap: 10px;
     color: #4b5563;
-    font-size: 13px;
+    font-size: 14px;
 }
 
 .badge-num {
@@ -383,25 +384,88 @@ body {
     justify-content: center;
     padding: 2px 8px;
     border-radius: 6px;
-    background: #e5e7eb;
+    background: #eef2ff;
     color: #111827;
     font-weight: 700;
     font-size: 12px;
+}
+
+.pair-cell.filled {
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+}
+
+.pair-cell.empty {
+    background: #f7f8fa;
+    box-shadow: none;
+}
+
+.pair-cell.empty .cell-title {
+    color: #9ca3af;
 }
 
 .cell-edit {
     position: absolute;
     top: 6px;
     right: 6px;
-    color: #475569;
+    color: #9ca3af;
     text-decoration: none;
     font-size: 14px;
     padding: 2px 4px;
     border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.12s ease;
 }
 
-.cell-edit:hover {
-    background: #e5e7eb;
+.pair-cell:hover .cell-edit {
+    opacity: 1;
+}
+
+.cell-meta .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #eef2f7;
+    color: #334155;
+    font-weight: 500;
+}
+
+.cell-meta .pill.accent {
+    background: #e4e9ff;
+    color: #1f2a44;
+    font-weight: 700;
+}
+
+.cell-meta .pill.strong {
+    background: #e6eefb;
+    color: #1f2937;
+    font-weight: 700;
+}
+
+.subpair-line {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.label-sub {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: #e4e9ff;
+    color: #1f2a44;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.cell-title.sub2 {
+    font-size: 15px;
+    width: 100%;
 }
 
 @media (max-width: 640px) {

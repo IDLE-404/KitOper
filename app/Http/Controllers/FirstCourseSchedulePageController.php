@@ -32,19 +32,29 @@ class FirstCourseSchedulePageController extends Controller
         $addSub = function (&$pair, $slot, $subjectId, $teacherId, $roomId, $label) use ($subjects, $teachers) {
             $pair["sub{$slot}"] = [
                 'subject' => $subjectId ? ($subjects[$subjectId] ?? '—') : null,
+                'subject_id' => $subjectId,
                 'teacher' => $teacherId ? ($teachers[$teacherId] ?? '—') : null,
+                'teacher_id' => $teacherId,
                 'room'    => $roomId ?: null,
                 'label'   => $label ?: (string)$slot,
             ];
         };
 
         foreach ($raw as $row) {
-            $groupName = $groups[$row->group_id] ?? 'Без группы';
+            $groupId = $row->group_id;
+            $groupName = $groups[$groupId] ?? 'Без группы';
             $day = $row->study_day;
             $lesson = $row->lesson_number;
 
-            if (!isset($schedule[$groupName][$day][$lesson])) {
-                $schedule[$groupName][$day][$lesson] = [
+            if (!isset($schedule[$groupId])) {
+                $schedule[$groupId] = [
+                    'name' => $groupName,
+                    'days' => [],
+                ];
+            }
+
+            if (!isset($schedule[$groupId]['days'][$day][$lesson])) {
+                $schedule[$groupId]['days'][$day][$lesson] = [
                     'lesson' => $lesson,
                     'sub1' => null,
                     'sub2' => null,
@@ -53,16 +63,18 @@ class FirstCourseSchedulePageController extends Controller
 
             // Подгруппа из строки
             $slotFromRow = $row->subgroup === '2' ? 2 : 1;
-            $addSub($schedule[$groupName][$day][$lesson], $slotFromRow, $row->subject_id, $row->teacher_id, $row->room_id, $row->subgroup);
+            $addSub($schedule[$groupId]['days'][$day][$lesson], $slotFromRow, $row->subject_id, $row->teacher_id, $row->room_id, $row->subgroup);
 
             // Данные второй подгруппы в той же строке
             if ($row->subject_id_2 || $row->teacher_id_2 || $row->room_id_2) {
-                $addSub($schedule[$groupName][$day][$lesson], 2, $row->subject_id_2, $row->teacher_id_2, $row->room_id_2, '2');
+                $addSub($schedule[$groupId]['days'][$day][$lesson], 2, $row->subject_id_2, $row->teacher_id_2, $row->room_id_2, '2');
             }
         }
 
         return view('first_course.schedule.index', [
             'schedule' => $schedule,
+            'subjects' => $subjects,
+            'teachers' => $teachers,
         ]);
     }
 
@@ -288,5 +300,115 @@ class FirstCourseSchedulePageController extends Controller
         return redirect()
             ->route('first.schedule.week', ['group_id' => $groupId])
             ->with('success', 'Недельное расписание сохранено.');
+    }
+
+    /**
+     * Обновить одну пару (с подгруппами) через модалку.
+     */
+    public function updatePair(Request $request)
+    {
+        $dayMap = [
+            'Понедельник',
+            'Вторник',
+            'Среда',
+            'Четверг',
+            'Пятница',
+            'Суббота',
+        ];
+
+        $data = $request->validate([
+            'group_id'      => 'required|integer',
+            'study_day'     => 'required|string',
+            'lesson_number' => 'required|integer|min:1|max:5',
+            'subject_id'    => 'nullable|integer',
+            'teacher_id'    => 'nullable|integer',
+            'room_id'       => 'nullable|string|max:50',
+            'has_sub2'      => 'sometimes|boolean',
+            'subject_id_2'  => 'nullable|integer',
+            'teacher_id_2'  => 'nullable|integer',
+            'room_id_2'     => 'nullable|string|max:50',
+        ]);
+
+        if (!in_array($data['study_day'], $dayMap, true)) {
+            return response()->json(['message' => 'Некорректный день недели'], 422);
+        }
+
+        $groupId = $data['group_id'];
+        $day = $data['study_day'];
+        $lesson = $data['lesson_number'];
+        $hasSub2 = $request->boolean('has_sub2');
+
+        // Проверка занятости учителей
+        $teacherIdsToCheck = [];
+        if (!empty($data['teacher_id'])) {
+            $teacherIdsToCheck[] = $data['teacher_id'];
+        }
+        if ($hasSub2 && !empty($data['teacher_id_2'])) {
+            $teacherIdsToCheck[] = $data['teacher_id_2'];
+        }
+
+        if ($teacherIdsToCheck) {
+            $busy = DB::table('first_course_schedules')
+                ->where('study_day', $day)
+                ->where('lesson_number', $lesson)
+                ->where('group_id', '<>', $groupId)
+                ->where(function ($q) use ($teacherIdsToCheck) {
+                    $q->whereIn('teacher_id', $teacherIdsToCheck)
+                        ->orWhereIn('teacher_id_2', $teacherIdsToCheck);
+                })
+                ->exists();
+
+            if ($busy) {
+                return response()->json(['message' => 'Выбранный преподаватель занят в это время у другой группы'], 422);
+            }
+        }
+
+        DB::transaction(function () use ($groupId, $day, $lesson, $data, $hasSub2) {
+            DB::table('first_course_schedules')
+                ->where('group_id', $groupId)
+                ->where('study_day', $day)
+                ->where('lesson_number', $lesson)
+                ->delete();
+
+            $now = now();
+
+            $rows = [[
+                'study_day'     => $day,
+                'lesson_number' => $lesson,
+                'group_id'      => $groupId,
+                'subject_id'    => $data['subject_id'] ?? null,
+                'teacher_id'    => $data['teacher_id'] ?? null,
+                'room_id'       => $data['room_id'] ?? null,
+                'subgroup'      => '1',
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ]];
+
+            if ($hasSub2 && ($data['subject_id_2'] ?? null)) {
+                $rows[] = [
+                    'study_day'     => $day,
+                    'lesson_number' => $lesson,
+                    'group_id'      => $groupId,
+                    'subject_id'    => $data['subject_id_2'] ?? null,
+                    'teacher_id'    => $data['teacher_id_2'] ?? null,
+                    'room_id'       => $data['room_id_2'] ?? null,
+                    'subgroup'      => '2',
+                    'created_at'    => $now,
+                    'updated_at'    => $now,
+                ];
+            }
+
+            DB::table('first_course_schedules')->insert($rows);
+        });
+
+        return response()->json(['message' => 'Пара обновлена']);
+    }
+
+    /**
+     * Заглушка для второй формы.
+     */
+    public function formTwo()
+    {
+        return view('first_course.form_two');
     }
 }

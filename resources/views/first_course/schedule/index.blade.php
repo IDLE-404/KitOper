@@ -8,7 +8,10 @@
 
     <h2 class="mb-4">Расписание — 1 курс</h2>
 
-    <a href="{{ route('first.schedule.create') }}" class="btn btn-primary mb-3">Добавить запись</a>
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+        <a href="{{ route('first.schedule.create') }}" class="btn btn-primary">Добавить запись</a>
+        <a href="{{ route('first.schedule.week') }}" class="btn btn-outline-primary">Редактор недели</a>
+    </div>
 
     <table class="table table-bordered">
         <thead>

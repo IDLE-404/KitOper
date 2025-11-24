@@ -15,6 +15,11 @@
         <div>
             <h1 class="page-title">Расписание — 1 курс</h1>
             <p class="page-subtitle">Компактный обзор по всем группам</p>
+            <div class="mt-2">
+                <span class="pill {{ ($weekMode ?? 'num') === 'den' ? 'primary' : 'soft' }}">
+                    Сейчас: {{ ($weekMode ?? 'num') === 'den' ? 'знаменатель' : 'числитель' }}
+                </span>
+            </div>
         </div>
         <div class="action-buttons">
             <input type="search" id="groupSearch" class="search-input" placeholder="Поиск по группе или предмету">
@@ -44,7 +49,7 @@
                         @for($i = 1; $i <= 5; $i++)
                             @php $pair = $groupItems[$day][$i] ?? ['sub1'=>[], 'sub2'=>[]]; @endphp
                             @php
-                                $filled = !empty($pair['sub1']['subject']);
+                                $filled = !empty($pair['sub1']['active_subject']) || !empty($pair['sub1']['numerator_subject']) || !empty($pair['sub1']['denominator_subject']);
                             @endphp
                             <div class="grid-cell pair-cell {{ $filled ? 'filled' : 'empty' }}">
                                 <a href="#"
@@ -56,33 +61,70 @@
                                    data-subject1="{{ $pair['sub1']['subject_id'] ?? '' }}"
                                    data-teacher1="{{ $pair['sub1']['teacher_id'] ?? '' }}"
                                    data-room1="{{ $pair['sub1']['room'] ?? '' }}"
+                                   data-den-subject1="{{ $pair['sub1']['den_subject_id'] ?? '' }}"
+                                   data-den-teacher1="{{ $pair['sub1']['den_teacher_id'] ?? '' }}"
+                                   data-den-room1="{{ $pair['sub1']['den_room'] ?? '' }}"
                                    data-sub1="{{ $pair['sub1']['label'] ?? '' }}"
                                    data-has-sub2="{{ !empty($pair['sub2']) ? '1' : '0' }}"
                                    data-subject2="{{ $pair['sub2']['subject_id'] ?? '' }}"
                                    data-teacher2="{{ $pair['sub2']['teacher_id'] ?? '' }}"
                                    data-room2="{{ $pair['sub2']['room'] ?? '' }}"
+                                   data-den-subject2="{{ $pair['sub2']['den_subject_id'] ?? '' }}"
+                                   data-den-teacher2="{{ $pair['sub2']['den_teacher_id'] ?? '' }}"
+                                   data-den-room2="{{ $pair['sub2']['den_room'] ?? '' }}"
                                    data-sub2="{{ $pair['sub2']['label'] ?? '' }}"
                                    data-subject1-title="{{ $pair['sub1']['subject'] ?? '' }}"
                                    data-subject2-title="{{ $pair['sub2']['subject'] ?? '' }}"
                                 >✏️</a>
-                                <div class="cell-line">
-                                    <span class="cell-title">{{ $pair['sub1']['subject'] ?? '—' }}</span>
+                                @php $main = $pair['sub1'] ?? []; @endphp
+                                <div class="cell-line main-line">
+                                    <span class="pill {{ ($weekMode ?? 'num') === 'den' ? 'ghost' : 'primary' }}">{{ ($weekMode ?? 'num') === 'den' ? 'Знаменатель' : 'Числитель' }}</span>
+                                    <span class="cell-title emphasis">{{ $main['active_subject'] ?? '—' }}</span>
                                 </div>
                                 <div class="cell-meta">
-                                    <span class="pill"><span>👤</span>{{ $pair['sub1']['teacher'] ?? '—' }}</span>
-                                    <span class="pill"><span>🏫</span>{{ $pair['sub1']['room'] ?? '—' }}</span>
-                                    <span class="pill"><span>🔸</span>{{ $pair['sub1']['label'] ?? '—' }}</span>
+                                    <span class="pill"><span>👤</span>{{ $main['active_teacher'] ?? '—' }}</span>
+                                    <span class="pill"><span>🏫</span>{{ $main['active_room'] ?? '—' }}</span>
+                                    <span class="pill"><span>🔸</span>{{ $main['label'] ?? '—' }}</span>
                                 </div>
+                                @if(!empty($main['is_fraction']))
+                                    <div class="fraction-block">
+                                        <div class="fraction-line {{ ($weekMode ?? 'num') === 'num' ? 'active' : '' }}">
+                                            <span class="pill soft">Числитель</span>
+                                            <span class="fraction-text">{{ $main['numerator_subject'] ?? '—' }}</span>
+                                            <span class="pill tiny"><span>👤</span>{{ $main['numerator_teacher'] ?? '—' }}</span>
+                                        </div>
+                                        <div class="fraction-line {{ ($weekMode ?? 'num') === 'den' ? 'active' : '' }}">
+                                            <span class="pill soft">Знаменатель</span>
+                                            <span class="fraction-text">{{ $main['denominator_subject'] ?? '—' }}</span>
+                                            <span class="pill tiny"><span>👤</span>{{ $main['denominator_teacher'] ?? '—' }}</span>
+                                        </div>
+                                    </div>
+                                @endif
                                 @if(!empty($pair['sub2']))
-                                <div class="cell-line subpair-line">
-                                    <span class="label-sub">2 подгруппа</span>
-                                    <span class="cell-title sub2">{{ $pair['sub2']['subject'] ?? '—' }}</span>
-                                </div>
-                                <div class="cell-meta subpair">
-                                    <span class="pill"><span>👤</span>{{ $pair['sub2']['teacher'] ?? '—' }}</span>
-                                    <span class="pill"><span>🏫</span>{{ $pair['sub2']['room'] ?? '—' }}</span>
-                                    <span class="pill"><span>🔸</span>{{ $pair['sub2']['label'] ?? '—' }}</span>
-                                </div>
+                                    @php $sub2 = $pair['sub2']; @endphp
+                                    <div class="cell-line subpair-line">
+                                        <span class="label-sub">2 подгруппа</span>
+                                        <span class="cell-title sub2 emphasis">{{ $sub2['active_subject'] ?? '—' }}</span>
+                                    </div>
+                                    <div class="cell-meta subpair">
+                                        <span class="pill"><span>👤</span>{{ $sub2['active_teacher'] ?? '—' }}</span>
+                                        <span class="pill"><span>🏫</span>{{ $sub2['active_room'] ?? '—' }}</span>
+                                        <span class="pill"><span>🔸</span>{{ $sub2['label'] ?? '—' }}</span>
+                                    </div>
+                                    @if(!empty($sub2['is_fraction']))
+                                        <div class="fraction-block subpair">
+                                            <div class="fraction-line {{ ($weekMode ?? 'num') === 'num' ? 'active' : '' }}">
+                                                <span class="pill soft">Числитель</span>
+                                                <span class="fraction-text">{{ $sub2['numerator_subject'] ?? '—' }}</span>
+                                                <span class="pill tiny"><span>👤</span>{{ $sub2['numerator_teacher'] ?? '—' }}</span>
+                                            </div>
+                                            <div class="fraction-line {{ ($weekMode ?? 'num') === 'den' ? 'active' : '' }}">
+                                                <span class="pill soft">Знаменатель</span>
+                                                <span class="fraction-text">{{ $sub2['denominator_subject'] ?? '—' }}</span>
+                                                <span class="pill tiny"><span>👤</span>{{ $sub2['denominator_teacher'] ?? '—' }}</span>
+                                            </div>
+                                        </div>
+                                    @endif
                                 @endif
                             </div>
                         @endfor
@@ -108,11 +150,17 @@
     const subject1 = document.getElementById('modalSubject1');
     const teacher1 = document.getElementById('modalTeacher1');
     const room1 = document.getElementById('modalRoom1');
+    const subject1Den = document.getElementById('modalSubject1Den');
+    const teacher1Den = document.getElementById('modalTeacher1Den');
+    const room1Den = document.getElementById('modalRoom1Den');
 
     const toggleSub2 = document.getElementById('modalHasSub2');
     const subject2 = document.getElementById('modalSubject2');
     const teacher2 = document.getElementById('modalTeacher2');
     const room2 = document.getElementById('modalRoom2');
+    const subject2Den = document.getElementById('modalSubject2Den');
+    const teacher2Den = document.getElementById('modalTeacher2Den');
+    const room2Den = document.getElementById('modalRoom2Den');
     const sub2Block = document.getElementById('subgroup2Block');
 
     const hiddenGroup = document.getElementById('modalGroupId');
@@ -127,10 +175,16 @@
         subject1.value = data.subject1 || '';
         teacher1.value = data.teacher1 || '';
         room1.value = data.room1 || '';
+        subject1Den.value = data.denSubject1 || '';
+        teacher1Den.value = data.denTeacher1 || '';
+        room1Den.value = data.denRoom1 || '';
 
         subject2.value = data.subject2 || '';
         teacher2.value = data.teacher2 || '';
         room2.value = data.room2 || '';
+        subject2Den.value = data.denSubject2 || '';
+        teacher2Den.value = data.denTeacher2 || '';
+        room2Den.value = data.denRoom2 || '';
 
         toggleSub2.checked = data.hasSub2 === '1';
         sub2Block.classList.toggle('d-none', !toggleSub2.checked);
@@ -150,6 +204,9 @@
             subject2.value = '';
             teacher2.value = '';
             room2.value = '';
+            subject2Den.value = '';
+            teacher2Den.value = '';
+            room2Den.value = '';
         }
     });
 
@@ -287,6 +344,14 @@
     border-radius: 10px;
 }
 .d-none { display: none !important; }
+.main-line { align-items: center; gap: 8px; }
+.cell-title.emphasis { font-weight: 700; font-size: 16px; }
+.fraction-block { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; display: flex; flex-direction: column; gap: 6px; }
+.fraction-block.subpair { margin-top: 6px; }
+.fraction-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; border-radius: 8px; background: #f8fafc; }
+.fraction-line.active { background: #eef2ff; border: 1px solid #d0d7ff; }
+.fraction-text { font-weight: 600; }
+.pill.tiny { font-size: 12px; padding: 4px 7px; }
 </style>
 @endpush
 
@@ -329,6 +394,36 @@
             </div>
         </div>
 
+        <div class="mt-3">
+            <h6 class="text-muted">Знаменатель (чередующаяся неделя)</h6>
+            <div class="form-grid">
+                <div>
+                    <label class="form-label">Предмет</label>
+                    <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета" data-target="modalSubject1Den">
+                    <select class="form-select" name="den_subject_id" id="modalSubject1Den">
+                        <option value="">—</option>
+                        @foreach($subjects as $id => $title)
+                            <option value="{{ $id }}">{{ $title }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Преподаватель</label>
+                    <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher1Den">
+                    <select class="form-select" name="den_teacher_id" id="modalTeacher1Den">
+                        <option value="">—</option>
+                        @foreach($teachers as $id => $title)
+                            <option value="{{ $id }}">{{ $title }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Кабинет</label>
+                    <input type="text" class="form-control" name="den_room_id" id="modalRoom1Den" placeholder="101">
+                </div>
+            </div>
+        </div>
+
         <div class="form-check">
             <input class="form-check-input" type="checkbox" id="modalHasSub2" name="has_sub2" value="1">
             <label class="form-check-label" for="modalHasSub2">Добавить подгруппу 2</label>
@@ -359,6 +454,36 @@
                 <div>
                     <label class="form-label">Кабинет</label>
                     <input type="text" class="form-control" name="room_id_2" id="modalRoom2" placeholder="102">
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <h6 class="text-muted">Знаменатель (подгруппа 2)</h6>
+                <div class="form-grid">
+                    <div>
+                        <label class="form-label">Предмет</label>
+                        <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета" data-target="modalSubject2Den">
+                        <select class="form-select" name="den_subject_id_2" id="modalSubject2Den">
+                            <option value="">—</option>
+                            @foreach($subjects as $id => $title)
+                                <option value="{{ $id }}">{{ $title }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Преподаватель</label>
+                        <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher2Den">
+                        <select class="form-select" name="den_teacher_id_2" id="modalTeacher2Den">
+                            <option value="">—</option>
+                            @foreach($teachers as $id => $title)
+                                <option value="{{ $id }}">{{ $title }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Кабинет</label>
+                        <input type="text" class="form-control" name="den_room_id_2" id="modalRoom2Den" placeholder="102">
+                    </div>
                 </div>
             </div>
         </div>

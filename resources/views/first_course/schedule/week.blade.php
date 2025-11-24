@@ -49,9 +49,9 @@
                         <thead>
                             <tr>
                                 <th style="width:80px;">№ пары</th>
-                                <th>Предмет</th>
-                                <th>Преподаватель</th>
-                                <th style="width:140px;">Аудитория</th>
+                                <th>Предмет (ч/з)</th>
+                                <th>Преподаватель (ч/з)</th>
+                                <th style="width:160px;">Аудитория (ч/з)</th>
                                 <th style="width:140px;">Подгруппа</th>
                             </tr>
                         </thead>
@@ -64,25 +64,58 @@
                                 <tr>
                                     <td><span class="pill-badge">{{ $pair }}</span></td>
                                     <td>
-                                        <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#subj-{{ $dayKey }}-{{ $pair }}-a">
-                                        <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id]">
-                                            <option value="">Выберите предмет</option>
-                                            @foreach($subjects as $s)
-                                                <option value="{{ $s->id }}" @selected($rowA && $rowA->subject_id == $s->id)>{{ $s->name_ru ?? $s->subject_name }}</option>
-                                            @endforeach
-                                        </select>
+                                        <div class="mb-3">
+                                            <div class="text-muted small mb-1">Числитель</div>
+                                            <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#subj-{{ $dayKey }}-{{ $pair }}-a">
+                                            <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id]">
+                                                <option value="">Выберите предмет</option>
+                                                @foreach($subjects as $s)
+                                                    <option value="{{ $s->id }}" @selected($rowA && $rowA->subject_id == $s->id)>{{ $s->name_ru ?? $s->subject_name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <div class="text-muted small mb-1">Знаменатель</div>
+                                            <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#subj-{{ $dayKey }}-{{ $pair }}-a-den">
+                                            <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-a-den" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_denominator]">
+                                                <option value="">Если предмет чередуется</option>
+                                                @foreach($subjects as $s)
+                                                    <option value="{{ $s->id }}" @selected($rowA && ($rowA->subject_id_denominator ?? null) == $s->id)>{{ $s->name_ru ?? $s->subject_name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </td>
                                     <td>
-                                        <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-a">
-                                        <select class="select-soft filterable" id="teach-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id]">
-                                            <option value="">Выберите преподавателя</option>
-                                            @foreach($teachers as $t)
-                                                <option value="{{ $t->id }}" @selected($rowA && $rowA->teacher_id == $t->id)>{{ $t->teacher_name }}</option>
-                                            @endforeach
-                                        </select>
+                                        <div class="mb-3">
+                                            <div class="text-muted small mb-1">Числитель</div>
+                                            <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-a">
+                                            <select class="select-soft filterable" id="teach-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id]">
+                                                <option value="">Выберите преподавателя</option>
+                                                @foreach($teachers as $t)
+                                                    <option value="{{ $t->id }}" @selected($rowA && $rowA->teacher_id == $t->id)>{{ $t->teacher_name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <div class="text-muted small mb-1">Знаменатель</div>
+                                            <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-a-den">
+                                            <select class="select-soft filterable" id="teach-{{ $dayKey }}-{{ $pair }}-a-den" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_denominator]">
+                                                <option value="">Можно выбрать другого преподавателя</option>
+                                                @foreach($teachers as $t)
+                                                    <option value="{{ $t->id }}" @selected($rowA && ($rowA->teacher_id_denominator ?? null) == $t->id)>{{ $t->teacher_name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </td>
                                     <td>
-                                        <input type="text" class="input-soft" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id]" value="{{ $rowA->room_id ?? '' }}" placeholder="Каб. 301">
+                                        <div class="mb-3">
+                                            <div class="text-muted small mb-1">Числитель</div>
+                                            <input type="text" class="input-soft" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id]" value="{{ $rowA->room_id ?? '' }}" placeholder="Каб. 301">
+                                        </div>
+                                        <div>
+                                            <div class="text-muted small mb-1">Знаменатель</div>
+                                            <input type="text" class="input-soft" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_denominator]" value="{{ $rowA->room_id_denominator ?? '' }}" placeholder="Если аудитория меняется">
+                                        </div>
                                     </td>
                                     <td>
                                         <div class="d-flex align-items-center gap-2 mb-2">
@@ -98,25 +131,58 @@
                                 <tr class="subgroup-row {{ $rowB ? '' : 'd-none' }}" data-split="split-{{ $dayKey }}-{{ $pair }}">
                                     <td><span class="pill-badge sub">2</span></td>
                                     <td>
-                                        <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#subj-{{ $dayKey }}-{{ $pair }}-b">
-                                        <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_second]">
-                                            <option value="">Предмет подгруппы 2</option>
-                                            @foreach($subjects as $s)
-                                                <option value="{{ $s->id }}" @selected($rowB && $rowB->subject_id == $s->id)>{{ $s->name_ru ?? $s->subject_name }}</option>
-                                            @endforeach
-                                        </select>
+                                        <div class="mb-3">
+                                            <div class="text-muted small mb-1">Числитель</div>
+                                            <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#subj-{{ $dayKey }}-{{ $pair }}-b">
+                                            <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_second]">
+                                                <option value="">Предмет подгруппы 2</option>
+                                                @foreach($subjects as $s)
+                                                    <option value="{{ $s->id }}" @selected($rowB && $rowB->subject_id == $s->id)>{{ $s->name_ru ?? $s->subject_name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <div class="text-muted small mb-1">Знаменатель</div>
+                                            <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#subj-{{ $dayKey }}-{{ $pair }}-b-den">
+                                            <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-b-den" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_second_denominator]">
+                                                <option value="">Если предмет чередуется</option>
+                                                @foreach($subjects as $s)
+                                                    <option value="{{ $s->id }}" @selected($rowB && ($rowB->subject_id_denominator ?? null) == $s->id)>{{ $s->name_ru ?? $s->subject_name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </td>
                                     <td>
-                                        <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-b">
-                                        <select class="select-soft filterable" id="teach-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_second]">
-                                            <option value="">Преподаватель 2 (опционально)</option>
-                                            @foreach($teachers as $t)
-                                                <option value="{{ $t->id }}" @selected($rowB && $rowB->teacher_id == $t->id)>{{ $t->teacher_name }}</option>
-                                            @endforeach
-                                        </select>
+                                        <div class="mb-3">
+                                            <div class="text-muted small mb-1">Числитель</div>
+                                            <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-b">
+                                            <select class="select-soft filterable" id="teach-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_second]">
+                                                <option value="">Преподаватель 2 (опционально)</option>
+                                                @foreach($teachers as $t)
+                                                    <option value="{{ $t->id }}" @selected($rowB && $rowB->teacher_id == $t->id)>{{ $t->teacher_name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <div class="text-muted small mb-1">Знаменатель</div>
+                                            <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-b-den">
+                                            <select class="select-soft filterable" id="teach-{{ $dayKey }}-{{ $pair }}-b-den" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_second_denominator]">
+                                                <option value="">Можно выбрать другого преподавателя</option>
+                                                @foreach($teachers as $t)
+                                                    <option value="{{ $t->id }}" @selected($rowB && ($rowB->teacher_id_denominator ?? null) == $t->id)>{{ $t->teacher_name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </td>
                                     <td>
-                                        <input type="text" class="input-soft" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_second]" value="{{ $rowB->room_id ?? '' }}" placeholder="Каб. 302">
+                                        <div class="mb-3">
+                                            <div class="text-muted small mb-1">Числитель</div>
+                                            <input type="text" class="input-soft" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_second]" value="{{ $rowB->room_id ?? '' }}" placeholder="Каб. 302">
+                                        </div>
+                                        <div>
+                                            <div class="text-muted small mb-1">Знаменатель</div>
+                                            <input type="text" class="input-soft" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_second_denominator]" value="{{ $rowB->room_id_denominator ?? '' }}" placeholder="Если аудитория меняется">
+                                        </div>
                                     </td>
                                     <td class="text-muted">Подгруппа 2</td>
                                 </tr>

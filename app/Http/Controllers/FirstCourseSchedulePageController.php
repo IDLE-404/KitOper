@@ -12,6 +12,13 @@ class FirstCourseSchedulePageController extends Controller
      */
     public function index()
     {
+        $weekMode = request()->get('week_mode');
+        $isDenominatorWeek = match ($weekMode) {
+            'den', 'denominator' => true,
+            'num', 'numerator' => false,
+            default => now()->isoWeek() % 2 === 0,
+        };
+
         $subjects = DB::table('first_course_subjects')
             ->select('id', DB::raw('COALESCE(name_ru, subject_name) as title'))
             ->pluck('title', 'id');
@@ -29,14 +36,35 @@ class FirstCourseSchedulePageController extends Controller
 
         $schedule = [];
 
-        $addSub = function (&$pair, $slot, $subjectId, $teacherId, $roomId, $label) use ($subjects, $teachers) {
+        $addSub = function (
+            &$pair,
+            $slot,
+            $subjectId,
+            $teacherId,
+            $roomId,
+            $label,
+            $denSubjectId = null,
+            $denTeacherId = null,
+            $denRoomId = null
+        ) use ($subjects, $teachers, $isDenominatorWeek) {
             $pair["sub{$slot}"] = [
                 'subject' => $subjectId ? ($subjects[$subjectId] ?? '—') : null,
                 'subject_id' => $subjectId,
                 'teacher' => $teacherId ? ($teachers[$teacherId] ?? '—') : null,
                 'teacher_id' => $teacherId,
                 'room'    => $roomId ?: null,
+                'den_subject' => $denSubjectId ? ($subjects[$denSubjectId] ?? '—') : null,
+                'den_subject_id' => $denSubjectId,
+                'den_teacher' => $denTeacherId ? ($teachers[$denTeacherId] ?? '—') : null,
+                'den_teacher_id' => $denTeacherId,
+                'den_room'    => $denRoomId ?: null,
                 'label'   => $label ?: (string)$slot,
+                'active_subject' => $isDenominatorWeek && $denSubjectId ? ($subjects[$denSubjectId] ?? '—') : ($subjectId ? ($subjects[$subjectId] ?? '—') : null),
+                'active_subject_id' => $isDenominatorWeek && $denSubjectId ? $denSubjectId : $subjectId,
+                'active_teacher' => $isDenominatorWeek && $denTeacherId ? ($teachers[$denTeacherId] ?? '—') : ($teacherId ? ($teachers[$teacherId] ?? '—') : null),
+                'active_teacher_id' => $isDenominatorWeek && $denTeacherId ? $denTeacherId : $teacherId,
+                'active_room' => $isDenominatorWeek && $denRoomId ? $denRoomId : ($roomId ?: null),
+                'active_label' => $isDenominatorWeek && ($denSubjectId || $denTeacherId || $denRoomId) ? 'Знаменатель' : 'Числитель',
             ];
         };
 
@@ -63,11 +91,28 @@ class FirstCourseSchedulePageController extends Controller
 
             // Подгруппа из строки
             $slotFromRow = $row->subgroup === '2' ? 2 : 1;
-            $addSub($schedule[$groupId]['days'][$day][$lesson], $slotFromRow, $row->subject_id, $row->teacher_id, $row->room_id, $row->subgroup);
+            $addSub(
+                $schedule[$groupId]['days'][$day][$lesson],
+                $slotFromRow,
+                $row->subject_id,
+                $row->teacher_id,
+                $row->room_id,
+                $row->subgroup,
+                $row->subject_id_denominator ?? null,
+                $row->teacher_id_denominator ?? null,
+                $row->room_id_denominator ?? null
+            );
 
             // Данные второй подгруппы в той же строке
             if ($row->subject_id_2 || $row->teacher_id_2 || $row->room_id_2) {
-                $addSub($schedule[$groupId]['days'][$day][$lesson], 2, $row->subject_id_2, $row->teacher_id_2, $row->room_id_2, '2');
+                $addSub(
+                    $schedule[$groupId]['days'][$day][$lesson],
+                    2,
+                    $row->subject_id_2,
+                    $row->teacher_id_2,
+                    $row->room_id_2,
+                    '2'
+                );
             }
         }
 
@@ -75,6 +120,7 @@ class FirstCourseSchedulePageController extends Controller
             'schedule' => $schedule,
             'subjects' => $subjects,
             'teachers' => $teachers,
+            'weekMode' => $isDenominatorWeek ? 'denominator' : 'numerator',
         ]);
     }
 
@@ -119,6 +165,12 @@ class FirstCourseSchedulePageController extends Controller
             'subject_id_second' => 'required_if:has_subgroups,1|integer|nullable',
             'teacher_id_second' => 'nullable|integer',
             'room_id_second'    => 'nullable|integer',
+            'subject_id_denominator' => 'nullable|integer',
+            'teacher_id_denominator' => 'nullable|integer',
+            'room_id_denominator'    => 'nullable|integer',
+            'subject_id_second_denominator' => 'nullable|integer',
+            'teacher_id_second_denominator' => 'nullable|integer',
+            'room_id_second_denominator'    => 'nullable|integer',
         ]);
 
         $hasSubgroups = $request->boolean('has_subgroups');
@@ -138,6 +190,9 @@ class FirstCourseSchedulePageController extends Controller
         $rows[] = array_merge($base, [
             'subject_id' => $validated['subject_id'] ?? null,
             'subgroup'   => $hasSubgroups ? '1' : null,
+            'subject_id_denominator' => $validated['subject_id_denominator'] ?? null,
+            'teacher_id_denominator' => $validated['teacher_id_denominator'] ?? null,
+            'room_id_denominator'    => $validated['room_id_denominator'] ?? null,
         ]);
 
         if ($hasSubgroups && !empty($validated['subject_id_second'])) {
@@ -146,6 +201,9 @@ class FirstCourseSchedulePageController extends Controller
                 'teacher_id' => $validated['teacher_id_second'] ?? $validated['teacher_id'] ?? null,
                 'room_id'    => $validated['room_id_second'] ?? $validated['room_id'] ?? null,
                 'subgroup'   => '2',
+                'subject_id_denominator' => $validated['subject_id_second_denominator'] ?? null,
+                'teacher_id_denominator' => $validated['teacher_id_second_denominator'] ?? null,
+                'room_id_denominator'    => $validated['room_id_second_denominator'] ?? null,
             ]);
         }
 
@@ -253,9 +311,21 @@ class FirstCourseSchedulePageController extends Controller
                 $subjectSecond = $row['subject_id_second'] ?? null;
                 $teacherSecond = $row['teacher_id_second'] ?? null;
                 $roomSecond = $row['room_id_second'] ?? null;
+                $subjectDenominator = $row['subject_id_denominator'] ?? null;
+                $teacherDenominator = $row['teacher_id_denominator'] ?? null;
+                $roomDenominator = $row['room_id_denominator'] ?? null;
+                $subjectSecondDenominator = $row['subject_id_second_denominator'] ?? null;
+                $teacherSecondDenominator = $row['teacher_id_second_denominator'] ?? null;
+                $roomSecondDenominator = $row['room_id_second_denominator'] ?? null;
 
                 // Если вообще нет данных по строке — пропускаем
-                if (!$subjectId && !$subjectSecond && !$teacherId && !$teacherSecond && !$roomId && !$roomSecond) {
+                if (
+                    !$subjectId && !$subjectSecond && !$teacherId && !$teacherSecond
+                    && !$roomId && !$roomSecond
+                    && !$subjectDenominator && !$subjectSecondDenominator
+                    && !$teacherDenominator && !$teacherSecondDenominator
+                    && !$roomDenominator && !$roomSecondDenominator
+                ) {
                     continue;
                 }
 
@@ -265,6 +335,9 @@ class FirstCourseSchedulePageController extends Controller
                     'group_id'      => $groupId,
                     'room_id'       => $roomId ?: null,
                     'teacher_id'    => $teacherId ?: null,
+                    'subject_id_denominator' => $subjectDenominator ?: null,
+                    'teacher_id_denominator' => $teacherDenominator ?: null,
+                    'room_id_denominator'    => $roomDenominator ?: null,
                     'created_at'    => $now,
                     'updated_at'    => $now,
                 ];
@@ -280,6 +353,9 @@ class FirstCourseSchedulePageController extends Controller
                         'teacher_id' => $teacherSecond ?: $teacherId ?: null,
                         'room_id'    => $roomSecond ?: $roomId ?: null,
                         'subgroup'   => '2',
+                        'subject_id_denominator' => $subjectSecondDenominator ?: null,
+                        'teacher_id_denominator' => $teacherSecondDenominator ?: null,
+                        'room_id_denominator'    => $roomSecondDenominator ?: null,
                     ]);
                 }
             }
@@ -327,6 +403,12 @@ class FirstCourseSchedulePageController extends Controller
             'subject_id_2'  => 'nullable|integer',
             'teacher_id_2'  => 'nullable|integer',
             'room_id_2'     => 'nullable|string|max:50',
+            'den_subject_id'   => 'nullable|integer',
+            'den_teacher_id'   => 'nullable|integer',
+            'den_room_id'      => 'nullable|string|max:50',
+            'den_subject_id_2' => 'nullable|integer',
+            'den_teacher_id_2' => 'nullable|integer',
+            'den_room_id_2'    => 'nullable|string|max:50',
         ]);
 
         if (!in_array($data['study_day'], $dayMap, true)) {
@@ -339,13 +421,14 @@ class FirstCourseSchedulePageController extends Controller
         $hasSub2 = $request->boolean('has_sub2');
 
         // Проверка занятости учителей
-        $teacherIdsToCheck = [];
-        if (!empty($data['teacher_id'])) {
-            $teacherIdsToCheck[] = $data['teacher_id'];
-        }
-        if ($hasSub2 && !empty($data['teacher_id_2'])) {
-            $teacherIdsToCheck[] = $data['teacher_id_2'];
-        }
+        $possibleTeachers = [
+            $data['teacher_id'] ?? null,
+            $data['teacher_id_2'] ?? null,
+            $data['den_teacher_id'] ?? null,
+            $data['den_teacher_id_2'] ?? null,
+        ];
+
+        $teacherIdsToCheck = array_values(array_filter($possibleTeachers));
 
         if ($teacherIdsToCheck) {
             $busy = DB::table('first_course_schedules')
@@ -354,7 +437,8 @@ class FirstCourseSchedulePageController extends Controller
                 ->where('group_id', '<>', $groupId)
                 ->where(function ($q) use ($teacherIdsToCheck) {
                     $q->whereIn('teacher_id', $teacherIdsToCheck)
-                        ->orWhereIn('teacher_id_2', $teacherIdsToCheck);
+                        ->orWhereIn('teacher_id_2', $teacherIdsToCheck)
+                        ->orWhereIn('teacher_id_denominator', $teacherIdsToCheck);
                 })
                 ->exists();
 
@@ -380,6 +464,9 @@ class FirstCourseSchedulePageController extends Controller
                 'teacher_id'    => $data['teacher_id'] ?? null,
                 'room_id'       => $data['room_id'] ?? null,
                 'subgroup'      => '1',
+                'subject_id_denominator' => $data['den_subject_id'] ?? null,
+                'teacher_id_denominator' => $data['den_teacher_id'] ?? null,
+                'room_id_denominator'    => $data['den_room_id'] ?? null,
                 'created_at'    => $now,
                 'updated_at'    => $now,
             ]];
@@ -393,6 +480,9 @@ class FirstCourseSchedulePageController extends Controller
                     'teacher_id'    => $data['teacher_id_2'] ?? null,
                     'room_id'       => $data['room_id_2'] ?? null,
                     'subgroup'      => '2',
+                    'subject_id_denominator' => $data['den_subject_id_2'] ?? null,
+                    'teacher_id_denominator' => $data['den_teacher_id_2'] ?? null,
+                    'room_id_denominator'    => $data['den_room_id_2'] ?? null,
                     'created_at'    => $now,
                     'updated_at'    => $now,
                 ];

@@ -51,6 +51,16 @@
                 @endforeach
             </select>
         </div>
+        <div class="mb-3">
+            <label class="form-label">Предмет (знаменатель)</label>
+            <input type="search" class="form-control mb-2 filter-input" data-target="#subjectSelect1Den" placeholder="Поиск предмета">
+            <select name="subject_id_denominator" id="subjectSelect1Den" class="form-select filterable">
+                <option value="">— если пары чередуются</option>
+                @foreach($subjects as $s)
+                    <option value="{{ $s->id }}">{{ $s->name_ru ?? $s->subject_name }}</option>
+                @endforeach
+            </select>
+        </div>
 
         <div class="mb-3">
             <label class="form-label">Преподаватель</label>
@@ -62,10 +72,24 @@
                 @endforeach
             </select>
         </div>
+        <div class="mb-3">
+            <label class="form-label">Преподаватель (знаменатель)</label>
+            <input type="search" class="form-control mb-2 filter-input" data-target="#teacherSelect1Den" placeholder="Поиск преподавателя">
+            <select name="teacher_id_denominator" id="teacherSelect1Den" class="form-select filterable">
+                <option value="">— если нужен другой преподаватель</option>
+                @foreach($teachers as $t)
+                    <option value="{{ $t->id }}">{{ $t->teacher_name }}</option>
+                @endforeach
+            </select>
+        </div>
 
         <div class="mb-3">
             <label class="form-label">Аудитория</label>
             <input type="number" name="room_id" class="form-control" placeholder="Например, 32">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Аудитория (знаменатель)</label>
+            <input type="number" name="room_id_denominator" class="form-control" placeholder="Если аудитория другая">
         </div>
 
         <div class="form-check form-switch mb-3">
@@ -93,8 +117,22 @@
                 </select>
             </div>
             <div class="mt-3">
+                <label class="form-label">Преподаватель (знаменатель, подгруппа 2)</label>
+                <input type="search" class="form-control mb-2 filter-input" data-target="#teacherSelect2Den" placeholder="Поиск преподавателя">
+                <select name="teacher_id_second_denominator" id="teacherSelect2Den" class="form-select filterable">
+                    <option value="">— опционально для второй недели</option>
+                    @foreach($teachers as $t)
+                        <option value="{{ $t->id }}">{{ $t->teacher_name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="mt-3">
                 <label class="form-label">Аудитория (подгруппа 2)</label>
                 <input type="number" name="room_id_second" class="form-control" placeholder="Например, 33">
+            </div>
+            <div class="mt-3">
+                <label class="form-label">Аудитория (знаменатель, подгруппа 2)</label>
+                <input type="number" name="room_id_second_denominator" class="form-control" placeholder="Если аудитория меняется">
             </div>
             <small class="text-muted">Будут созданы две записи: для подгруппы A (основной предмет) и B (этот предмет/преподаватель/аудитория).</small>
         </div>

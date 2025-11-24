@@ -405,16 +405,136 @@ class FirstCourseSchedulePageController extends Controller
     }
 
     /**
-     * Заглушка для второй формы.
+     * Форма 2: отображение таблицы.
      */
-    public function formTwo()
+    public function showFormTwo(Request $request)
     {
+        $month = (int) ($request->input('month') ?? 9);
+        if ($month < 1 || $month > 12) {
+            $month = 9;
+        }
+
+        $currentYear = now()->year;
+        $year = (int) ($request->input('year') ?? $currentYear);
+        if ($year < 2000 || $year > 2100) {
+            $year = $currentYear;
+        }
+
+        /** @var \App\Services\FormTwoExcelService $parser */
+        $parser = app(\App\Services\FormTwoExcelService::class);
+        $parsed = $parser->parse($month, $year);
+
         $groups = DB::table('first_course_group')->orderBy('group_name')->get();
-        $days = range(1, 30);
+        $allowedSubjects = [
+            'Русский язык',
+            'Русская литература',
+            'Казахский язык и литература',
+            'Иностранный язык',
+            'Математика',
+            'Информатика',
+            'История Казахстана',
+            'Физическая культура',
+            'Начальная военная и технологическая подготовка',
+            'Физика',
+            'Химия',
+            'Биология',
+            'География',
+            'Графика и проектирование',
+            'Всемирная история',
+        ];
+
+        $subjects = DB::table('first_course_subjects')
+            ->whereIn('subject_name', $allowedSubjects)
+            ->orWhereIn('name_ru', $allowedSubjects)
+            ->orderByRaw(
+                'FIELD(subject_name, ' . implode(',', array_fill(0, count($allowedSubjects), '?')) . ')',
+                $allowedSubjects
+            )
+            ->get(['id', 'subject_name', 'name_ru']);
+
+        $teachers = DB::table('frist_course_teachers')
+            ->orderBy('teacher_name')
+            ->get(['id', 'teacher_name']);
+
+        $selectedGroupId = $request->input('group_id');
+        if (!$selectedGroupId && $groups->count()) {
+            $selectedGroupId = $groups->first()->id;
+        }
+
+        $selectedGroupName = optional($groups->firstWhere('id', $selectedGroupId))->group_name;
+
+        $groupData = ['subjects' => []];
+        if ($selectedGroupName && isset($parsed['groups'][$selectedGroupName])) {
+            $groupData = $parsed['groups'][$selectedGroupName];
+        } elseif ($subjects->count()) {
+            // Fallback: заполнить предметы из first_course_subjects без расписания
+            $groupData['subjects'] = $subjects->map(function ($s) {
+                return [
+                    'subject' => $s->subject_name ?? $s->name_ru ?? '',
+                    'teacher' => '—',
+                    'total_hours' => 0,
+                    'used_hours' => 0,
+                    'hours_left' => 0,
+                    'hours_per_class' => 2,
+                    'days' => [],
+                ];
+            })->all();
+        }
+
+        $days = $parsed['days'] ?? range(1, 30);
+        $replacements = $selectedGroupName && isset($parsed['replacements'][$selectedGroupName])
+            ? $parsed['replacements'][$selectedGroupName]
+            : [];
+        $teachersSummary = $parsed['teachers'] ?? [];
 
         return view('first_course.form_two', [
             'groups' => $groups,
             'days' => $days,
+            'selectedGroupId' => $selectedGroupId,
+            'subjectRows' => $groupData['subjects'] ?? [],
+            'month' => $month,
+            'year' => $year,
+            'currentYear' => $currentYear,
+            'replacements' => $replacements,
+            'teachersSummary' => $teachersSummary,
+            'selectedGroupName' => $selectedGroupName,
+            'teachers' => $teachers,
         ]);
+    }
+
+    /**
+     * Форма 2: временное сохранение (JSON).
+     */
+    public function saveFormTwo(Request $request)
+    {
+        $payload = $request->validate([
+            'month' => 'required|integer|min:1|max:12',
+            'year' => 'required|integer|min:2000|max:2100',
+            'group_id' => 'required|integer',
+            'data' => 'required|string',
+        ]);
+
+        $decoded = json_decode($payload['data'], true);
+        if (!is_array($decoded)) {
+            return back()->withErrors(['data' => 'Некорректный формат данных']);
+        }
+
+        $store = storage_path('app/form_two_state.json');
+        $current = [];
+        if (is_file($store)) {
+            $current = json_decode(file_get_contents($store), true) ?: [];
+        }
+
+        $key = "{$payload['year']}-{$payload['month']}-{$payload['group_id']}";
+        $current[$key] = $decoded;
+        file_put_contents($store, json_encode($current, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+        return redirect()
+            ->route('first.schedule.form_two', [
+                'group_id' => $payload['group_id'],
+                'month' => $payload['month'],
+                'year' => $payload['year'],
+            ])
+            ->with('success', 'Изменения сохранены (временное хранилище)');
     }
 }

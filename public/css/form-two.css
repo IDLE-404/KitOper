@@ -109,12 +109,67 @@ body {
 .col-day { width: 32px; }
 .col-total, .col-left { width: 90px; }
 
-.day-cell { background: #fff; }
-.day-cell.green { background: var(--green); }
-.day-cell.yellow { background: var(--yellow); }
+.day-cell { background: #fff; vertical-align: middle; padding: 4px; }
+.day-cell.yellow { background: #fff3cd; }
 .day-cell span.red { color: var(--red); font-weight: 700; }
 .editable { text-align: left; }
 
 .total-row td { font-weight: 700; background: #f1f5f9; }
 
 .form2-table tbody tr:hover td { background: #f8fafc; }
+
+.replacements-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.replacement-row {
+    display: grid;
+    grid-template-columns: 50px 1fr 1fr 24px 1fr 80px;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.pill {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #4338ca;
+    font-weight: 700;
+}
+
+.replacement-subject { font-weight: 700; }
+.replacement-teacher { font-weight: 700; color: #0f172a; }
+.hours { font-weight: 700; }
+.arrow { font-weight: 700; text-align: center; }
+
+.cell-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cell-status,
+.cell-replacement {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+    background: #fff;
+}
+
+.sticky {
+    position: sticky;
+    left: 0;
+    background: #fff;
+    z-index: 2;
+}

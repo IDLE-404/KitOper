@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Хост: db
--- Время создания: Ноя 24 2025 г., 05:54
+-- Время создания: Ноя 24 2025 г., 07:27
 -- Версия сервера: 8.0.43
 -- Версия PHP: 8.3.26
 
@@ -217,11 +217,29 @@ CREATE TABLE `frist_course_form2_subjects` (
   `id` bigint UNSIGNED NOT NULL,
   `group_id` bigint UNSIGNED NOT NULL,
   `subject_id` bigint UNSIGNED NOT NULL,
-  `teacher_id` bigint UNSIGNED NOT NULL,
+  `teacher_id` bigint UNSIGNED DEFAULT NULL,
   `total_hours` int DEFAULT '0',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Дамп данных таблицы `frist_course_form2_subjects`
+--
+
+INSERT INTO `frist_course_form2_subjects` (`id`, `group_id`, `subject_id`, `teacher_id`, `total_hours`, `created_at`, `updated_at`) VALUES
+(1, 1, 1, NULL, 62, '2025-11-24 07:26:44', '2025-11-24 07:26:44'),
+(2, 1, 2, NULL, 44, '2025-11-24 07:26:44', '2025-11-24 07:26:44'),
+(3, 1, 3, NULL, 62, '2025-11-24 07:26:44', '2025-11-24 07:26:44'),
+(4, 1, 4, NULL, 44, '2025-11-24 07:26:44', '2025-11-24 07:26:44'),
+(5, 1, 5, NULL, 80, '2025-11-24 07:26:44', '2025-11-24 07:26:44'),
+(6, 1, 6, NULL, 40, '2025-11-24 07:26:44', '2025-11-24 07:26:44'),
+(7, 1, 7, NULL, 34, '2025-11-24 07:26:44', '2025-11-24 07:26:44'),
+(8, 1, 8, NULL, 60, '2025-11-24 07:26:44', '2025-11-24 07:26:44'),
+(9, 1, 10, NULL, 44, '2025-11-24 07:26:44', '2025-11-24 07:26:44'),
+(10, 1, 11, NULL, 62, '2025-11-24 07:26:44', '2025-11-24 07:26:44'),
+(11, 1, 12, NULL, 50, '2025-11-24 07:26:44', '2025-11-24 07:26:44'),
+(12, 1, 13, NULL, 32, '2025-11-24 07:26:44', '2025-11-24 07:26:44');
 
 -- --------------------------------------------------------
 
@@ -411,8 +429,7 @@ CREATE TABLE `sessions` (
 --
 
 INSERT INTO `sessions` (`id`, `user_id`, `ip_address`, `user_agent`, `payload`, `last_activity`) VALUES
-('9J8cv5P06W0KPfT7RsOMNgaMAJErajaQRSiRiMyo', NULL, '172.31.0.1', 'Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0', 'YTozOntzOjY6Il90b2tlbiI7czo0MDoiTGtkTnBGeFNDNlNTTUR4SnBRVG9yakFneDRpd3I2c2NUNWU0T3dRRiI7czo5OiJfcHJldmlvdXMiO2E6Mjp7czozOiJ1cmwiO3M6NDM6Imh0dHA6Ly9sb2NhbGhvc3Q6ODAwMC9maXJzdC1jb3Vyc2UvZm9ybS10d28iO3M6NToicm91dGUiO3M6MjM6ImZpcnN0LnNjaGVkdWxlLmZvcm1fdHdvIjt9czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319fQ==', 1763933765),
-('b1kHNglf98s9IayeX6fNd7y3kgEomA3Vt8rbhdCc', NULL, '172.31.0.1', 'Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0', 'YTozOntzOjY6Il90b2tlbiI7czo0MDoiVEp0dmVVZ2M0d2YxZmRwSEpjelV3aUlNNk9OWVpNZDVtTUd3OUFhQSI7czo5OiJfcHJldmlvdXMiO2E6Mjp7czozOiJ1cmwiO3M6MjE6Imh0dHA6Ly9sb2NhbGhvc3Q6ODAwMCI7czo1OiJyb3V0ZSI7czo0OiJob21lIjt9czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319fQ==', 1763961028);
+('b1kHNglf98s9IayeX6fNd7y3kgEomA3Vt8rbhdCc', NULL, '172.31.0.1', 'Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0', 'YTozOntzOjY6Il90b2tlbiI7czo0MDoiVEp0dmVVZ2M0d2YxZmRwSEpjelV3aUlNNk9OWVpNZDVtTUd3OUFhQSI7czo5OiJfcHJldmlvdXMiO2E6Mjp7czozOiJ1cmwiO3M6NDM6Imh0dHA6Ly9sb2NhbGhvc3Q6ODAwMC9maXJzdC1jb3Vyc2UvZm9ybS10d28iO3M6NToicm91dGUiO3M6MjM6ImZpcnN0LnNjaGVkdWxlLmZvcm1fdHdvIjt9czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319fQ==', 1763969219);
 
 -- --------------------------------------------------------
 
@@ -568,7 +585,7 @@ ALTER TABLE `first_course_subjects`
 -- AUTO_INCREMENT для таблицы `frist_course_form2_subjects`
 --
 ALTER TABLE `frist_course_form2_subjects`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT для таблицы `jobs`

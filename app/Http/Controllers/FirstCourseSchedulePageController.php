@@ -409,6 +409,12 @@ class FirstCourseSchedulePageController extends Controller
      */
     public function formTwo()
     {
-        return view('first_course.form_two');
+        $groups = DB::table('first_course_group')->orderBy('group_name')->get();
+        $days = range(1, 30);
+
+        return view('first_course.form_two', [
+            'groups' => $groups,
+            'days' => $days,
+        ]);
     }
 }

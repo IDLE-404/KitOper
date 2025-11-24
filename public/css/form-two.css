@@ -81,7 +81,7 @@ body {
 }
 
 .form2-table {
-    width: 100%;
+    width: max-content;
     border-collapse: collapse;
     font-size: 13px;
     color: var(--text);
@@ -109,9 +109,26 @@ body {
 .col-day { width: 32px; }
 .col-total, .col-left { width: 90px; }
 
-.day-cell { background: #fff; vertical-align: middle; padding: 4px; }
+.day-cell {
+    background: #fff;
+    vertical-align: middle;
+    padding: 4px;
+    min-width: 40px;
+    height: 40px;
+    width: 40px;
+    box-sizing: border-box;
+    position: relative;
+    border-radius: 8px;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+.day-cell:hover {
+    transform: scale(1.03);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: #cbd5e1;
+}
 .day-cell.yellow { background: #fff3cd; }
-.day-cell span.red { color: var(--red); font-weight: 700; }
+.day-cell span.red { color: var(--red); font-weight: 800; font-size: 16px; }
+.day-cell span { font-size: 16px; font-weight: 600; }
 .editable { text-align: left; }
 
 .total-row td { font-weight: 700; background: #f1f5f9; }
@@ -155,6 +172,8 @@ body {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    align-items: center;
+    justify-content: center;
 }
 
 .cell-status,
@@ -162,14 +181,8 @@ body {
     width: 100%;
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 6px 8px;
-    font-size: 13px;
+    padding: 10px 12px;
+    font-size: 14px;
     background: #fff;
-}
-
-.sticky {
-    position: sticky;
-    left: 0;
-    background: #fff;
-    z-index: 2;
+    min-height: 40px;
 }

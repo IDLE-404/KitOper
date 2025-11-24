@@ -22,6 +22,9 @@
             <p class="muted">Колледж информационных технологий • Учёт по месяцам и группам</p>
         </div>
         <div class="meta-grid">
+            <div class="d-flex align-items-end">
+                <a href="{{ route('first.schedule.index') }}" class="btn btn-outline-secondary">← Назад</a>
+            </div>
             <label class="field">
                 <span>Группа</span>
                 <select id="groupSelect">
@@ -58,10 +61,10 @@
         <table class="form2-table" id="form2Table">
             <thead>
                 <tr>
-                    <th class="col-num sticky">№</th>
-                    <th class="col-subject sticky">Предмет</th>
-                    <th class="col-teacher sticky">Основной учитель</th>
-                    <th class="col-start sticky">Норматив (начало)</th>
+                    <th class="col-num">№</th>
+                    <th class="col-subject">Предмет</th>
+                    <th class="col-teacher">Основной учитель</th>
+                    <th class="col-start">Норматив (начало)</th>
                     @foreach($monthDays as $d)
                         <th class="col-day">{{ $d }}</th>
                     @endforeach
@@ -221,11 +224,11 @@
 
     function renderCell(row, day) {
         const cell = row.days.find((d) => Number(d.day) === Number(day)) || {status: 'normal'};
-        const colorClass = statusToColor(cell.status);
-        const isReplacement = cell.status === 'replacement';
-        const bonus = cell.bonus_hours ?? 2;
-        const displayValue = cell.status === 'sick' ? '—' : (cell.status === 'replacement' && isReplacement ? '' : '');
-        return `
+                const colorClass = statusToColor(cell.status);
+                const isReplacement = cell.status === 'replacement';
+                const bonus = cell.bonus_hours ?? 2;
+                const displayValue = cell.status === 'sick' ? '—' : (cell.status === 'replacement' && isReplacement ? '' : '');
+                return `
             <td class="day-cell ${colorClass}" data-subject="${row.subject}" data-day="${day}">
                 <div class="cell-editor">
                     <select class="cell-status">

@@ -16,7 +16,7 @@ class FirstCourseSchedulePageController extends Controller
         $isDenominatorWeek = match ($weekMode) {
             'den', 'denominator' => true,
             'num', 'numerator' => false,
-            default => now()->isoWeek() % 2 === 0,
+            default => false, // по умолчанию стартуем с числителя
         };
 
         $subjects = DB::table('first_course_subjects')
@@ -120,7 +120,7 @@ class FirstCourseSchedulePageController extends Controller
             'schedule' => $schedule,
             'subjects' => $subjects,
             'teachers' => $teachers,
-            'weekMode' => $isDenominatorWeek ? 'denominator' : 'numerator',
+            'weekMode' => $isDenominatorWeek ? 'den' : 'num',
         ]);
     }
 

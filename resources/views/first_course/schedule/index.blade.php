@@ -17,12 +17,15 @@
             <p class="page-subtitle">Компактный обзор по всем группам</p>
             <div class="mt-2">
                 <span class="pill {{ ($weekMode ?? 'num') === 'den' ? 'primary' : 'soft' }}">
-                    Сейчас: {{ ($weekMode ?? 'num') === 'den' ? 'знаменатель' : 'числитель' }}
+                    Сейчас показывается: {{ ($weekMode ?? 'num') === 'den' ? 'неделя B (знаменатель)' : 'неделя A (числитель)' }}
                 </span>
             </div>
         </div>
         <div class="action-buttons">
             <input type="search" id="groupSearch" class="search-input" placeholder="Поиск по группе или предмету">
+            <button type="button" class="btn-pill ghost" id="weekModeToggle" data-week="{{ $weekMode ?? 'num' }}">
+                Переключить неделю
+            </button>
             <a href="{{ route('first.schedule.week') }}" class="btn-pill primary">Редактор недели</a>
             <a href="{{ route('first.schedule.form_two') }}" class="btn-pill ghost">Форма 2</a>
         </div>
@@ -78,7 +81,6 @@
                                 >✏️</a>
                                 @php $main = $pair['sub1'] ?? []; @endphp
                                 <div class="cell-line main-line">
-                                    <span class="pill {{ ($weekMode ?? 'num') === 'den' ? 'ghost' : 'primary' }}">{{ ($weekMode ?? 'num') === 'den' ? 'Знаменатель' : 'Числитель' }}</span>
                                     <span class="cell-title emphasis">{{ $main['active_subject'] ?? '—' }}</span>
                                 </div>
                                 <div class="cell-meta">
@@ -89,12 +91,12 @@
                                 @if(!empty($main['is_fraction']))
                                     <div class="fraction-block">
                                         <div class="fraction-line {{ ($weekMode ?? 'num') === 'num' ? 'active' : '' }}">
-                                            <span class="pill soft">Числитель</span>
+                                            <span class="pill soft">Неделя A</span>
                                             <span class="fraction-text">{{ $main['numerator_subject'] ?? '—' }}</span>
                                             <span class="pill tiny"><span>👤</span>{{ $main['numerator_teacher'] ?? '—' }}</span>
                                         </div>
                                         <div class="fraction-line {{ ($weekMode ?? 'num') === 'den' ? 'active' : '' }}">
-                                            <span class="pill soft">Знаменатель</span>
+                                            <span class="pill soft">Неделя B</span>
                                             <span class="fraction-text">{{ $main['denominator_subject'] ?? '—' }}</span>
                                             <span class="pill tiny"><span>👤</span>{{ $main['denominator_teacher'] ?? '—' }}</span>
                                         </div>
@@ -114,12 +116,12 @@
                                     @if(!empty($sub2['is_fraction']))
                                         <div class="fraction-block subpair">
                                             <div class="fraction-line {{ ($weekMode ?? 'num') === 'num' ? 'active' : '' }}">
-                                                <span class="pill soft">Числитель</span>
+                                                <span class="pill soft">Неделя A</span>
                                                 <span class="fraction-text">{{ $sub2['numerator_subject'] ?? '—' }}</span>
                                                 <span class="pill tiny"><span>👤</span>{{ $sub2['numerator_teacher'] ?? '—' }}</span>
                                             </div>
                                             <div class="fraction-line {{ ($weekMode ?? 'num') === 'den' ? 'active' : '' }}">
-                                                <span class="pill soft">Знаменатель</span>
+                                                <span class="pill soft">Неделя B</span>
                                                 <span class="fraction-text">{{ $sub2['denominator_subject'] ?? '—' }}</span>
                                                 <span class="pill tiny"><span>👤</span>{{ $sub2['denominator_teacher'] ?? '—' }}</span>
                                             </div>
@@ -146,6 +148,7 @@
         const modal = document.getElementById('pairModal');
     const overlay = document.getElementById('modalOverlay');
     const form = document.getElementById('pairForm');
+    const weekToggle = document.getElementById('weekModeToggle');
 
     const subject1 = document.getElementById('modalSubject1');
     const teacher1 = document.getElementById('modalTeacher1');
@@ -271,6 +274,17 @@
             alert('Ошибка сети');
         }
     });
+
+    // Переключение недели (числитель/знаменатель) через URL-параметр week_mode
+    if (weekToggle) {
+        weekToggle.addEventListener('click', () => {
+            const current = weekToggle.dataset.week === 'den' || weekToggle.dataset.week === 'denominator' ? 'den' : 'num';
+            const next = current === 'den' ? 'num' : 'den';
+            const params = new URLSearchParams(window.location.search);
+            params.set('week_mode', next);
+            window.location.search = params.toString();
+        });
+    }
 });
 </script>
 @endpush

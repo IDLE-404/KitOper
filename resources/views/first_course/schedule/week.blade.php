@@ -31,6 +31,17 @@
                         @endforeach
                     </select>
                 </div>
+                <div class="group-select">
+                    <label class="form-label mb-1 text-muted">Начало недели</label>
+                    <input type="date" class="select-soft" name="week_start" id="weekStartInput" value="{{ $weekStart ?? '' }}">
+                </div>
+                <div class="group-select">
+                    <label class="form-label mb-1 text-muted">Режим</label>
+                    <select class="select-soft" name="week_mode" id="weekModeSelect">
+                        <option value="numerator" @selected(($weekMode ?? 'numerator') === 'numerator')>Числитель</option>
+                        <option value="denominator" @selected(($weekMode ?? '') === 'denominator')>Знаменатель</option>
+                    </select>
+                </div>
             </div>
             <div class="mb-3">
                 <a href="{{ route('first.schedule.index') }}" class="btn btn-outline-secondary">← Назад к списку расписания</a>

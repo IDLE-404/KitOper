@@ -3,7 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\FirstCourseSchedule;
-use App\Models\ScheduleReplacement;
+use App\Services\ScheduleToFormTwoSyncService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -15,6 +16,9 @@ class FirstCourseSchedulePageController extends Controller
      */
     public function index()
     {
+        $weekStartInput = request()->get('week_start');
+        $weekStart = $weekStartInput ? Carbon::parse($weekStartInput)->startOfWeek(Carbon::MONDAY) : Carbon::now()->startOfWeek(Carbon::MONDAY);
+
         $weekMode = request()->get('week_mode');
         $isDenominatorWeek = match ($weekMode) {
             'den', 'denominator' => true,
@@ -33,28 +37,12 @@ class FirstCourseSchedulePageController extends Controller
             ->pluck('group_name', 'id');
 
         $raw = DB::table('first_course_schedules as s')
+            ->whereDate('s.week_start', $weekStart->toDateString())
             ->orderBy('s.study_day')
             ->orderBy('s.lesson_number')
             ->get();
 
         $currentMode = $isDenominatorWeek ? 'denominator' : 'numerator';
-        $replacementMap = [];
-        $replacements = ScheduleReplacement::query()
-            ->whereIn('week_mode', [$currentMode, 'single'])
-            ->get();
-
-        foreach ($replacements as $r) {
-            $replacementMap[$r->group_id][$r->study_day][$r->lesson_number][$r->week_mode] = $r;
-        }
-
-        $resolveReplacement = function (int $groupId, string $day, int $lesson) use (&$replacementMap, $currentMode) {
-            $specific = $replacementMap[$groupId][$day][$lesson][$currentMode] ?? null;
-            if ($specific) {
-                return $specific;
-            }
-            return $replacementMap[$groupId][$day][$lesson]['single'] ?? null;
-        };
-
         $roomConflicts = FirstCourseSchedule::detectRoomConflicts($raw);
         $schedule = [];
 
@@ -120,6 +108,14 @@ class FirstCourseSchedulePageController extends Controller
                     'room_den' => $roomDen1 ?? ($sub1Data['room_den'] ?? null),
                     'conflict_num' => $confNum1 ?? ($sub1Data['conflict_num'] ?? false),
                     'conflict_den' => $confDen1 ?? ($sub1Data['conflict_den'] ?? false),
+                    'absent_num' => $row->is_absent_1_num ?? false,
+                    'absent_den' => $row->is_absent_1_den ?? false,
+                    'replacement_flag_num' => $row->is_replacement_1_num ?? false,
+                    'replacement_teacher_num' => $row->replacement_teacher_id_1_num ?? null,
+                    'replacement_comment_num' => $row->replacement_comment_1_num ?? null,
+                    'replacement_flag_den' => $row->is_replacement_1_den ?? false,
+                    'replacement_teacher_den' => $row->replacement_teacher_id_1_den ?? null,
+                    'replacement_comment_den' => $row->replacement_comment_1_den ?? null,
                 ]);
             }
             $schedule[$groupId]['days'][$day][$lesson]['sub1'] = $sub1Data;
@@ -139,6 +135,14 @@ class FirstCourseSchedulePageController extends Controller
                     'room_den' => $roomDen2 ?? ($sub2Data['room_den'] ?? null),
                     'conflict_num' => $confNum2 ?? ($sub2Data['conflict_num'] ?? false),
                     'conflict_den' => $confDen2 ?? ($sub2Data['conflict_den'] ?? false),
+                    'absent_num' => $row->is_absent_2_num ?? false,
+                    'absent_den' => $row->is_absent_2_den ?? false,
+                    'replacement_flag_num' => $row->is_replacement_2_num ?? false,
+                    'replacement_teacher_num' => $row->replacement_teacher_id_2_num ?? null,
+                    'replacement_comment_num' => $row->replacement_comment_2_num ?? null,
+                    'replacement_flag_den' => $row->is_replacement_2_den ?? false,
+                    'replacement_teacher_den' => $row->replacement_teacher_id_2_den ?? null,
+                    'replacement_comment_den' => $row->replacement_comment_2_den ?? null,
                 ]);
             }
             $schedule[$groupId]['days'][$day][$lesson]['sub2'] = $sub2Data;
@@ -157,6 +161,17 @@ class FirstCourseSchedulePageController extends Controller
                         $activeRoom = ($isDenominatorWeek && $denExists) ? ($pair[$key]['room_den'] ?? null) : ($pair[$key]['room_num'] ?? null);
                         $activeConflict = ($isDenominatorWeek && $denExists) ? ($pair[$key]['conflict_den'] ?? false) : ($pair[$key]['conflict_num'] ?? false);
                         $originalTeacherId = ($isDenominatorWeek && $denExists) ? ($pair[$key]['teacher_den_id'] ?? null) : ($pair[$key]['teacher_num_id'] ?? null);
+                        $absent = ($isDenominatorWeek && $denExists) ? ($pair[$key]['absent_den'] ?? false) : ($pair[$key]['absent_num'] ?? false);
+                        $replacementFlag = ($isDenominatorWeek && $denExists) ? ($pair[$key]['replacement_flag_den'] ?? false) : ($pair[$key]['replacement_flag_num'] ?? false);
+                        $replacementTeacherId = ($isDenominatorWeek && $denExists) ? ($pair[$key]['replacement_teacher_den'] ?? null) : ($pair[$key]['replacement_teacher_num'] ?? null);
+                        $replacementComment = ($isDenominatorWeek && $denExists) ? ($pair[$key]['replacement_comment_den'] ?? null) : ($pair[$key]['replacement_comment_num'] ?? null);
+                        $replacementTeacherName = $replacementTeacherId ? ($teachers[$replacementTeacherId] ?? '—') : null;
+
+                        if ($replacementFlag && $replacementTeacherName) {
+                            $activeTeacher = $replacementTeacherName;
+                        } elseif ($absent && !$replacementFlag) {
+                            $activeTeacher = $activeTeacher ?: 'Учитель отсутствует';
+                        }
 
                         $pair[$key]['active_subject'] = $activeSubject;
                         $pair[$key]['active_teacher'] = $activeTeacher;
@@ -167,38 +182,12 @@ class FirstCourseSchedulePageController extends Controller
                         $pair[$key]['label'] = (string) $subIndex;
                         $pair[$key]['original_teacher'] = $originalTeacherId ? ($teachers[$originalTeacherId] ?? '—') : null;
                         $pair[$key]['original_teacher_id'] = $originalTeacherId;
+                        $pair[$key]['is_absent'] = $absent;
+                        $pair[$key]['is_replacement'] = $replacementFlag;
+                        $pair[$key]['replacement_teacher_id'] = $replacementTeacherId;
+                        $pair[$key]['replacement_teacher'] = $replacementTeacherName;
+                        $pair[$key]['replacement_comment'] = $replacementComment;
                     }
-                    $replacement = $resolveReplacement((int) $groupId, $day, (int) $lesson);
-                    if ($replacement) {
-                        $replacementTeacherId = $replacement->replacement_teacher_id;
-                        $replacementTeacherName = $replacementTeacherId ? ($teachers[$replacementTeacherId] ?? '—') : null;
-                        $absentTeacherName = $replacement->absent_teacher_id ? ($teachers[$replacement->absent_teacher_id] ?? '—') : ($pair['sub1']['original_teacher'] ?? null);
-                        $replacementRoom = $replacement->room_id;
-
-                        foreach ([1, 2] as $subIndex) {
-                            $key = "sub{$subIndex}";
-                            if (!isset($pair[$key])) {
-                                continue;
-                            }
-                            $pair[$key]['is_replacement'] = true;
-                            $pair[$key]['absent_teacher'] = $absentTeacherName;
-                            $pair[$key]['absent_teacher_id'] = $replacement->absent_teacher_id;
-                            $pair[$key]['replacement_teacher'] = $replacementTeacherName;
-                            $pair[$key]['replacement_teacher_id'] = $replacementTeacherId;
-                            $pair[$key]['replacement_comment'] = $replacement->comment;
-                            if ($replacementTeacherName) {
-                                $pair[$key]['active_teacher'] = $replacementTeacherName;
-                                $pair[$key]['active_teacher_id'] = $replacementTeacherId;
-                                if ($replacementRoom) {
-                                    $pair[$key]['active_room'] = $replacementRoom;
-                                }
-                            } else {
-                                $pair[$key]['active_teacher'] = 'Учитель отсутствовал';
-                                $pair[$key]['missing_teacher'] = true;
-                            }
-                        }
-                    }
-
                     $schedule[$groupId]['days'][$day][$lesson] = $pair;
                 }
             }
@@ -209,52 +198,7 @@ class FirstCourseSchedulePageController extends Controller
             'subjects' => $subjects,
             'teachers' => $teachers,
             'weekMode' => $isDenominatorWeek ? 'den' : 'num',
-        ]);
-    }
-
-    /**
-     * Журнал замен преподавателей.
-     */
-    public function replacements(Request $request)
-    {
-        $groups = DB::table('first_course_group')->pluck('group_name', 'id');
-        $teachers = DB::table('frist_course_teachers')->pluck('teacher_name', 'id');
-        $subjects = DB::table('first_course_subjects')
-            ->pluck(DB::raw('COALESCE(name_ru, subject_name)'), 'id');
-
-        $filters = [
-            'group_id' => $request->integer('group_id'),
-            'teacher_id' => $request->integer('teacher_id'),
-            'study_day' => $request->get('study_day'),
-            'week_mode' => $request->get('week_mode'),
-        ];
-
-        $query = ScheduleReplacement::query()->latest();
-
-        if ($filters['group_id']) {
-            $query->where('group_id', $filters['group_id']);
-        }
-        if ($filters['teacher_id']) {
-            $query->where(function ($q) use ($filters) {
-                $q->where('absent_teacher_id', $filters['teacher_id'])
-                    ->orWhere('replacement_teacher_id', $filters['teacher_id']);
-            });
-        }
-        if ($filters['study_day']) {
-            $query->where('study_day', $filters['study_day']);
-        }
-        if ($filters['week_mode']) {
-            $query->where('week_mode', $filters['week_mode']);
-        }
-
-        $items = $query->paginate(20)->withQueryString();
-
-        return view('first_course.schedule.replacements', [
-            'items' => $items,
-            'groups' => $groups,
-            'teachers' => $teachers,
-            'subjects' => $subjects,
-            'filters' => $filters,
+            'weekStart' => $weekStart->toDateString(),
         ]);
     }
 
@@ -428,6 +372,13 @@ class FirstCourseSchedulePageController extends Controller
         $teachers = DB::table('frist_course_teachers')->orderBy('teacher_name')->get();
 
         $selectedGroupId = request()->integer('group_id') ?: ($groups->first()->id ?? null);
+        $weekStartInput = request()->get('week_start');
+        $weekStart = $weekStartInput ? Carbon::parse($weekStartInput)->startOfWeek(Carbon::MONDAY) : Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $weekModeParam = request()->get('week_mode');
+        $weekMode = match ($weekModeParam) {
+            'den', 'denominator' => 'denominator',
+            default => 'numerator',
+        };
 
         $days = [
             ['key' => 'mon', 'label' => 'Пн', 'full' => 'Понедельник'],
@@ -446,6 +397,7 @@ class FirstCourseSchedulePageController extends Controller
             $existingRows = DB::table('first_course_schedules')
                 ->where('group_id', $selectedGroupId)
                 ->whereIn('study_day', $dayNames->values())
+                ->whereDate('week_start', $weekStart->toDateString())
                 ->get();
 
             foreach ($existingRows as $row) {
@@ -470,6 +422,8 @@ class FirstCourseSchedulePageController extends Controller
             'pairs' => $pairs,
             'selectedGroupId' => $selectedGroupId,
             'existing' => $existing,
+            'weekStart' => $weekStart->toDateString(),
+            'weekMode' => $weekMode,
         ]);
     }
 
@@ -488,10 +442,14 @@ class FirstCourseSchedulePageController extends Controller
 
         $validated = $request->validate([
             'group_id' => 'required|integer',
+            'week_start' => 'required|date',
+            'week_mode' => 'nullable|string|in:numerator,denominator',
             'schedule' => 'array',
         ]);
 
         $groupId = $validated['group_id'];
+        $weekStart = Carbon::parse($validated['week_start'])->startOfWeek(Carbon::MONDAY);
+        $weekMode = $validated['week_mode'] ?? 'numerator';
         $schedule = $validated['schedule'] ?? [];
 
         $rows = [];
@@ -539,6 +497,7 @@ class FirstCourseSchedulePageController extends Controller
                     || $subjectDenominator2 || $teacherDenominator2 || $roomDenominator2;
 
                 $base = [
+                    'week_start'   => $weekStart->toDateString(),
                     'study_day'     => $dayMap[$dayKey],
                     'lesson_number' => (int) $lessonNumber,
                     'group_id'      => $groupId,
@@ -580,8 +539,8 @@ class FirstCourseSchedulePageController extends Controller
                     $teacherSlots[] = ['id' => $teacherDenominator, 'mode' => 'denominator'];
                 }
                 try {
-                    $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slots);
-                    $this->validateTeachersOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $teacherSlots);
+                    $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slots, $weekStart);
+                    $this->validateTeachersOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $teacherSlots, $weekStart);
                 } catch (ValidationException $e) {
                     $msg = collect($e->errors())->flatten()->first() ?: 'Недоступно в это время';
                     return back()
@@ -621,8 +580,8 @@ class FirstCourseSchedulePageController extends Controller
                         $teacherSlotsSecond[] = ['id' => $teacherSecondDenominator ?: $teacherSecondDenominator2, 'mode' => 'denominator'];
                     }
                     try {
-                        $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slotsSecond);
-                        $this->validateTeachersOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $teacherSlotsSecond);
+                        $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slotsSecond, $weekStart);
+                        $this->validateTeachersOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $teacherSlotsSecond, $weekStart);
                     } catch (ValidationException $e) {
                         $msg = collect($e->errors())->flatten()->first() ?: 'Недоступно в это время';
                         return back()
@@ -633,8 +592,11 @@ class FirstCourseSchedulePageController extends Controller
             }
         }
 
-        DB::transaction(function () use ($groupId, $rows) {
-            DB::table('first_course_schedules')->where('group_id', $groupId)->delete();
+        DB::transaction(function () use ($groupId, $rows, $weekStart) {
+            DB::table('first_course_schedules')
+                ->where('group_id', $groupId)
+                ->whereDate('week_start', $weekStart->toDateString())
+                ->delete();
             if ($rows) {
                 $nextId = (int) DB::table('first_course_schedules')->max('id') + 1;
                 $rowsWithIds = [];
@@ -645,8 +607,12 @@ class FirstCourseSchedulePageController extends Controller
             }
         });
 
+        /** @var ScheduleToFormTwoSyncService $sync */
+        $sync = app(ScheduleToFormTwoSyncService::class);
+        $sync->syncWeek($groupId, $weekStart, $weekMode);
+
         return redirect()
-            ->route('first.schedule.week', ['group_id' => $groupId])
+            ->route('first.schedule.week', ['group_id' => $groupId, 'week_start' => $weekStart->toDateString()])
             ->with('success', 'Недельное расписание сохранено.');
     }
 
@@ -668,6 +634,7 @@ class FirstCourseSchedulePageController extends Controller
             'group_id'      => 'required|integer',
             'study_day'     => 'required|string',
             'lesson_number' => 'required|integer|min:1|max:5',
+            'week_start'    => 'required|date',
             'subject_id'    => 'nullable|integer',
             'teacher_id'    => 'nullable|integer',
             'room_id'       => 'nullable|string|max:50',
@@ -681,10 +648,15 @@ class FirstCourseSchedulePageController extends Controller
             'den_subject_id_2' => 'nullable|integer',
             'den_teacher_id_2' => 'nullable|integer',
             'den_room_id_2'    => 'nullable|string|max:50',
-            'is_replacement'   => 'sometimes|boolean',
-            'replacement_teacher_id' => 'nullable|integer',
-            'replacement_comment' => 'nullable|string|max:255',
             'week_mode' => 'nullable|string|in:numerator,denominator,single',
+            'is_absent_1' => 'sometimes|boolean',
+            'is_absent_2' => 'sometimes|boolean',
+            'is_replacement_1' => 'sometimes|boolean',
+            'replacement_teacher_id_1' => 'nullable|integer',
+            'replacement_comment_1' => 'nullable|string|max:255',
+            'is_replacement_2' => 'sometimes|boolean',
+            'replacement_teacher_id_2' => 'nullable|integer',
+            'replacement_comment_2' => 'nullable|string|max:255',
         ]);
 
         if (!in_array($data['study_day'], $dayMap, true)) {
@@ -699,6 +671,15 @@ class FirstCourseSchedulePageController extends Controller
         if (!in_array($weekMode, ['numerator', 'denominator', 'single'], true)) {
             $weekMode = 'numerator';
         }
+        $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
+
+        $existingRows = DB::table('first_course_schedules')
+            ->where('group_id', $groupId)
+            ->where('study_day', $day)
+            ->where('lesson_number', $lesson)
+            ->whereDate('week_start', $weekStart->toDateString())
+            ->get()
+            ->keyBy(fn ($row) => $row->subgroup ?? '1');
 
         // Проверка занятости учителей
         $possibleTeachers = [
@@ -715,6 +696,7 @@ class FirstCourseSchedulePageController extends Controller
                 ->where('study_day', $day)
                 ->where('lesson_number', $lesson)
                 ->where('group_id', '<>', $groupId)
+                ->whereDate('week_start', $weekStart->toDateString())
                 ->where(function ($q) use ($teacherIdsToCheck) {
                     $q->whereIn('teacher_id', $teacherIdsToCheck)
                         ->orWhereIn('teacher_id_2', $teacherIdsToCheck)
@@ -724,25 +706,6 @@ class FirstCourseSchedulePageController extends Controller
 
             if ($busy) {
                 return response()->json(['message' => 'Выбранный преподаватель занят в это время у другой группы'], 422);
-            }
-        }
-
-        $isReplacement = $request->boolean('is_replacement');
-        $replacementTeacherId = $data['replacement_teacher_id'] ?? null;
-        $replacementComment = $data['replacement_comment'] ?? null;
-        $activeTeacherForMode = $weekMode === 'denominator'
-            ? ($data['den_teacher_id'] ?? $data['den_teacher_id_2'] ?? null)
-            : ($data['teacher_id'] ?? $data['teacher_id_2'] ?? null);
-
-        if ($isReplacement && $replacementTeacherId) {
-            if ($activeTeacherForMode && (int) $activeTeacherForMode === (int) $replacementTeacherId) {
-                return response()->json(['message' => 'Замещающий не может совпадать с отсутствующим'], 422);
-            }
-            try {
-                $this->validateTeachersOrFail($groupId, $day, $lesson, [['id' => $replacementTeacherId, 'mode' => $weekMode]]);
-            } catch (ValidationException $e) {
-                $msg = collect($e->errors())->flatten()->first() ?: 'Замещающий занят в это время';
-                return response()->json(['message' => $msg], 422);
             }
         }
 
@@ -793,8 +756,8 @@ class FirstCourseSchedulePageController extends Controller
         }
 
         try {
-            $this->validateRoomsOrFail($groupId, $day, $lesson, $roomSlots);
-            $this->validateTeachersOrFail($groupId, $day, $lesson, $teacherSlots);
+            $this->validateRoomsOrFail($groupId, $day, $lesson, $roomSlots, $weekStart);
+            $this->validateTeachersOrFail($groupId, $day, $lesson, $teacherSlots, $weekStart);
         } catch (ValidationException $e) {
             $msg = collect($e->errors())->flatten()->first() ?: 'Недоступно в это время';
             return response()->json(['message' => $msg], 422);
@@ -806,21 +769,29 @@ class FirstCourseSchedulePageController extends Controller
             $lesson,
             $data,
             $hasSub2,
-            $isReplacement,
-            $replacementTeacherId,
-            $replacementComment,
+            $weekStart,
             $weekMode,
-            $activeTeacherForMode
+            $existingRows
         ) {
             DB::table('first_course_schedules')
                 ->where('group_id', $groupId)
                 ->where('study_day', $day)
                 ->where('lesson_number', $lesson)
+                ->whereDate('week_start', $weekStart->toDateString())
                 ->delete();
 
             $now = now();
 
+            $absent1 = (bool)($data['is_absent_1'] ?? false);
+            $absent2 = (bool)($data['is_absent_2'] ?? false);
+            $isReplacement1 = (bool)($data['is_replacement_1'] ?? false);
+            $isReplacement2 = (bool)($data['is_replacement_2'] ?? false);
+
+            $prev1 = $existingRows['1'] ?? null;
+            $prev2 = $existingRows['2'] ?? null;
+
             $rows = [[
+                'week_start'   => $weekStart->toDateString(),
                 'study_day'     => $day,
                 'lesson_number' => $lesson,
                 'group_id'      => $groupId,
@@ -833,10 +804,19 @@ class FirstCourseSchedulePageController extends Controller
                 'room_id_denominator'    => $data['den_room_id'] ?? null,
                 'created_at'    => $now,
                 'updated_at'    => $now,
+                'is_absent_1_num' => $weekMode === 'denominator' ? ($prev1->is_absent_1_num ?? false) : $absent1,
+                'is_replacement_1_num' => $weekMode === 'denominator' ? ($prev1->is_replacement_1_num ?? false) : $isReplacement1,
+                'replacement_teacher_id_1_num' => $weekMode === 'denominator' ? ($prev1->replacement_teacher_id_1_num ?? null) : ($data['replacement_teacher_id_1'] ?? null),
+                'replacement_comment_1_num' => $weekMode === 'denominator' ? ($prev1->replacement_comment_1_num ?? null) : ($data['replacement_comment_1'] ?? null),
+                'is_absent_1_den' => $weekMode === 'denominator' ? $absent1 : ($prev1->is_absent_1_den ?? false),
+                'is_replacement_1_den' => $weekMode === 'denominator' ? $isReplacement1 : ($prev1->is_replacement_1_den ?? false),
+                'replacement_teacher_id_1_den' => $weekMode === 'denominator' ? ($data['replacement_teacher_id_1'] ?? null) : ($prev1->replacement_teacher_id_1_den ?? null),
+                'replacement_comment_1_den' => $weekMode === 'denominator' ? ($data['replacement_comment_1'] ?? null) : ($prev1->replacement_comment_1_den ?? null),
             ]];
 
             if ($hasSub2 && ($data['subject_id_2'] ?? null)) {
                 $rows[] = [
+                    'week_start'   => $weekStart->toDateString(),
                     'study_day'     => $day,
                     'lesson_number' => $lesson,
                     'group_id'      => $groupId,
@@ -849,46 +829,23 @@ class FirstCourseSchedulePageController extends Controller
                     'room_id_denominator_2'    => $data['den_room_id_2'] ?? null,
                     'created_at'    => $now,
                     'updated_at'    => $now,
+                    'is_absent_2_num' => $weekMode === 'denominator' ? ($prev2->is_absent_2_num ?? false) : $absent2,
+                    'is_replacement_2_num' => $weekMode === 'denominator' ? ($prev2->is_replacement_2_num ?? false) : $isReplacement2,
+                    'replacement_teacher_id_2_num' => $weekMode === 'denominator' ? ($prev2->replacement_teacher_id_2_num ?? null) : ($data['replacement_teacher_id_2'] ?? null),
+                    'replacement_comment_2_num' => $weekMode === 'denominator' ? ($prev2->replacement_comment_2_num ?? null) : ($data['replacement_comment_2'] ?? null),
+                    'is_absent_2_den' => $weekMode === 'denominator' ? $absent2 : ($prev2->is_absent_2_den ?? false),
+                    'is_replacement_2_den' => $weekMode === 'denominator' ? $isReplacement2 : ($prev2->is_replacement_2_den ?? false),
+                    'replacement_teacher_id_2_den' => $weekMode === 'denominator' ? ($data['replacement_teacher_id_2'] ?? null) : ($prev2->replacement_teacher_id_2_den ?? null),
+                    'replacement_comment_2_den' => $weekMode === 'denominator' ? ($data['replacement_comment_2'] ?? null) : ($prev2->replacement_comment_2_den ?? null),
                 ];
             }
 
             DB::table('first_course_schedules')->insert($rows);
-            if ($isReplacement) {
-                if ($replacementTeacherId || $replacementComment) {
-                    $subjectForMode = $weekMode === 'denominator'
-                        ? ($data['den_subject_id'] ?? $data['den_subject_id_2'] ?? $data['subject_id'] ?? null)
-                        : ($data['subject_id'] ?? $data['subject_id_2'] ?? null);
-                    $roomForMode = $weekMode === 'denominator'
-                        ? ($data['den_room_id'] ?? $data['den_room_id_2'] ?? $data['room_id'] ?? null)
-                        : ($data['room_id'] ?? $data['room_id_2'] ?? null);
-
-                    DB::table('schedule_replacements')->updateOrInsert(
-                        [
-                            'group_id' => $groupId,
-                            'study_day' => $day,
-                            'lesson_number' => $lesson,
-                            'week_mode' => $weekMode,
-                        ],
-                        [
-                            'subject_id' => $subjectForMode,
-                            'absent_teacher_id' => $activeTeacherForMode,
-                            'replacement_teacher_id' => $replacementTeacherId,
-                            'room_id' => $roomForMode,
-                            'comment' => $replacementComment,
-                            'updated_at' => now(),
-                            'created_at' => now(),
-                        ]
-                    );
-                }
-            } else {
-                DB::table('schedule_replacements')
-                    ->where('group_id', $groupId)
-                    ->where('study_day', $day)
-                    ->where('lesson_number', $lesson)
-                    ->where('week_mode', $weekMode)
-                    ->delete();
-            }
         });
+
+        /** @var ScheduleToFormTwoSyncService $sync */
+        $sync = app(ScheduleToFormTwoSyncService::class);
+        $sync->syncWeek($groupId, $weekStart, $weekMode === 'single' ? 'numerator' : $weekMode);
 
         return response()->json(['message' => 'Пара обновлена']);
     }
@@ -898,7 +855,7 @@ class FirstCourseSchedulePageController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    protected function validateRoomsOrFail(int $groupId, string $studyDay, int $lessonNumber, array $slots): void
+    protected function validateRoomsOrFail(int $groupId, string $studyDay, int $lessonNumber, array $slots, ?Carbon $weekStart = null): void
     {
         foreach ($slots as $slot) {
             $room = $slot['room'] ?? null;
@@ -908,23 +865,9 @@ class FirstCourseSchedulePageController extends Controller
                 continue;
             }
 
-            if (FirstCourseSchedule::roomConflictExists($groupId, $studyDay, $lessonNumber, $room, $mode)) {
+            if (FirstCourseSchedule::roomConflictExists($groupId, $studyDay, $lessonNumber, $room, $mode, $weekStart)) {
                 throw ValidationException::withMessages([
                     'room_id' => 'Кабинет занят другой группой',
-                ]);
-            }
-
-            $replacementBusy = DB::table('schedule_replacements')
-                ->where('group_id', '<>', $groupId)
-                ->where('study_day', $studyDay)
-                ->where('lesson_number', $lessonNumber)
-                ->whereIn('week_mode', [$mode, 'single'])
-                ->where('room_id', $room)
-                ->exists();
-
-            if ($replacementBusy) {
-                throw ValidationException::withMessages([
-                    'room_id' => 'Кабинет занят другой группой (замена)',
                 ]);
             }
         }
@@ -935,7 +878,7 @@ class FirstCourseSchedulePageController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    protected function validateTeachersOrFail(int $groupId, string $studyDay, int $lessonNumber, array $slots): void
+    protected function validateTeachersOrFail(int $groupId, string $studyDay, int $lessonNumber, array $slots, ?Carbon $weekStart = null): void
     {
         foreach ($slots as $slot) {
             $teacherId = $slot['id'] ?? null;
@@ -948,6 +891,7 @@ class FirstCourseSchedulePageController extends Controller
                 ->where('study_day', $studyDay)
                 ->where('lesson_number', $lessonNumber)
                 ->where('group_id', '<>', $groupId)
+                ->when($weekStart, fn ($q) => $q->whereDate('week_start', $weekStart->toDateString()))
                 ->where(function ($q) use ($teacherId) {
                     $q->where('teacher_id', $teacherId)
                         ->orWhere('teacher_id_2', $teacherId)
@@ -959,27 +903,6 @@ class FirstCourseSchedulePageController extends Controller
             if ($busy) {
                 throw ValidationException::withMessages([
                     'teacher_id' => 'Преподаватель занят в это время у другой группы',
-                ]);
-            }
-
-            $replacementBusy = DB::table('schedule_replacements')
-                ->where('group_id', '<>', $groupId)
-                ->where('study_day', $studyDay)
-                ->where('lesson_number', $lessonNumber)
-                ->where(function ($q) use ($mode) {
-                    $q->where('week_mode', 'single');
-                    if ($mode) {
-                        $q->orWhere('week_mode', $mode);
-                    } else {
-                        $q->orWhereIn('week_mode', ['numerator', 'denominator']);
-                    }
-                })
-                ->where('replacement_teacher_id', $teacherId)
-                ->exists();
-
-            if ($replacementBusy) {
-                throw ValidationException::withMessages([
-                    'teacher_id' => 'Преподаватель занят на замене в это время',
                 ]);
             }
         }

@@ -27,7 +27,8 @@ class FirstCourseSchedule extends Model
         string $studyDay,
         int $lessonNumber,
         $roomId,
-        string $mode
+        string $mode,
+        ?\Carbon\Carbon $weekStart = null
     ): bool {
         if ($roomId === null || $roomId === '') {
             return false;
@@ -39,6 +40,7 @@ class FirstCourseSchedule extends Model
             ->where('study_day', $studyDay)
             ->where('lesson_number', $lessonNumber)
             ->where('group_id', '<>', $groupId)
+            ->when($weekStart, fn ($q) => $q->whereDate('week_start', $weekStart->toDateString()))
             ->get([
                 'group_id',
                 'study_day',

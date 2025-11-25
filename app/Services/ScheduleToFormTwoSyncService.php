@@ -1,0 +1,231 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\FormTwoNormative;
+use App\Models\FormTwoRecord;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+
+class ScheduleToFormTwoSyncService
+{
+    /**
+      * Синхронизация расписания за неделю в Form 2.
+      */
+    public function syncWeek(int $groupId, Carbon $weekStart, string $weekMode = 'numerator'): void
+    {
+        $weekMode = in_array($weekMode, ['numerator', 'denominator'], true) ? $weekMode : 'numerator';
+        $weekStart = $weekStart->copy()->startOfDay();
+        $weekEnd = $weekStart->copy()->addDays(6);
+
+        $dayOffset = [
+            'Понедельник' => 0,
+            'Вторник' => 1,
+            'Среда' => 2,
+            'Четверг' => 3,
+            'Пятница' => 4,
+            'Суббота' => 5,
+        ];
+
+        DB::table('form_two_records')
+            ->where('group_id', $groupId)
+            ->whereBetween('class_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->delete();
+
+        $rows = DB::table('first_course_schedules')
+            ->where('group_id', $groupId)
+            ->whereDate('week_start', $weekStart->toDateString())
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        $payload = [];
+
+        foreach ($rows as $row) {
+            $dayName = $row->study_day;
+            if (!isset($dayOffset[$dayName])) {
+                continue;
+            }
+
+            $lessonNumber = (int) $row->lesson_number;
+            $classDate = $weekStart->copy()->addDays($dayOffset[$dayName]);
+
+            $payload = array_merge($payload, $this->syncSubgroup(
+                $row,
+                1,
+                $weekMode,
+                $classDate,
+                $groupId,
+                $lessonNumber
+            ));
+            $payload = array_merge($payload, $this->syncSubgroup(
+                $row,
+                2,
+                $weekMode,
+                $classDate,
+                $groupId,
+                $lessonNumber
+            ));
+        }
+
+        if ($payload) {
+            FormTwoRecord::insert($payload);
+        }
+    }
+
+    protected function syncSubgroup(
+        object $row,
+        int $subgroup,
+        string $weekMode,
+        Carbon $classDate,
+        int $groupId,
+        int $lessonNumber
+    ): array {
+        $isSub2 = $subgroup === 2;
+
+        $subjectNum = $isSub2 ? ($row->subject_id_2 ?? null) : ($row->subject_id ?? null);
+        $teacherNum = $isSub2 ? ($row->teacher_id_2 ?? null) : ($row->teacher_id ?? null);
+
+        $subjectDen = $isSub2 ? ($row->subject_id_denominator_2 ?? null) : ($row->subject_id_denominator ?? null);
+        $teacherDen = $isSub2 ? ($row->teacher_id_denominator_2 ?? null) : ($row->teacher_id_denominator ?? null);
+
+        $hasDenominator = $subjectDen || $teacherDen;
+        $activeSubject = $hasDenominator && $weekMode === 'denominator' ? $subjectDen : $subjectNum;
+        $activeTeacher = $hasDenominator && $weekMode === 'denominator' ? $teacherDen : $teacherNum;
+        $mode = $hasDenominator ? $weekMode : 'single';
+
+        if (!$activeSubject && !$activeTeacher) {
+            return [];
+        }
+
+        $isAbsent = $this->isAbsent($row, $subgroup, $weekMode);
+        $isReplacement = $this->isReplacement($row, $subgroup, $weekMode);
+        $replacementTeacherId = $this->replacementTeacherId($row, $subgroup, $weekMode);
+        $replacementComment = $this->replacementComment($row, $subgroup, $weekMode);
+
+        $hoursPerClass = $this->hoursPerClass($groupId, $activeSubject, $activeTeacher, $classDate);
+        $totalHours = $this->totalHours($groupId, $activeSubject, $activeTeacher, $classDate);
+
+        $payload = [];
+        $base = [
+            'group_id' => $groupId,
+            'subject_id' => $activeSubject,
+            'teacher_id' => $activeTeacher,
+            'class_date' => $classDate->toDateString(),
+            'year' => (int) $classDate->year,
+            'month' => (int) $classDate->month,
+            'day' => (int) $classDate->day,
+            'lesson_number' => $lessonNumber,
+            'subgroup' => (string) $subgroup,
+            'mode' => $mode,
+            'hours_per_class' => $hoursPerClass,
+            'total_hours' => $totalHours,
+            'replacement_comment' => $replacementComment,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+
+        if ($isReplacement && $activeTeacher && $replacementTeacherId) {
+            // Больничный у основного
+            $payload[] = array_merge($base, [
+                'status' => 'sick',
+                'used_hours' => 0,
+                'bonus_hours' => null,
+                'replacement_teacher_id' => null,
+            ]);
+            // Замещающий
+            $payload[] = array_merge($base, [
+                'teacher_id' => $replacementTeacherId,
+                'status' => 'replacement',
+                'used_hours' => 0,
+                'bonus_hours' => $hoursPerClass,
+                'replacement_teacher_id' => $replacementTeacherId,
+            ]);
+        } elseif ($isAbsent && $activeTeacher) {
+            $payload[] = array_merge($base, [
+                'status' => 'sick',
+                'used_hours' => 0,
+                'bonus_hours' => null,
+                'replacement_teacher_id' => null,
+            ]);
+        } else {
+            $payload[] = array_merge($base, [
+                'status' => 'normal',
+                'used_hours' => $hoursPerClass,
+                'bonus_hours' => null,
+                'replacement_teacher_id' => null,
+            ]);
+        }
+
+        return $payload;
+    }
+
+    protected function isAbsent(object $row, int $subgroup, string $weekMode): bool
+    {
+        $suffix = $subgroup === 2 ? '_2' : '_1';
+        $modeSuffix = $weekMode === 'denominator' ? '_den' : '_num';
+        $key = "is_absent{$suffix}{$modeSuffix}";
+        return (bool) ($row->{$key} ?? false);
+    }
+
+    protected function isReplacement(object $row, int $subgroup, string $weekMode): bool
+    {
+        $suffix = $subgroup === 2 ? '_2' : '_1';
+        $modeSuffix = $weekMode === 'denominator' ? '_den' : '_num';
+        $key = "is_replacement{$suffix}{$modeSuffix}";
+        return (bool) ($row->{$key} ?? false);
+    }
+
+    protected function replacementTeacherId(object $row, int $subgroup, string $weekMode): ?int
+    {
+        $suffix = $subgroup === 2 ? '_2' : '_1';
+        $modeSuffix = $weekMode === 'denominator' ? '_den' : '_num';
+        $key = "replacement_teacher_id{$suffix}{$modeSuffix}";
+        return $row->{$key} ?? null;
+    }
+
+    protected function replacementComment(object $row, int $subgroup, string $weekMode): ?string
+    {
+        $suffix = $subgroup === 2 ? '_2' : '_1';
+        $modeSuffix = $weekMode === 'denominator' ? '_den' : '_num';
+        $key = "replacement_comment{$suffix}{$modeSuffix}";
+        return $row->{$key} ?? null;
+    }
+
+    protected function hoursPerClass(int $groupId, ?int $subjectId, ?int $teacherId, Carbon $date): int
+    {
+        $norm = $this->fetchNormative($groupId, $subjectId, $teacherId, $date);
+        return (int) ($norm['hours_per_class'] ?? 2);
+    }
+
+    protected function totalHours(int $groupId, ?int $subjectId, ?int $teacherId, Carbon $date): int
+    {
+        $norm = $this->fetchNormative($groupId, $subjectId, $teacherId, $date);
+        return (int) ($norm['total_hours'] ?? 0);
+    }
+
+    protected function fetchNormative(int $groupId, ?int $subjectId, ?int $teacherId, Carbon $date): array
+    {
+        if (!$subjectId) {
+            return [];
+        }
+
+        $row = FormTwoNormative::query()
+            ->where('group_id', $groupId)
+            ->where('subject_id', $subjectId)
+            ->when($teacherId, fn ($q) => $q->where(function ($qq) use ($teacherId) {
+                $qq->where('teacher_id', $teacherId)->orWhereNull('teacher_id');
+            }))
+            ->where('year', $date->year)
+            ->where('month', $date->month)
+            ->orderByRaw('teacher_id is null') // предпочитаем точное совпадение
+            ->first();
+
+        return [
+            'total_hours' => $row->total_hours ?? 0,
+            'hours_per_class' => $row->hours_per_class ?? 2,
+        ];
+    }
+}

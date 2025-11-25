@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\FormTwoService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -19,9 +20,10 @@ class FormTwoController extends Controller
         $month = (int) ($request->input('month') ?? now()->month);
         $year = (int) ($request->input('year') ?? now()->year);
 
-        $records = $groupId ? $this->service->loadMonthRecords($groupId, $year, $month) : [];
+        $report = $groupId ? $this->service->buildMonthReport($groupId, $year, $month) : ['rows' => [], 'days' => []];
+        $days = $report['days'] ?? range(1, Carbon::create($year, max(1, min(12, $month)), 1)->daysInMonth);
+        $rows = $report['rows'] ?? [];
 
-        $days = range(1, 31);
         $teachers = DB::table('frist_course_teachers')->orderBy('teacher_name')->get(['id', 'teacher_name']);
 
         return view('first_course.form_two', [
@@ -29,7 +31,7 @@ class FormTwoController extends Controller
             'groupId' => $groupId,
             'month' => $month,
             'year' => $year,
-            'records' => $records,
+            'rows' => $rows,
             'days' => $days,
             'teachers' => $teachers,
         ]);
@@ -42,7 +44,12 @@ class FormTwoController extends Controller
             'month' => 'required|integer|min:1|max:12',
             'year' => 'required|integer|min:2000|max:2100',
             'rows' => 'required|array',
+            'allow_manual' => 'nullable|boolean',
         ]);
+
+        if (!$request->boolean('allow_manual')) {
+            return response()->json(['message' => 'Форма 2 открыта в режиме отчёта. Включите коррекцию, если хотите вручную поправить статусы.'], 422);
+        }
 
         $this->service->saveMonthRecords(
             (int) $data['group_id'],

@@ -17,24 +17,25 @@
             <p class="page-subtitle">Компактный обзор по всем группам</p>
             <div class="mt-2">
                 <span class="pill {{ ($weekMode ?? 'num') === 'den' ? 'primary' : 'soft' }}">
-                    Сейчас показывается: {{ ($weekMode ?? 'num') === 'den' ? 'неделя B (знаменатель)' : 'неделя A (числитель)' }}
+                    Сейчас показывается: {{ ($weekMode ?? 'num') === 'den' ? 'неделя B (знаменатель)' : 'неделя A (числитель)' }} (неделя от {{ $weekStart ?? '—' }})
                 </span>
             </div>
         </div>
         <div class="action-buttons">
             <input type="search" id="groupSearch" class="search-input" placeholder="Поиск по группе или предмету">
+            <input type="date" id="weekStartInput" class="search-input" value="{{ $weekStart ?? '' }}" style="width:auto;">
+            <button type="button" class="btn-pill ghost" id="weekStartApply">Показать неделю</button>
             <button type="button" class="btn-pill ghost" id="weekModeToggle" data-week="{{ $weekMode ?? 'num' }}">
                 Переключить неделю
             </button>
             <a href="{{ route('first.schedule.week') }}" class="btn-pill primary">Редактор недели</a>
             <a href="{{ route('first.schedule.form_two') }}" class="btn-pill ghost">Форма 2</a>
-            <a href="{{ route('first.schedule.replacements') }}" class="btn-pill ghost">Журнал замен</a>
         </div>
     </div>
 
     <div class="groups-compact">
         @foreach($itemsByGroup as $groupId => $groupData)
-        @php $groupItems = $groupData['days'] ?? []; @endphp
+            @php $groupItems = $groupData['days'] ?? []; @endphp
         <div class="group-compact">
             <div class="group-compact__head">
                 <h2 class="group-compact__title">Группа: {{ $groupData['name'] ?? 'Без названия' }}</h2>
@@ -56,10 +57,14 @@
                                 $filled = ($pair['sub1']['has_den'] ?? false) || ($pair['sub1']['has_num'] ?? false) || ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
                                 $hasConflict = ($pair['sub1']['active_conflict'] ?? false) || ($pair['sub2']['active_conflict'] ?? false);
                                 $hasSubgroups = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
-                                $hasReplacement = ($pair['sub1']['is_replacement'] ?? false) || ($pair['sub2']['is_replacement'] ?? false);
-                                $missingTeacher = ($pair['sub1']['missing_teacher'] ?? false) || ($pair['sub2']['missing_teacher'] ?? false);
+                                $pairStatus = '';
+                                if (($pair['sub1']['is_replacement'] ?? false) || ($pair['sub2']['is_replacement'] ?? false)) {
+                                    $pairStatus = 'pair-replacement';
+                                } elseif (($pair['sub1']['is_absent'] ?? false) || ($pair['sub2']['is_absent'] ?? false)) {
+                                    $pairStatus = 'pair-sick';
+                                }
                             @endphp
-                            <div class="grid-cell pair-cell {{ $filled ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $hasReplacement || $missingTeacher ? 'replacement' : '' }}">
+                            <div class="grid-cell pair-cell {{ $filled ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}">
                                 <a href="#"
                                    class="cell-edit"
                                    title="Редактировать"
@@ -83,27 +88,33 @@
                                     data-sub2="2"
                                     data-subject1-title="{{ $pair['sub1']['subject_num'] ?? '' }}"
                                     data-subject2-title="{{ $pair['sub2']['subject_num'] ?? '' }}"
-                                    data-replacement="{{ $hasReplacement ? '1' : '0' }}"
-                                    data-replacement-teacher="{{ $pair['sub1']['replacement_teacher'] ?? $pair['sub2']['replacement_teacher'] ?? '' }}"
-                                    data-replacement-teacher-id="{{ $pair['sub1']['replacement_teacher_id'] ?? $pair['sub2']['replacement_teacher_id'] ?? '' }}"
-                                    data-absent-teacher="{{ $pair['sub1']['absent_teacher'] ?? $pair['sub2']['absent_teacher'] ?? '' }}"
-                                    data-replacement-comment="{{ $pair['sub1']['replacement_comment'] ?? $pair['sub2']['replacement_comment'] ?? '' }}"
                                     data-week-mode="{{ ($weekMode ?? 'num') === 'den' ? 'denominator' : 'numerator' }}"
                                     data-has-denominator="{{ $pair['has_denominator'] ? '1' : '0' }}"
+                                    data-week-start="{{ $weekStart ?? '' }}"
+                                    data-absent1="{{ ($pair['sub1']['is_absent'] ?? false) ? '1' : '0' }}"
+                                    data-absent2="{{ ($pair['sub2']['is_absent'] ?? false) ? '1' : '0' }}"
+                                    data-replacement1="{{ ($pair['sub1']['is_replacement'] ?? false) ? '1' : '0' }}"
+                                    data-replacement2="{{ ($pair['sub2']['is_replacement'] ?? false) ? '1' : '0' }}"
+                                    data-replacement-teacher-1="{{ $pair['sub1']['replacement_teacher_id'] ?? '' }}"
+                                    data-replacement-teacher-2="{{ $pair['sub2']['replacement_teacher_id'] ?? '' }}"
+                                    data-replacement-comment-1="{{ $pair['sub1']['replacement_comment'] ?? '' }}"
+                                    data-replacement-comment-2="{{ $pair['sub2']['replacement_comment'] ?? '' }}"
                                 >✏️</a>
                                 @php $main = $pair['sub1'] ?? []; @endphp
                                 <div class="cell-line main-line sub-line">
                                     <span class="pill badge-sub">1</span>
+                                    @if($main['is_absent'] ?? false)
+                                        <span class="status-chip tiny status-sick" title="Болезнь">Б</span>
+                                    @elseif($main['is_replacement'] ?? false)
+                                        <span class="status-chip tiny status-replacement" title="Замена">2</span>
+                                    @endif
                                     <span class="cell-title emphasis">{{ $main['active_subject'] ?? '—' }}</span>
                                 </div>
                                 <div class="cell-meta">
-                                    <span class="pill {{ ($main['is_replacement'] ?? false) || ($main['missing_teacher'] ?? false) ? 'pill-replacement' : '' }}">
+                                    <span class="pill">
                                         <span>👤</span>{{ $main['active_teacher'] ?? '—' }}
-                                        @if($main['is_replacement'] ?? false)
-                                            <span class="badge-red">2</span>
-                                            <span class="small text-muted">(замена)</span>
-                                        @elseif($main['missing_teacher'] ?? false)
-                                            <span class="small text-muted">(нет замены)</span>
+                                        @if(($main['replacement_teacher'] ?? null) && ($main['is_replacement'] ?? false))
+                                            <span class="text-danger ms-1">→ {{ $main['replacement_teacher'] }}</span>
                                         @endif
                                     </span>
                                     <span class="pill room-pill {{ ($main['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($main['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
@@ -118,16 +129,18 @@
                                 @if($hasSubgroups)
                                     <div class="cell-line subpair-line">
                                         <span class="pill badge-sub soft">2</span>
+                                        @if($sub2['is_absent'] ?? false)
+                                            <span class="status-chip tiny status-sick" title="Болезнь">Б</span>
+                                        @elseif($sub2['is_replacement'] ?? false)
+                                            <span class="status-chip tiny status-replacement" title="Замена">2</span>
+                                        @endif
                                         <span class="cell-title sub2 emphasis">{{ $sub2['active_subject'] ?? '—' }}</span>
                                     </div>
                                     <div class="cell-meta subpair">
-                                        <span class="pill {{ ($sub2['is_replacement'] ?? false) || ($sub2['missing_teacher'] ?? false) ? 'pill-replacement' : '' }}">
+                                        <span class="pill">
                                             <span>👤</span>{{ $sub2['active_teacher'] ?? '—' }}
-                                            @if($sub2['is_replacement'] ?? false)
-                                                <span class="badge-red">2</span>
-                                                <span class="small text-muted">(замена)</span>
-                                            @elseif($sub2['missing_teacher'] ?? false)
-                                                <span class="small text-muted">(нет замены)</span>
+                                            @if(($sub2['replacement_teacher'] ?? null) && ($sub2['is_replacement'] ?? false))
+                                                <span class="text-danger ms-1">→ {{ $sub2['replacement_teacher'] }}</span>
                                             @endif
                                         </span>
                                         <span class="pill room-pill {{ ($sub2['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($sub2['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
@@ -159,10 +172,12 @@
         const subjects = @json($subjects ?? []);
         const teachers = @json($teachers ?? []);
 
-        const modal = document.getElementById('pairModal');
+    const modal = document.getElementById('pairModal');
     const overlay = document.getElementById('modalOverlay');
     const form = document.getElementById('pairForm');
     const weekToggle = document.getElementById('weekModeToggle');
+    const weekStartPicker = document.getElementById('weekStartInput');
+    const weekStartApply = document.getElementById('weekStartApply');
 
     const subject1 = document.getElementById('modalSubject1');
     const teacher1 = document.getElementById('modalTeacher1');
@@ -170,11 +185,8 @@
     const subject1Den = document.getElementById('modalSubject1Den');
     const teacher1Den = document.getElementById('modalTeacher1Den');
     const room1Den = document.getElementById('modalRoom1Den');
-    const isReplacement = document.getElementById('modalIsReplacement');
-    const replacementTeacher = document.getElementById('modalReplacementTeacher');
-    const replacementComment = document.getElementById('modalReplacementComment');
-    const replacementBlock = document.getElementById('replacementBlock');
     const weekModeInput = document.getElementById('modalWeekMode');
+    const weekStartHidden = document.getElementById('modalWeekStart');
 
     const toggleSub2 = document.getElementById('modalHasSub2');
     const subject2 = document.getElementById('modalSubject2');
@@ -187,6 +199,16 @@
     const sub2CardDen = document.getElementById('subgroup2CardDen');
     const hasDenToggle = document.getElementById('modalHasDen');
     const denBlock = document.getElementById('denominatorBlock');
+    const absent1 = document.getElementById('modalAbsent1');
+    const replacement1 = document.getElementById('modalReplacement1');
+    const replacementBlock1 = document.getElementById('replacementBlock1');
+    const replacementTeacher1 = document.getElementById('modalReplacementTeacher1');
+    const replacementComment1 = document.getElementById('modalReplacementComment1');
+    const absent2 = document.getElementById('modalAbsent2');
+    const replacement2 = document.getElementById('modalReplacement2');
+    const replacementBlock2 = document.getElementById('replacementBlock2');
+    const replacementTeacher2 = document.getElementById('modalReplacementTeacher2');
+    const replacementComment2 = document.getElementById('modalReplacementComment2');
 
     const hiddenGroup = document.getElementById('modalGroupId');
     const hiddenDay = document.getElementById('modalDay');
@@ -199,6 +221,7 @@
         if (data.weekMode) {
             weekModeInput.value = data.weekMode;
         }
+        weekStartHidden.value = data.weekStart || (document.getElementById('weekStartInput')?.value || '');
 
         subject1.value = data.subject1 || '';
         teacher1.value = data.teacher1 || '';
@@ -206,10 +229,6 @@
         subject1Den.value = data.denSubject1 || '';
         teacher1Den.value = data.denTeacher1 || '';
         room1Den.value = data.denRoom1 || '';
-        isReplacement.checked = data.replacement === '1';
-        replacementBlock.classList.toggle('d-none', !isReplacement.checked);
-        replacementTeacher.value = data.replacementTeacherId || '';
-        replacementComment.value = data.replacementComment || '';
 
         subject2.value = data.subject2 || '';
         teacher2.value = data.teacher2 || '';
@@ -225,6 +244,18 @@
         const hasDen = data.hasDenominator === '1' || data.denSubject1 || data.denSubject2 || data.denTeacher1 || data.denTeacher2 || data.denRoom1 || data.denRoom2;
         hasDenToggle.checked = !!hasDen;
         denBlock.classList.toggle('d-none', !hasDenToggle.checked);
+
+        absent1.checked = data.absent1 === '1';
+        replacement1.checked = data.replacement1 === '1';
+        replacementBlock1.classList.toggle('d-none', !replacement1.checked);
+        replacementTeacher1.value = data.replacementTeacher1 || '';
+        replacementComment1.value = data.replacementComment1 || '';
+
+        absent2.checked = data.absent2 === '1';
+        replacement2.checked = data.replacement2 === '1';
+        replacementBlock2.classList.toggle('d-none', !replacement2.checked);
+        replacementTeacher2.value = data.replacementTeacher2 || '';
+        replacementComment2.value = data.replacementComment2 || '';
 
         overlay.classList.add('show');
         modal.classList.add('show');
@@ -245,14 +276,11 @@
             subject2Den.value = '';
             teacher2Den.value = '';
             room2Den.value = '';
-        }
-    });
-
-    isReplacement.addEventListener('change', () => {
-        replacementBlock.classList.toggle('d-none', !isReplacement.checked);
-        if (!isReplacement.checked) {
-            replacementTeacher.value = '';
-            replacementComment.value = '';
+            absent2.checked = false;
+            replacement2.checked = false;
+            replacementBlock2.classList.add('d-none');
+            replacementTeacher2.value = '';
+            replacementComment2.value = '';
         }
     });
 
@@ -265,6 +293,21 @@
             subject2Den.value = '';
             teacher2Den.value = '';
             room2Den.value = '';
+        }
+    });
+
+    replacement1.addEventListener('change', () => {
+        replacementBlock1.classList.toggle('d-none', !replacement1.checked);
+        if (!replacement1.checked) {
+            replacementTeacher1.value = '';
+            replacementComment1.value = '';
+        }
+    });
+    replacement2.addEventListener('change', () => {
+        replacementBlock2.classList.toggle('d-none', !replacement2.checked);
+        if (!replacement2.checked) {
+            replacementTeacher2.value = '';
+            replacementComment2.value = '';
         }
     });
 
@@ -330,6 +373,18 @@
         }
     });
 
+    if (weekStartApply && weekStartPicker) {
+        weekStartApply.addEventListener('click', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (weekStartPicker.value) {
+                params.set('week_start', weekStartPicker.value);
+            } else {
+                params.delete('week_start');
+            }
+            window.location.search = params.toString();
+        });
+    }
+
     // Переключение недели (числитель/знаменатель) через URL-параметр week_mode
     if (weekToggle) {
         weekToggle.addEventListener('click', () => {
@@ -337,6 +392,9 @@
             const next = current === 'den' ? 'num' : 'den';
             const params = new URLSearchParams(window.location.search);
             params.set('week_mode', next);
+            if (weekStartPicker && weekStartPicker.value) {
+                params.set('week_start', weekStartPicker.value);
+            }
             window.location.search = params.toString();
         });
     }
@@ -425,13 +483,6 @@
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 8px;
 }
-.replacement-card {
-    background: #fff7ed;
-    border: 1px solid #fed7aa;
-    border-radius: 8px;
-    padding: 10px;
-    margin-bottom: 8px;
-}
 .form-grid.compact {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
@@ -495,6 +546,7 @@
         <input type="hidden" name="study_day" id="modalDay">
         <input type="hidden" name="lesson_number" id="modalLesson">
         <input type="hidden" name="week_mode" id="modalWeekMode" value="{{ ($weekMode ?? 'num') === 'den' ? 'denominator' : 'numerator' }}">
+        <input type="hidden" name="week_start" id="modalWeekStart" value="{{ $weekStart ?? '' }}">
 
         <div class="modal-topline">
             <div class="form-check">
@@ -504,29 +556,6 @@
             <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="modalHasDen" name="has_denominator" value="1">
                 <label class="form-check-label" for="modalHasDen">Включить знаменатель</label>
-            </div>
-            <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" role="switch" id="modalIsReplacement" name="is_replacement" value="1">
-                <label class="form-check-label" for="modalIsReplacement">Замена учителя</label>
-            </div>
-        </div>
-
-        <div id="replacementBlock" class="d-none replacement-card">
-            <div class="form-grid compact">
-                <div>
-                    <label class="form-label">Заменяющий преподаватель</label>
-                    <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalReplacementTeacher">
-                    <select class="form-select" name="replacement_teacher_id" id="modalReplacementTeacher">
-                        <option value="">—</option>
-                        @foreach($teachers as $id => $title)
-                            <option value="{{ $id }}">{{ $title }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label">Комментарий</label>
-                    <input type="text" class="form-control" name="replacement_comment" id="modalReplacementComment" placeholder="Причина замены">
-                </div>
             </div>
         </div>
 
@@ -563,6 +592,26 @@
                             <input type="text" class="form-control" name="room_id" id="modalRoom1" placeholder="101">
                         </div>
                     </div>
+                    <div class="d-flex gap-3 flex-wrap mt-2">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="modalAbsent1" name="is_absent_1" value="1">
+                            <label class="form-check-label" for="modalAbsent1">Болел</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="modalReplacement1" name="is_replacement_1" value="1">
+                            <label class="form-check-label" for="modalReplacement1">Замена</label>
+                        </div>
+                        <div id="replacementBlock1" class="d-none replacement-card flex-grow-1">
+                            <label class="form-label">Заменяющий (подгр. 1)</label>
+                            <select class="form-select mb-2" name="replacement_teacher_id_1" id="modalReplacementTeacher1">
+                                <option value="">—</option>
+                                @foreach($teachers as $id => $title)
+                                    <option value="{{ $id }}">{{ $title }}</option>
+                                @endforeach
+                            </select>
+                            <input type="text" class="form-control" name="replacement_comment_1" id="modalReplacementComment1" placeholder="Комментарий">
+                        </div>
+                    </div>
                 </div>
                 <div class="subcard sub2-card d-none" id="subgroup2CardNum">
                     <div class="subcard-head">Подгруппа 2</div>
@@ -590,6 +639,26 @@
                         <div>
                             <label class="form-label">Кабинет</label>
                             <input type="text" class="form-control" name="room_id_2" id="modalRoom2" placeholder="102">
+                        </div>
+                    </div>
+                    <div class="d-flex gap-3 flex-wrap mt-2">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="modalAbsent2" name="is_absent_2" value="1">
+                            <label class="form-check-label" for="modalAbsent2">Болел</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="modalReplacement2" name="is_replacement_2" value="1">
+                            <label class="form-check-label" for="modalReplacement2">Замена</label>
+                        </div>
+                        <div id="replacementBlock2" class="d-none replacement-card flex-grow-1">
+                            <label class="form-label">Заменяющий (подгр. 2)</label>
+                            <select class="form-select mb-2" name="replacement_teacher_id_2" id="modalReplacementTeacher2">
+                                <option value="">—</option>
+                                @foreach($teachers as $id => $title)
+                                    <option value="{{ $id }}">{{ $title }}</option>
+                                @endforeach
+                            </select>
+                            <input type="text" class="form-control" name="replacement_comment_2" id="modalReplacementComment2" placeholder="Комментарий">
                         </div>
                     </div>
                 </div>

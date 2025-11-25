@@ -11,9 +11,7 @@
 }
 
 body {
-    background: radial-gradient(circle at 10% 20%, rgba(118, 132, 255, 0.08), transparent 40%),
-                radial-gradient(circle at 90% 0%, rgba(170, 127, 255, 0.08), transparent 30%),
-                var(--bg);
+    background: var(--bg);
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
@@ -549,6 +547,53 @@ body {
 .cell-title.sub2 {
     font-size: 15px;
     width: 100%;
+}
+
+.status-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    padding: 4px 6px;
+    font-weight: 700;
+    font-size: 12px;
+    border: 1px solid #e5e7eb;
+    background: #f8fafc;
+    min-width: 28px;
+    height: 24px;
+}
+
+.status-chip.tiny {
+    height: 22px;
+    min-width: 24px;
+    font-size: 11px;
+}
+
+.status-chip.status-normal {
+    background: #e7f5ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+}
+
+.status-chip.status-sick {
+    background: #fff4e5;
+    color: #b45309;
+    border-color: #fbbf24;
+}
+
+.status-chip.status-replacement {
+    background: #fff7d6;
+    color: #c1121f;
+    border-color: #facc15;
+}
+
+.pair-cell.pair-sick {
+    background: linear-gradient(180deg, #fff9ed, #fff5e1);
+}
+
+.pair-cell.pair-replacement {
+    background: linear-gradient(180deg, #fffbea, #fff7d1);
+    border-color: #fde68a;
 }
 
 @media (max-width: 640px) {

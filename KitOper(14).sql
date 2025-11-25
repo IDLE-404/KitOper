@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Хост: db
--- Время создания: Ноя 24 2025 г., 20:20
+-- Время создания: Ноя 25 2025 г., 16:30
 -- Версия сервера: 8.0.43
 -- Версия PHP: 8.3.26
 
@@ -60,26 +60,6 @@ CREATE TABLE `failed_jobs` (
   `exception` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `failed_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Структура таблицы `first_course_form2_weeks`
---
-
-CREATE TABLE `first_course_form2_weeks` (
-  `id` bigint UNSIGNED NOT NULL,
-  `form2_subject_id` bigint UNSIGNED NOT NULL,
-  `day_of_month` tinyint UNSIGNED DEFAULT NULL,
-  `week_number` tinyint UNSIGNED NOT NULL,
-  `hours` decimal(4,1) DEFAULT '0.0',
-  `is_weekend` tinyint(1) DEFAULT '0',
-  `is_replacement` tinyint(1) DEFAULT '0',
-  `replacement_teacher_id` bigint UNSIGNED DEFAULT NULL,
-  `replacement_comment` varchar(255) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
 
@@ -207,6 +187,25 @@ INSERT INTO `first_course_subjects` (`id`, `module_title`, `module_index`, `subj
 -- --------------------------------------------------------
 
 --
+-- Структура таблицы `form_two_normatives`
+--
+
+CREATE TABLE `form_two_normatives` (
+  `id` bigint UNSIGNED NOT NULL,
+  `group_id` bigint UNSIGNED NOT NULL,
+  `subject_id` bigint UNSIGNED NOT NULL,
+  `teacher_id` bigint UNSIGNED NOT NULL,
+  `month` tinyint UNSIGNED NOT NULL,
+  `year` smallint UNSIGNED NOT NULL,
+  `total_hours` smallint UNSIGNED NOT NULL DEFAULT '0',
+  `hours_per_class` tinyint UNSIGNED NOT NULL DEFAULT '2',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Структура таблицы `form_two_records`
 --
 
@@ -218,6 +217,7 @@ CREATE TABLE `form_two_records` (
   `day` tinyint UNSIGNED NOT NULL,
   `subject_id` bigint UNSIGNED DEFAULT NULL,
   `teacher_id` bigint UNSIGNED DEFAULT NULL,
+  `subgroup` tinyint UNSIGNED NOT NULL DEFAULT '1',
   `total_hours` smallint UNSIGNED DEFAULT '0',
   `hours_per_class` tinyint UNSIGNED DEFAULT '2',
   `status` enum('normal','sick','replacement') DEFAULT 'normal',
@@ -227,22 +227,6 @@ CREATE TABLE `form_two_records` (
   `absent_reason` varchar(255) DEFAULT NULL,
   `replacement_comment` varchar(255) DEFAULT NULL,
   `mode` enum('single','numerator','denominator') DEFAULT 'single',
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- --------------------------------------------------------
-
---
--- Структура таблицы `frist_course_form2_subjects`
---
-
-CREATE TABLE `frist_course_form2_subjects` (
-  `id` bigint UNSIGNED NOT NULL,
-  `group_id` bigint UNSIGNED NOT NULL,
-  `subject_id` bigint UNSIGNED NOT NULL,
-  `teacher_id` bigint UNSIGNED DEFAULT NULL,
-  `total_hours` int DEFAULT '0',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -419,6 +403,27 @@ CREATE TABLE `schedule_lessons` (
 -- --------------------------------------------------------
 
 --
+-- Структура таблицы `schedule_replacements`
+--
+
+CREATE TABLE `schedule_replacements` (
+  `id` bigint UNSIGNED NOT NULL,
+  `group_id` bigint UNSIGNED NOT NULL,
+  `subgroup` tinyint UNSIGNED NOT NULL DEFAULT '1',
+  `study_day` enum('Понедельник','Вторник','Среда','Четверг','Пятница','Суббота') NOT NULL,
+  `lesson_number` tinyint UNSIGNED NOT NULL,
+  `week_mode` enum('single','numerator','denominator') NOT NULL DEFAULT 'single',
+  `subject_id` bigint UNSIGNED DEFAULT NULL,
+  `absent_teacher_id` bigint UNSIGNED DEFAULT NULL,
+  `replacement_teacher_id` bigint UNSIGNED DEFAULT NULL,
+  `comment` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Структура таблицы `sessions`
 --
 
@@ -479,12 +484,6 @@ ALTER TABLE `failed_jobs`
   ADD UNIQUE KEY `failed_jobs_uuid_unique` (`uuid`);
 
 --
--- Индексы таблицы `first_course_form2_weeks`
---
-ALTER TABLE `first_course_form2_weeks`
-  ADD PRIMARY KEY (`id`);
-
---
 -- Индексы таблицы `first_course_group`
 --
 ALTER TABLE `first_course_group`
@@ -503,21 +502,24 @@ ALTER TABLE `first_course_subjects`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Индексы таблицы `form_two_normatives`
+--
+ALTER TABLE `form_two_normatives`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_normative` (`group_id`,`subject_id`,`teacher_id`,`month`,`year`),
+  ADD KEY `fk_norm_subject` (`subject_id`),
+  ADD KEY `fk_norm_teacher` (`teacher_id`);
+
+--
 -- Индексы таблицы `form_two_records`
 --
 ALTER TABLE `form_two_records`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `unique_record` (`group_id`,`year`,`month`,`day`,`subject_id`,`mode`),
+  ADD UNIQUE KEY `unique_record_full` (`group_id`,`year`,`month`,`day`,`subject_id`,`mode`,`subgroup`),
   ADD KEY `idx_group` (`group_id`),
   ADD KEY `idx_subject` (`subject_id`),
   ADD KEY `idx_teacher` (`teacher_id`),
   ADD KEY `idx_replacement_teacher` (`replacement_teacher_id`);
-
---
--- Индексы таблицы `frist_course_form2_subjects`
---
-ALTER TABLE `frist_course_form2_subjects`
-  ADD PRIMARY KEY (`id`);
 
 --
 -- Индексы таблицы `frist_course_teachers`
@@ -557,6 +559,16 @@ ALTER TABLE `schedule_lessons`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Индексы таблицы `schedule_replacements`
+--
+ALTER TABLE `schedule_replacements`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_group_day_lesson` (`group_id`,`study_day`,`lesson_number`,`week_mode`,`subgroup`),
+  ADD KEY `fk_repl_subject` (`subject_id`),
+  ADD KEY `fk_repl_absent` (`absent_teacher_id`),
+  ADD KEY `fk_repl_replacement` (`replacement_teacher_id`);
+
+--
 -- Индексы таблицы `sessions`
 --
 ALTER TABLE `sessions`
@@ -582,12 +594,6 @@ ALTER TABLE `failed_jobs`
   MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT для таблицы `first_course_form2_weeks`
---
-ALTER TABLE `first_course_form2_weeks`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT для таблицы `first_course_group`
 --
 ALTER TABLE `first_course_group`
@@ -606,16 +612,16 @@ ALTER TABLE `first_course_subjects`
   MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
+-- AUTO_INCREMENT для таблицы `form_two_normatives`
+--
+ALTER TABLE `form_two_normatives`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT для таблицы `form_two_records`
 --
 ALTER TABLE `form_two_records`
   MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT для таблицы `frist_course_form2_subjects`
---
-ALTER TABLE `frist_course_form2_subjects`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT для таблицы `jobs`
@@ -636,6 +642,12 @@ ALTER TABLE `schedule_lessons`
   MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT для таблицы `schedule_replacements`
+--
+ALTER TABLE `schedule_replacements`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT для таблицы `users`
 --
 ALTER TABLE `users`
@@ -646,6 +658,14 @@ ALTER TABLE `users`
 --
 
 --
+-- Ограничения внешнего ключа таблицы `form_two_normatives`
+--
+ALTER TABLE `form_two_normatives`
+  ADD CONSTRAINT `fk_norm_group` FOREIGN KEY (`group_id`) REFERENCES `first_course_group` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_norm_subject` FOREIGN KEY (`subject_id`) REFERENCES `first_course_subjects` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_norm_teacher` FOREIGN KEY (`teacher_id`) REFERENCES `frist_course_teachers` (`id`) ON DELETE CASCADE;
+
+--
 -- Ограничения внешнего ключа таблицы `form_two_records`
 --
 ALTER TABLE `form_two_records`
@@ -653,6 +673,15 @@ ALTER TABLE `form_two_records`
   ADD CONSTRAINT `fk_form2_repl_teacher` FOREIGN KEY (`replacement_teacher_id`) REFERENCES `frist_course_teachers` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_form2_subject` FOREIGN KEY (`subject_id`) REFERENCES `first_course_subjects` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_form2_teacher` FOREIGN KEY (`teacher_id`) REFERENCES `frist_course_teachers` (`id`) ON DELETE SET NULL;
+
+--
+-- Ограничения внешнего ключа таблицы `schedule_replacements`
+--
+ALTER TABLE `schedule_replacements`
+  ADD CONSTRAINT `fk_repl_absent` FOREIGN KEY (`absent_teacher_id`) REFERENCES `frist_course_teachers` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_repl_group` FOREIGN KEY (`group_id`) REFERENCES `first_course_group` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_repl_replacement` FOREIGN KEY (`replacement_teacher_id`) REFERENCES `frist_course_teachers` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_repl_subject` FOREIGN KEY (`subject_id`) REFERENCES `first_course_subjects` (`id`) ON DELETE SET NULL;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

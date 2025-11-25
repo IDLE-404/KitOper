@@ -132,6 +132,16 @@
                 </select>
             </div>
             <div class="mt-3">
+                <label class="form-label">Предмет (знаменатель, подгруппа 2)</label>
+                <input type="search" class="form-control mb-2 filter-input" data-target="#subjectSelect2Den" placeholder="Поиск предмета">
+                <select name="subject_id_second_denominator" id="subjectSelect2Den" class="form-select filterable">
+                    <option value="">— если предмет отличается для знаменателя</option>
+                    @foreach($subjects as $s)
+                        <option value="{{ $s->id }}">{{ $s->name_ru ?? $s->subject_name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="mt-3">
                 <label class="form-label">Аудитория (подгруппа 2)</label>
                 <input type="number" name="room_id_second" class="form-control" placeholder="Например, 33">
             </div>

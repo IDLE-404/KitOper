@@ -50,10 +50,11 @@
                     <div class="grid-row">
                         <div class="grid-cell day-col">{{ $day }}</div>
                         @for($i = 1; $i <= 5; $i++)
-                            @php $pair = $groupItems[$day][$i] ?? ['sub1'=>[], 'sub2'=>[]]; @endphp
+                            @php $pair = $groupItems[$day][$i] ?? ['sub1'=>[], 'sub2'=>[], 'has_denominator' => false]; @endphp
                             @php
-                                $filled = !empty($pair['sub1']['active_subject']) || !empty($pair['sub1']['numerator_subject']) || !empty($pair['sub1']['denominator_subject']);
-                                $hasConflict = ($pair['sub1']['has_conflict'] ?? false) || ($pair['sub2']['has_conflict'] ?? false);
+                                $filled = ($pair['sub1']['has_den'] ?? false) || ($pair['sub1']['has_num'] ?? false) || ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
+                                $hasConflict = ($pair['sub1']['active_conflict'] ?? false) || ($pair['sub2']['active_conflict'] ?? false);
+                                $hasSubgroups = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
                             @endphp
                             <div class="grid-cell pair-cell {{ $filled ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }}">
                                 <a href="#"
@@ -62,82 +63,56 @@
                                    data-group="{{ $groupId }}"
                                    data-day="{{ $day }}"
                                    data-lesson="{{ $i }}"
-                                   data-subject1="{{ $pair['sub1']['subject_id'] ?? '' }}"
-                                   data-teacher1="{{ $pair['sub1']['teacher_id'] ?? '' }}"
-                                   data-room1="{{ $pair['sub1']['room'] ?? '' }}"
-                                   data-den-subject1="{{ $pair['sub1']['den_subject_id'] ?? '' }}"
-                                   data-den-teacher1="{{ $pair['sub1']['den_teacher_id'] ?? '' }}"
-                                   data-den-room1="{{ $pair['sub1']['den_room'] ?? '' }}"
-                                   data-sub1="{{ $pair['sub1']['label'] ?? '' }}"
-                                   data-has-sub2="{{ !empty($pair['sub2']) ? '1' : '0' }}"
-                                   data-subject2="{{ $pair['sub2']['subject_id'] ?? '' }}"
-                                   data-teacher2="{{ $pair['sub2']['teacher_id'] ?? '' }}"
-                                   data-room2="{{ $pair['sub2']['room'] ?? '' }}"
-                                   data-den-subject2="{{ $pair['sub2']['den_subject_id'] ?? '' }}"
-                                   data-den-teacher2="{{ $pair['sub2']['den_teacher_id'] ?? '' }}"
-                                   data-den-room2="{{ $pair['sub2']['den_room'] ?? '' }}"
-                                   data-sub2="{{ $pair['sub2']['label'] ?? '' }}"
-                                   data-subject1-title="{{ $pair['sub1']['subject'] ?? '' }}"
-                                   data-subject2-title="{{ $pair['sub2']['subject'] ?? '' }}"
+                                   data-subject1="{{ $pair['sub1']['subject_num_id'] ?? '' }}"
+                                   data-teacher1="{{ $pair['sub1']['teacher_num_id'] ?? '' }}"
+                                   data-room1="{{ $pair['sub1']['room_num'] ?? '' }}"
+                                   data-den-subject1="{{ $pair['sub1']['subject_den_id'] ?? '' }}"
+                                   data-den-teacher1="{{ $pair['sub1']['teacher_den_id'] ?? '' }}"
+                                   data-den-room1="{{ $pair['sub1']['room_den'] ?? '' }}"
+                                   data-sub1="1"
+                                   data-has-sub2="{{ $hasSubgroups ? '1' : '0' }}"
+                                   data-subject2="{{ $pair['sub2']['subject_num_id'] ?? '' }}"
+                                   data-teacher2="{{ $pair['sub2']['teacher_num_id'] ?? '' }}"
+                                   data-room2="{{ $pair['sub2']['room_num'] ?? '' }}"
+                                   data-den-subject2="{{ $pair['sub2']['subject_den_id'] ?? '' }}"
+                                   data-den-teacher2="{{ $pair['sub2']['teacher_den_id'] ?? '' }}"
+                                   data-den-room2="{{ $pair['sub2']['room_den'] ?? '' }}"
+                                   data-sub2="2"
+                                   data-subject1-title="{{ $pair['sub1']['subject_num'] ?? '' }}"
+                                   data-subject2-title="{{ $pair['sub2']['subject_num'] ?? '' }}"
                                 >✏️</a>
                                 @php $main = $pair['sub1'] ?? []; @endphp
-                                <div class="cell-line main-line">
+                                <div class="cell-line main-line sub-line">
+                                    <span class="pill badge-sub">1</span>
                                     <span class="cell-title emphasis">{{ $main['active_subject'] ?? '—' }}</span>
                                 </div>
                                 <div class="cell-meta">
                                     <span class="pill"><span>👤</span>{{ $main['active_teacher'] ?? '—' }}</span>
-                                    <span class="pill room-pill {{ ($main['has_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($main['has_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
+                                    <span class="pill room-pill {{ ($main['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($main['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
                                         <span>🏫</span>{{ $main['active_room'] ?? '—' }}
                                     </span>
                                     <span class="pill"><span>🔸</span>{{ $main['label'] ?? '—' }}</span>
                                 </div>
-                                @if($main['has_conflict'] ?? false)
+                                @if($main['active_conflict'] ?? false)
                                     <div class="conflict-hint">Конфликт: кабинет уже занят</div>
                                 @endif
-                                @if(!empty($main['is_fraction']))
-                                    <div class="fraction-block">
-                                        <div class="fraction-line {{ ($weekMode ?? 'num') === 'num' ? 'active' : '' }}">
-                                            <span class="pill soft">Неделя A</span>
-                                            <span class="fraction-text">{{ $main['numerator_subject'] ?? '—' }}</span>
-                                            <span class="pill tiny"><span>👤</span>{{ $main['numerator_teacher'] ?? '—' }}</span>
-                                        </div>
-                                        <div class="fraction-line {{ ($weekMode ?? 'num') === 'den' ? 'active' : '' }}">
-                                            <span class="pill soft">Неделя B</span>
-                                            <span class="fraction-text">{{ $main['denominator_subject'] ?? '—' }}</span>
-                                            <span class="pill tiny"><span>👤</span>{{ $main['denominator_teacher'] ?? '—' }}</span>
-                                        </div>
-                                    </div>
+                                @php $sub2 = $pair['sub2'] ?? []; @endphp
+                                <div class="cell-line subpair-line">
+                                    <span class="pill badge-sub soft">2</span>
+                                    <span class="cell-title sub2 emphasis">{{ $sub2['active_subject'] ?? '—' }}</span>
+                                </div>
+                                <div class="cell-meta subpair">
+                                    <span class="pill"><span>👤</span>{{ $sub2['active_teacher'] ?? '—' }}</span>
+                                    <span class="pill room-pill {{ ($sub2['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($sub2['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
+                                        <span>🏫</span>{{ $sub2['active_room'] ?? '—' }}
+                                    </span>
+                                    <span class="pill"><span>🔸</span>{{ $sub2['label'] ?? '—' }}</span>
+                                </div>
+                                @if($sub2['active_conflict'] ?? false)
+                                    <div class="conflict-hint">Конфликт: кабинет уже занят</div>
                                 @endif
-                                @if(!empty($pair['sub2']))
-                                    @php $sub2 = $pair['sub2']; @endphp
-                                    <div class="cell-line subpair-line">
-                                        <span class="label-sub">2 подгруппа</span>
-                                        <span class="cell-title sub2 emphasis">{{ $sub2['active_subject'] ?? '—' }}</span>
-                                    </div>
-                                    <div class="cell-meta subpair">
-                                        <span class="pill"><span>👤</span>{{ $sub2['active_teacher'] ?? '—' }}</span>
-                                        <span class="pill room-pill {{ ($sub2['has_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($sub2['has_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
-                                            <span>🏫</span>{{ $sub2['active_room'] ?? '—' }}
-                                        </span>
-                                        <span class="pill"><span>🔸</span>{{ $sub2['label'] ?? '—' }}</span>
-                                    </div>
-                                    @if($sub2['has_conflict'] ?? false)
-                                        <div class="conflict-hint">Конфликт: кабинет уже занят</div>
-                                    @endif
-                                    @if(!empty($sub2['is_fraction']))
-                                        <div class="fraction-block subpair">
-                                            <div class="fraction-line {{ ($weekMode ?? 'num') === 'num' ? 'active' : '' }}">
-                                                <span class="pill soft">Неделя A</span>
-                                                <span class="fraction-text">{{ $sub2['numerator_subject'] ?? '—' }}</span>
-                                                <span class="pill tiny"><span>👤</span>{{ $sub2['numerator_teacher'] ?? '—' }}</span>
-                                            </div>
-                                            <div class="fraction-line {{ ($weekMode ?? 'num') === 'den' ? 'active' : '' }}">
-                                                <span class="pill soft">Неделя B</span>
-                                                <span class="fraction-text">{{ $sub2['denominator_subject'] ?? '—' }}</span>
-                                                <span class="pill tiny"><span>👤</span>{{ $sub2['denominator_teacher'] ?? '—' }}</span>
-                                            </div>
-                                        </div>
-                                    @endif
+                                @if($pair['has_denominator'])
+                                    <div class="den-separator" title="Разделение числитель/знаменатель"></div>
                                 @endif
                             </div>
                         @endfor

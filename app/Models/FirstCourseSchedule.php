@@ -46,9 +46,12 @@ class FirstCourseSchedule extends Model
                 'subgroup',
                 'room_id',
                 'room_id_denominator',
+                'room_id_denominator_2',
                 'room_id_2',
                 'subject_id_denominator',
                 'teacher_id_denominator',
+                'subject_id_denominator_2',
+                'teacher_id_denominator_2',
             ]);
 
         foreach ($rows as $row) {
@@ -108,7 +111,10 @@ class FirstCourseSchedule extends Model
     {
         $hasDenominator = self::field($row, 'subject_id_denominator')
             || self::field($row, 'teacher_id_denominator')
-            || self::field($row, 'room_id_denominator');
+            || self::field($row, 'room_id_denominator')
+            || self::field($row, 'subject_id_denominator_2')
+            || self::field($row, 'teacher_id_denominator_2')
+            || self::field($row, 'room_id_denominator_2');
 
         // Если нет знаменателя — слот действует на обе недели.
         return $hasDenominator ? ['numerator'] : ['numerator', 'denominator'];
@@ -127,6 +133,14 @@ class FirstCourseSchedule extends Model
             return $result;
         }
 
+        $subgroupFlag = self::field($row, 'subgroup') === '2' ? '2' : '1';
+
+        $roomNum1 = $subgroupFlag === '1' ? self::field($row, 'room_id') : null;
+        $roomNum2 = self::field($row, 'room_id_2') ?: ($subgroupFlag === '2' ? self::field($row, 'room_id') : null);
+
+        $roomDen1 = $subgroupFlag === '1' ? self::field($row, 'room_id_denominator') : null;
+        $roomDen2 = self::field($row, 'room_id_denominator_2') ?: ($subgroupFlag === '2' ? self::field($row, 'room_id_denominator') : null);
+
         $append = function ($room, string $mode, string $subgroupKey) use (&$result, $row, $day, $lesson) {
             if ($room === null || $room === '') {
                 return;
@@ -143,12 +157,13 @@ class FirstCourseSchedule extends Model
         };
 
         foreach ($modes as $mode) {
-            $append(self::field($row, 'room_id'), $mode, $subgroup);
-            $append(self::field($row, 'room_id_2'), $mode, '2');
+            $append($roomNum1, $mode, '1');
+            $append($roomNum2, $mode, '2');
         }
 
         // Знаменатель — только для второй половины недели.
-        $append(self::field($row, 'room_id_denominator'), 'denominator', $subgroup);
+        $append($roomDen1, 'denominator', '1');
+        $append($roomDen2, 'denominator', '2');
 
         return $result;
     }

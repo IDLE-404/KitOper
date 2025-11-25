@@ -266,8 +266,8 @@ body {
 }
 
 .groups-compact {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
     gap: 20px;
 }
 
@@ -410,6 +410,11 @@ body {
     box-shadow: 0 10px 20px rgba(248, 113, 113, 0.18);
 }
 
+.pair-cell.replacement {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+}
+
 .pair-cell.empty {
     background: #f7f8fa;
     box-shadow: none;
@@ -488,6 +493,12 @@ body {
     border: 1px solid #fecaca;
 }
 
+.pill-replacement {
+    background: #fff1e6;
+    color: #c2410c;
+    border: 1px solid #fed7aa;
+}
+
 .conflict-hint {
     color: #b91c1c;
     font-weight: 600;
@@ -499,6 +510,20 @@ body {
     border-top: 1px dashed #cbd5e1;
     margin-top: 6px;
     padding-top: 4px;
+}
+
+.badge-red {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 11px;
+    padding: 0 4px;
+    line-height: 1;
 }
 
 .subpair-line {

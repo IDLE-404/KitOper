@@ -28,6 +28,7 @@
             </button>
             <a href="{{ route('first.schedule.week') }}" class="btn-pill primary">Редактор недели</a>
             <a href="{{ route('first.schedule.form_two') }}" class="btn-pill ghost">Форма 2</a>
+            <a href="{{ route('first.schedule.replacements') }}" class="btn-pill ghost">Журнал замен</a>
         </div>
     </div>
 
@@ -55,8 +56,10 @@
                                 $filled = ($pair['sub1']['has_den'] ?? false) || ($pair['sub1']['has_num'] ?? false) || ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
                                 $hasConflict = ($pair['sub1']['active_conflict'] ?? false) || ($pair['sub2']['active_conflict'] ?? false);
                                 $hasSubgroups = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
+                                $hasReplacement = ($pair['sub1']['is_replacement'] ?? false) || ($pair['sub2']['is_replacement'] ?? false);
+                                $missingTeacher = ($pair['sub1']['missing_teacher'] ?? false) || ($pair['sub2']['missing_teacher'] ?? false);
                             @endphp
-                            <div class="grid-cell pair-cell {{ $filled ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }}">
+                            <div class="grid-cell pair-cell {{ $filled ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $hasReplacement || $missingTeacher ? 'replacement' : '' }}">
                                 <a href="#"
                                    class="cell-edit"
                                    title="Редактировать"
@@ -80,6 +83,12 @@
                                    data-sub2="2"
                                    data-subject1-title="{{ $pair['sub1']['subject_num'] ?? '' }}"
                                    data-subject2-title="{{ $pair['sub2']['subject_num'] ?? '' }}"
+                                   data-replacement="{{ $hasReplacement ? '1' : '0' }}"
+                                   data-replacement-teacher="{{ $pair['sub1']['replacement_teacher'] ?? $pair['sub2']['replacement_teacher'] ?? '' }}"
+                                   data-replacement-teacher-id="{{ $pair['sub1']['replacement_teacher_id'] ?? $pair['sub2']['replacement_teacher_id'] ?? '' }}"
+                                    data-absent-teacher="{{ $pair['sub1']['absent_teacher'] ?? $pair['sub2']['absent_teacher'] ?? '' }}"
+                                    data-replacement-comment="{{ $pair['sub1']['replacement_comment'] ?? $pair['sub2']['replacement_comment'] ?? '' }}"
+                                   data-week-mode="{{ ($weekMode ?? 'num') === 'den' ? 'denominator' : 'numerator' }}"
                                 >✏️</a>
                                 @php $main = $pair['sub1'] ?? []; @endphp
                                 <div class="cell-line main-line sub-line">
@@ -87,7 +96,15 @@
                                     <span class="cell-title emphasis">{{ $main['active_subject'] ?? '—' }}</span>
                                 </div>
                                 <div class="cell-meta">
-                                    <span class="pill"><span>👤</span>{{ $main['active_teacher'] ?? '—' }}</span>
+                                    <span class="pill {{ ($main['is_replacement'] ?? false) || ($main['missing_teacher'] ?? false) ? 'pill-replacement' : '' }}">
+                                        <span>👤</span>{{ $main['active_teacher'] ?? '—' }}
+                                        @if($main['is_replacement'] ?? false)
+                                            <span class="badge-red">2</span>
+                                            <span class="small text-muted">(замена)</span>
+                                        @elseif($main['missing_teacher'] ?? false)
+                                            <span class="small text-muted">(нет замены)</span>
+                                        @endif
+                                    </span>
                                     <span class="pill room-pill {{ ($main['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($main['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
                                         <span>🏫</span>{{ $main['active_room'] ?? '—' }}
                                     </span>
@@ -103,7 +120,15 @@
                                         <span class="cell-title sub2 emphasis">{{ $sub2['active_subject'] ?? '—' }}</span>
                                     </div>
                                     <div class="cell-meta subpair">
-                                        <span class="pill"><span>👤</span>{{ $sub2['active_teacher'] ?? '—' }}</span>
+                                        <span class="pill {{ ($sub2['is_replacement'] ?? false) || ($sub2['missing_teacher'] ?? false) ? 'pill-replacement' : '' }}">
+                                            <span>👤</span>{{ $sub2['active_teacher'] ?? '—' }}
+                                            @if($sub2['is_replacement'] ?? false)
+                                                <span class="badge-red">2</span>
+                                                <span class="small text-muted">(замена)</span>
+                                            @elseif($sub2['missing_teacher'] ?? false)
+                                                <span class="small text-muted">(нет замены)</span>
+                                            @endif
+                                        </span>
                                         <span class="pill room-pill {{ ($sub2['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($sub2['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
                                             <span>🏫</span>{{ $sub2['active_room'] ?? '—' }}
                                         </span>
@@ -144,6 +169,11 @@
     const subject1Den = document.getElementById('modalSubject1Den');
     const teacher1Den = document.getElementById('modalTeacher1Den');
     const room1Den = document.getElementById('modalRoom1Den');
+    const isReplacement = document.getElementById('modalIsReplacement');
+    const replacementTeacher = document.getElementById('modalReplacementTeacher');
+    const replacementComment = document.getElementById('modalReplacementComment');
+    const replacementBlock = document.getElementById('replacementBlock');
+    const weekModeInput = document.getElementById('modalWeekMode');
 
     const toggleSub2 = document.getElementById('modalHasSub2');
     const subject2 = document.getElementById('modalSubject2');
@@ -162,6 +192,9 @@
         hiddenGroup.value = data.group;
         hiddenDay.value = data.day;
         hiddenLesson.value = data.lesson;
+        if (data.weekMode) {
+            weekModeInput.value = data.weekMode;
+        }
 
         subject1.value = data.subject1 || '';
         teacher1.value = data.teacher1 || '';
@@ -169,6 +202,10 @@
         subject1Den.value = data.denSubject1 || '';
         teacher1Den.value = data.denTeacher1 || '';
         room1Den.value = data.denRoom1 || '';
+        isReplacement.checked = data.replacement === '1';
+        replacementBlock.classList.toggle('d-none', !isReplacement.checked);
+        replacementTeacher.value = data.replacementTeacherId || '';
+        replacementComment.value = data.replacementComment || '';
 
         subject2.value = data.subject2 || '';
         teacher2.value = data.teacher2 || '';
@@ -198,6 +235,14 @@
             subject2Den.value = '';
             teacher2Den.value = '';
             room2Den.value = '';
+        }
+    });
+
+    isReplacement.addEventListener('change', () => {
+        replacementBlock.classList.toggle('d-none', !isReplacement.checked);
+        if (!isReplacement.checked) {
+            replacementTeacher.value = '';
+            replacementComment.value = '';
         }
     });
 
@@ -303,11 +348,18 @@
     pointer-events: none;
     transition: transform 0.15s ease, opacity 0.15s ease;
     z-index: 91;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 .modal-card.show {
     opacity: 1;
     pointer-events: all;
     transform: translate(-50%, -50%) scale(1);
+}
+.subgroup-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 14px;
 }
 .modal-header {
     display: flex;
@@ -368,104 +420,15 @@
         <input type="hidden" name="group_id" id="modalGroupId">
         <input type="hidden" name="study_day" id="modalDay">
         <input type="hidden" name="lesson_number" id="modalLesson">
+        <input type="hidden" name="week_mode" id="modalWeekMode" value="{{ ($weekMode ?? 'num') === 'den' ? 'denominator' : 'numerator' }}">
 
-        <div class="form-grid">
-            <div>
-                <label class="form-label">Предмет (подгруппа 1)</label>
-                <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета" data-target="modalSubject1">
-                <select class="form-select" name="subject_id" id="modalSubject1">
-                    <option value="">—</option>
-                    @foreach($subjects as $id => $title)
-                        <option value="{{ $id }}">{{ $title }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label class="form-label">Преподаватель</label>
-                <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher1">
-                <select class="form-select" name="teacher_id" id="modalTeacher1">
-                    <option value="">—</option>
-                    @foreach($teachers as $id => $title)
-                        <option value="{{ $id }}">{{ $title }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label class="form-label">Кабинет</label>
-                <input type="text" class="form-control" name="room_id" id="modalRoom1" placeholder="101">
-            </div>
-        </div>
-
-        <div class="mt-3">
-            <h6 class="text-muted">Знаменатель (чередующаяся неделя)</h6>
-            <div class="form-grid">
-                <div>
-                    <label class="form-label">Предмет</label>
-                    <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета" data-target="modalSubject1Den">
-                    <select class="form-select" name="den_subject_id" id="modalSubject1Den">
-                        <option value="">—</option>
-                        @foreach($subjects as $id => $title)
-                            <option value="{{ $id }}">{{ $title }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label">Преподаватель</label>
-                    <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher1Den">
-                    <select class="form-select" name="den_teacher_id" id="modalTeacher1Den">
-                        <option value="">—</option>
-                        @foreach($teachers as $id => $title)
-                            <option value="{{ $id }}">{{ $title }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label">Кабинет</label>
-                    <input type="text" class="form-control" name="den_room_id" id="modalRoom1Den" placeholder="101">
-                </div>
-            </div>
-        </div>
-
-        <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="modalHasSub2" name="has_sub2" value="1">
-            <label class="form-check-label" for="modalHasSub2">Добавить подгруппу 2</label>
-        </div>
-
-        <div id="subgroup2Block" class="d-none">
-            <div class="form-grid">
-                <div>
-                    <label class="form-label">Предмет (подгруппа 2)</label>
-                    <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета" data-target="modalSubject2">
-                    <select class="form-select" name="subject_id_2" id="modalSubject2">
-                        <option value="">—</option>
-                        @foreach($subjects as $id => $title)
-                            <option value="{{ $id }}">{{ $title }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label">Преподаватель</label>
-                    <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher2">
-                    <select class="form-select" name="teacher_id_2" id="modalTeacher2">
-                        <option value="">—</option>
-                        @foreach($teachers as $id => $title)
-                            <option value="{{ $id }}">{{ $title }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label">Кабинет</label>
-                    <input type="text" class="form-control" name="room_id_2" id="modalRoom2" placeholder="102">
-                </div>
-            </div>
-
-            <div class="mt-3">
-                <h6 class="text-muted">Знаменатель (подгруппа 2)</h6>
+        <div class="subgroup-grid">
+            <div class="subcol">
                 <div class="form-grid">
                     <div>
-                        <label class="form-label">Предмет</label>
-                        <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета" data-target="modalSubject2Den">
-                        <select class="form-select" name="den_subject_id_2" id="modalSubject2Den">
+                        <label class="form-label">Предмет (подгруппа 1)</label>
+                        <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета" data-target="modalSubject1">
+                        <select class="form-select" name="subject_id" id="modalSubject1">
                             <option value="">—</option>
                             @foreach($subjects as $id => $title)
                                 <option value="{{ $id }}">{{ $title }}</option>
@@ -474,8 +437,8 @@
                     </div>
                     <div>
                         <label class="form-label">Преподаватель</label>
-                        <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher2Den">
-                        <select class="form-select" name="den_teacher_id_2" id="modalTeacher2Den">
+                        <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher1">
+                        <select class="form-select" name="teacher_id" id="modalTeacher1">
                             <option value="">—</option>
                             @foreach($teachers as $id => $title)
                                 <option value="{{ $id }}">{{ $title }}</option>
@@ -484,7 +447,124 @@
                     </div>
                     <div>
                         <label class="form-label">Кабинет</label>
-                        <input type="text" class="form-control" name="den_room_id_2" id="modalRoom2Den" placeholder="102">
+                        <input type="text" class="form-control" name="room_id" id="modalRoom1" placeholder="101">
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <h6 class="text-muted">Знаменатель (чередующаяся неделя)</h6>
+                    <div class="form-grid">
+                        <div>
+                            <label class="form-label">Предмет</label>
+                            <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета" data-target="modalSubject1Den">
+                            <select class="form-select" name="den_subject_id" id="modalSubject1Den">
+                                <option value="">—</option>
+                                @foreach($subjects as $id => $title)
+                                    <option value="{{ $id }}">{{ $title }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Преподаватель</label>
+                            <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher1Den">
+                            <select class="form-select" name="den_teacher_id" id="modalTeacher1Den">
+                                <option value="">—</option>
+                                @foreach($teachers as $id => $title)
+                                    <option value="{{ $id }}">{{ $title }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Кабинет</label>
+                            <input type="text" class="form-control" name="den_room_id" id="modalRoom1Den" placeholder="101">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="modalHasSub2" name="has_sub2" value="1">
+                    <label class="form-check-label" for="modalHasSub2">Добавить подгруппу 2</label>
+                </div>
+
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" role="switch" id="modalIsReplacement" name="is_replacement" value="1">
+                    <label class="form-check-label" for="modalIsReplacement">Замена преподавателя</label>
+                </div>
+                <div id="replacementBlock" class="d-none">
+                    <div class="form-grid">
+                        <div>
+                            <label class="form-label">Заменяющий преподаватель</label>
+                            <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalReplacementTeacher">
+                            <select class="form-select" name="replacement_teacher_id" id="modalReplacementTeacher">
+                                <option value="">—</option>
+                                @foreach($teachers as $id => $title)
+                                    <option value="{{ $id }}">{{ $title }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Комментарий</label>
+                            <input type="text" class="form-control" name="replacement_comment" id="modalReplacementComment" placeholder="Причина замены">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subcol" id="subgroup2Block">
+                <div class="form-grid">
+                    <div>
+                        <label class="form-label">Предмет (подгруппа 2)</label>
+                        <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета" data-target="modalSubject2">
+                        <select class="form-select" name="subject_id_2" id="modalSubject2">
+                            <option value="">—</option>
+                            @foreach($subjects as $id => $title)
+                                <option value="{{ $id }}">{{ $title }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Преподаватель</label>
+                        <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher2">
+                        <select class="form-select" name="teacher_id_2" id="modalTeacher2">
+                            <option value="">—</option>
+                            @foreach($teachers as $id => $title)
+                                <option value="{{ $id }}">{{ $title }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Кабинет</label>
+                        <input type="text" class="form-control" name="room_id_2" id="modalRoom2" placeholder="102">
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <h6 class="text-muted">Знаменатель (подгруппа 2)</h6>
+                    <div class="form-grid">
+                        <div>
+                            <label class="form-label">Предмет</label>
+                            <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета" data-target="modalSubject2Den">
+                            <select class="form-select" name="den_subject_id_2" id="modalSubject2Den">
+                                <option value="">—</option>
+                                @foreach($subjects as $id => $title)
+                                    <option value="{{ $id }}">{{ $title }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Преподаватель</label>
+                            <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher2Den">
+                            <select class="form-select" name="den_teacher_id_2" id="modalTeacher2Den">
+                                <option value="">—</option>
+                                @foreach($teachers as $id => $title)
+                                    <option value="{{ $id }}">{{ $title }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Кабинет</label>
+                            <input type="text" class="form-control" name="den_room_id_2" id="modalRoom2Den" placeholder="102">
+                        </div>
                     </div>
                 </div>
             </div>

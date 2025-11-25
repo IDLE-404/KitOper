@@ -264,8 +264,8 @@ body {
 }
 
 .groups-compact {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: 20px;
 }
 

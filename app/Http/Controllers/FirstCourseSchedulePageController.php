@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\FirstCourseSchedule;
 use App\Services\ScheduleToFormTwoSyncService;
+use App\Services\FormTwoService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -911,97 +912,33 @@ class FirstCourseSchedulePageController extends Controller
     /**
      * Форма 2: отображение таблицы.
      */
-    public function showFormTwo(Request $request)
+    public function showFormTwo(Request $request, FormTwoService $formTwoService)
     {
-        $month = (int) ($request->input('month') ?? 9);
-        if ($month < 1 || $month > 12) {
-            $month = 9;
-        }
-
-        $currentYear = now()->year;
-        $year = (int) ($request->input('year') ?? $currentYear);
-        if ($year < 2000 || $year > 2100) {
-            $year = $currentYear;
-        }
-
-        /** @var \App\Services\FormTwoExcelService $parser */
-        $parser = app(\App\Services\FormTwoExcelService::class);
-        $parsed = $parser->parse($month, $year);
-
         $groups = DB::table('first_course_group')->orderBy('group_name')->get();
-        $allowedSubjects = [
-            'Русский язык',
-            'Русская литература',
-            'Казахский язык и литература',
-            'Иностранный язык',
-            'Математика',
-            'Информатика',
-            'История Казахстана',
-            'Физическая культура',
-            'Начальная военная и технологическая подготовка',
-            'Физика',
-            'Химия',
-            'Биология',
-            'География',
-            'Графика и проектирование',
-            'Всемирная история',
-        ];
+        $groupId = (int) ($request->input('group_id') ?? ($groups->first()->id ?? 0));
 
-        $subjects = DB::table('first_course_subjects')
-            ->whereIn('subject_name', $allowedSubjects)
-            ->orWhereIn('name_ru', $allowedSubjects)
-            ->orderByRaw(
-                'FIELD(subject_name, ' . implode(',', array_fill(0, count($allowedSubjects), '?')) . ')',
-                $allowedSubjects
-            )
-            ->get(['id', 'subject_name', 'name_ru']);
-
-        $teachers = DB::table('frist_course_teachers')
-            ->orderBy('teacher_name')
-            ->get(['id', 'teacher_name']);
-
-        $selectedGroupId = $request->input('group_id');
-        if (!$selectedGroupId && $groups->count()) {
-            $selectedGroupId = $groups->first()->id;
+        $month = (int) ($request->input('month') ?? now()->month);
+        if ($month < 1 || $month > 12) {
+            $month = now()->month;
         }
 
-        $selectedGroupName = optional($groups->firstWhere('id', $selectedGroupId))->group_name;
-
-        $groupData = ['subjects' => []];
-        if ($selectedGroupName && isset($parsed['groups'][$selectedGroupName])) {
-            $groupData = $parsed['groups'][$selectedGroupName];
-        } elseif ($subjects->count()) {
-            // Fallback: заполнить предметы из first_course_subjects без расписания
-            $groupData['subjects'] = $subjects->map(function ($s) {
-                return [
-                    'subject' => $s->subject_name ?? $s->name_ru ?? '',
-                    'teacher' => '—',
-                    'total_hours' => 0,
-                    'used_hours' => 0,
-                    'hours_left' => 0,
-                    'hours_per_class' => 2,
-                    'days' => [],
-                ];
-            })->all();
+        $year = (int) ($request->input('year') ?? now()->year);
+        if ($year < 2000 || $year > 2100) {
+            $year = now()->year;
         }
 
-        $days = $parsed['days'] ?? range(1, 30);
-        $replacements = $selectedGroupName && isset($parsed['replacements'][$selectedGroupName])
-            ? $parsed['replacements'][$selectedGroupName]
-            : [];
-        $teachersSummary = $parsed['teachers'] ?? [];
+        $report = $groupId ? $formTwoService->buildMonthReport($groupId, $year, $month) : ['rows' => [], 'days' => []];
+        $days = $report['days'] ?? range(1, Carbon::create($year, max(1, min(12, $month)), 1)->daysInMonth);
+        $rows = $report['rows'] ?? [];
+        $teachers = DB::table('frist_course_teachers')->orderBy('teacher_name')->get(['id', 'teacher_name']);
 
         return view('first_course.form_two', [
             'groups' => $groups,
-            'days' => $days,
-            'selectedGroupId' => $selectedGroupId,
-            'subjectRows' => $groupData['subjects'] ?? [],
+            'groupId' => $groupId,
             'month' => $month,
             'year' => $year,
-            'currentYear' => $currentYear,
-            'replacements' => $replacements,
-            'teachersSummary' => $teachersSummary,
-            'selectedGroupName' => $selectedGroupName,
+            'rows' => $rows,
+            'days' => $days,
             'teachers' => $teachers,
         ]);
     }

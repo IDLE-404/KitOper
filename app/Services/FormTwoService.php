@@ -15,6 +15,10 @@ class FormTwoService
         $daysCount = Carbon::create($year, $month, 1)->daysInMonth;
         $days = range(1, $daysCount);
 
+        $subjectNames = DB::table('first_course_subjects')
+            ->orderBy('name_ru')
+            ->pluck(DB::raw('COALESCE(name_ru, subject_name)'), 'id');
+
         $normatives = FormTwoNormative::query()
             ->where('group_id', $groupId)
             ->where('year', $year)
@@ -26,20 +30,13 @@ class FormTwoService
             ->where('year', $year)
             ->where('month', $month)
             ->get();
+        $records = $this->expandReplacements($records);
 
-        $subjectIds = $normatives->pluck('subject_id')
-            ->merge($records->pluck('subject_id'))
-            ->filter()
-            ->unique();
         $teacherIds = $normatives->pluck('teacher_id')
             ->merge($records->pluck('teacher_id'))
             ->merge($records->pluck('replacement_teacher_id'))
             ->filter()
             ->unique();
-
-        $subjects = DB::table('first_course_subjects')
-            ->whereIn('id', $subjectIds)
-            ->pluck(DB::raw('COALESCE(name_ru, subject_name)'), 'id');
 
         $teachers = DB::table('frist_course_teachers')
             ->whereIn('id', $teacherIds)
@@ -47,6 +44,7 @@ class FormTwoService
 
         $rows = [];
         $normMap = $this->buildNormativeLookup($normatives);
+        $subjectsUsed = [];
         foreach ($normatives as $norm) {
             $key = $this->rowKey($norm->subject_id, $norm->teacher_id);
             $rows[$key] = $this->emptyRow(
@@ -55,9 +53,10 @@ class FormTwoService
                 (int) ($norm->total_hours ?? 0),
                 (int) ($norm->hours_per_class ?? 2),
                 $days,
-                $subjects,
+                $subjectNames,
                 $teachers
             );
+            $subjectsUsed[$norm->subject_id] = true;
         }
 
         /** @var FormTwoRecord $rec */
@@ -77,10 +76,11 @@ class FormTwoService
                     $norm['total_hours'] ?? (int) ($rec->total_hours ?? 0),
                     $norm['hours_per_class'] ?? (int) ($rec->hours_per_class ?? 2),
                     $days,
-                    $subjects,
+                    $subjectNames,
                     $teachers
                 );
             }
+            $subjectsUsed[$subjectId] = true;
 
             $day = (int) ($rec->day ?? 0);
             if ($day < 1 || $day > $daysCount) {
@@ -130,11 +130,62 @@ class FormTwoService
             $row['hours_left'] = max(0, (int) $row['total_hours'] - $used + $bonus);
         }
 
-        ksort($rows);
+        // Добавляем пустые строки для предметов, по которым нет нормативов и записей
+        foreach ($subjectNames as $subjectId => $subjectName) {
+            if (isset($subjectsUsed[$subjectId])) {
+                continue;
+            }
+            $key = $this->rowKey($subjectId, null);
+            $rows[$key] = $this->emptyRow(
+                $subjectId,
+                null,
+                0,
+                2,
+                $days,
+                $subjectNames,
+                $teachers
+            );
+        }
+
+        $preferredOrder = [
+            'Русский язык',
+            'Русская литература',
+            'Казахский язык и литература',
+            'Иностранный язык',
+            'Математика',
+            '2',
+            'История Казахстана',
+            'Физическая культура',
+            'Начальная военная и технологическая подготовка',
+            'Физика',
+            'Химия',
+            'Биология',
+            'География',
+            'Графика и проектирование',
+            'Всемирная история',
+        ];
+
+        $rows = array_values($rows);
+        usort($rows, function (array $a, array $b) use ($preferredOrder) {
+            $posA = array_search($a['subject_name'], $preferredOrder, true);
+            $posB = array_search($b['subject_name'], $preferredOrder, true);
+            $posA = $posA === false ? PHP_INT_MAX : $posA;
+            $posB = $posB === false ? PHP_INT_MAX : $posB;
+
+            if ($posA !== $posB) {
+                return $posA <=> $posB;
+            }
+
+            if ($a['subject_name'] !== $b['subject_name']) {
+                return $a['subject_name'] <=> $b['subject_name'];
+            }
+
+            return ($a['teacher_name'] ?? '') <=> ($b['teacher_name'] ?? '');
+        });
 
         return [
             'days' => $days,
-            'rows' => array_values($rows),
+            'rows' => $rows,
         ];
     }
 
@@ -144,6 +195,7 @@ class FormTwoService
     public function saveMonthRecords(int $groupId, int $year, int $month, array $rows): void
     {
         $payload = [];
+        $normativePayload = [];
         $now = now();
 
         foreach ($rows as $row) {
@@ -156,8 +208,26 @@ class FormTwoService
             $hoursPerClass = $row['hours_per_class'] ?? 2;
             $days = $row['days'] ?? [];
 
+            // Сохраняем норматив отдельно, даже если по дням пока пусто
+            if ($teacherId) {
+                $normativePayload[] = [
+                    'group_id' => $groupId,
+                    'subject_id' => $subjectId,
+                    'teacher_id' => $teacherId,
+                    'month' => $month,
+                    'year' => $year,
+                    'total_hours' => $totalHours,
+                    'hours_per_class' => $hoursPerClass,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ];
+            }
+
             foreach ($days as $day => $cell) {
                 $status = $cell['status'] ?? 'normal';
+                if ($status === 'empty') {
+                    continue; // не пишем пустые клетки в базу, чтобы не ловить enum-тринкат
+                }
                 $replacementTeacherId = $cell['replacement_teacher_id'] ?? null;
                 $classDate = Carbon::create($year, $month, (int) $day)->toDateString();
 
@@ -186,7 +256,7 @@ class FormTwoService
                     'subject_id' => $subjectId,
                     'teacher_id' => $teacherId,
                     'lesson_number' => $cell['lesson_number'] ?? null,
-                    'subgroup' => $cell['subgroup'] ?? null,
+                    'subgroup' => $cell['subgroup'] ?? 1,
                     'total_hours' => $totalHours,
                     'hours_per_class' => $hoursPerClass,
                     'status' => $status,
@@ -202,32 +272,38 @@ class FormTwoService
             }
         }
 
-        if (!$payload) {
-            return;
+        if ($normativePayload) {
+            FormTwoNormative::upsert(
+                $normativePayload,
+                ['group_id', 'subject_id', 'teacher_id', 'month', 'year'],
+                ['total_hours', 'hours_per_class', 'updated_at']
+            );
         }
 
-        $uniqueBy = ['group_id', 'year', 'month', 'day', 'subject_id', 'mode'];
+        if ($payload) {
+            $uniqueBy = ['group_id', 'year', 'month', 'day', 'subject_id', 'mode'];
 
-        FormTwoRecord::upsert(
-            $payload,
-            $uniqueBy,
-            [
-                'teacher_id',
-                'total_hours',
-                'hours_per_class',
-                'status',
-                'replacement_teacher_id',
-                'bonus_hours',
-                'used_hours',
-                'absent_reason',
-                'replacement_comment',
-                'class_date',
-                'lesson_number',
-                'subgroup',
-                'mode',
-                'updated_at',
-            ]
-        );
+            FormTwoRecord::upsert(
+                $payload,
+                $uniqueBy,
+                [
+                    'teacher_id',
+                    'total_hours',
+                    'hours_per_class',
+                    'status',
+                    'replacement_teacher_id',
+                    'bonus_hours',
+                    'used_hours',
+                    'absent_reason',
+                    'replacement_comment',
+                    'class_date',
+                    'lesson_number',
+                    'subgroup',
+                    'mode',
+                    'updated_at',
+                ]
+            );
+        }
     }
 
     protected function buildNormativeLookup(Collection $normatives): array

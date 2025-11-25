@@ -10,7 +10,7 @@
     $daysCount = count($days ?? []);
 @endphp
 
-<div class="container form-two-container py-3">
+<div class="container-fluid form-two-container py-3">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <div>
             <h1 class="h4 mb-1">Форма 2 — 1 курс</h1>
@@ -121,6 +121,14 @@
                                 <td>
                                     <div class="small text-muted">Всего: <strong>{{ $row['total_hours'] ?? 0 }}</strong></div>
                                     <div class="small text-muted">По паре: {{ $row['hours_per_class'] ?? 2 }}</div>
+                                    <div class="manual-input d-none mt-2">
+                                        <label class="form-label text-muted small mb-1">Всего часов</label>
+                                        <input type="number"
+                                               class="form-control form-control-sm row-total-hours-input"
+                                               min="0"
+                                               step="1"
+                                               value="{{ $row['total_hours'] ?? 0 }}">
+                                    </div>
                                 </td>
                                 @foreach($days as $d)
                                     @php
@@ -194,6 +202,11 @@
 
 @push('styles')
 <style>
+    .form-two-container {
+        width: 80%;
+        margin-left: auto;
+        margin-right: auto;
+    }
     .form-two-container .card {
         border-radius: 12px;
     }
@@ -291,7 +304,11 @@
             const subjectId = Number(tr.querySelector('.row-subject')?.value);
             if (!subjectId) return;
             const teacherId = Number(tr.querySelector('.row-teacher')?.value) || null;
-            const totalHours = Number(tr.querySelector('.row-total-hours')?.value) || 0;
+            const totalHoursInput = tr.querySelector('.row-total-hours-input');
+            const totalHoursHidden = tr.querySelector('.row-total-hours');
+            const totalHours = totalHoursInput
+                ? Number(totalHoursInput.value || 0)
+                : Number(totalHoursHidden?.value || 0);
             const hoursPerClass = Number(tr.querySelector('.row-hours-per-class')?.value) || 2;
             const days = {};
             tr.querySelectorAll('.cell-status').forEach((sel) => {

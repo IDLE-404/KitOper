@@ -86,41 +86,43 @@ class FirstCourseSchedulePageController extends Controller
             $schedule[$groupId]['days'][$day][$lesson]['has_denominator'] = $schedule[$groupId]['days'][$day][$lesson]['has_denominator']
                 || $den1 || $den2 || $teacherDen1 || $teacherDen2 || $roomDen1 || $roomDen2;
 
-            $schedule[$groupId]['days'][$day][$lesson]['sub1'] = array_merge(
-                $schedule[$groupId]['days'][$day][$lesson]['sub1'] ?? [],
-                [
-                    'subject_num' => $num1 ? ($subjects[$num1] ?? '—') : null,
-                    'subject_num_id' => $num1,
-                    'teacher_num' => $teacherNum1 ? ($teachers[$teacherNum1] ?? '—') : null,
-                    'teacher_num_id' => $teacherNum1,
-                    'room_num' => $roomNum1,
-                    'subject_den' => $den1 ? ($subjects[$den1] ?? '—') : null,
-                    'subject_den_id' => $den1,
-                    'teacher_den' => $teacherDen1 ? ($teachers[$teacherDen1] ?? '—') : null,
-                    'teacher_den_id' => $teacherDen1,
-                    'room_den' => $roomDen1,
-                    'conflict_num' => $confNum1,
-                    'conflict_den' => $confDen1,
-                ]
-            );
+            $sub1Data = $schedule[$groupId]['days'][$day][$lesson]['sub1'] ?? [];
+            if ($subgroupFlag === 1 || $num1 || $teacherNum1 || $roomNum1 || $den1 || $teacherDen1 || $roomDen1) {
+                $sub1Data = array_merge($sub1Data, [
+                    'subject_num' => $num1 ? ($subjects[$num1] ?? '—') : ($sub1Data['subject_num'] ?? null),
+                    'subject_num_id' => $num1 ?? ($sub1Data['subject_num_id'] ?? null),
+                    'teacher_num' => $teacherNum1 ? ($teachers[$teacherNum1] ?? '—') : ($sub1Data['teacher_num'] ?? null),
+                    'teacher_num_id' => $teacherNum1 ?? ($sub1Data['teacher_num_id'] ?? null),
+                    'room_num' => $roomNum1 ?? ($sub1Data['room_num'] ?? null),
+                    'subject_den' => $den1 ? ($subjects[$den1] ?? '—') : ($sub1Data['subject_den'] ?? null),
+                    'subject_den_id' => $den1 ?? ($sub1Data['subject_den_id'] ?? null),
+                    'teacher_den' => $teacherDen1 ? ($teachers[$teacherDen1] ?? '—') : ($sub1Data['teacher_den'] ?? null),
+                    'teacher_den_id' => $teacherDen1 ?? ($sub1Data['teacher_den_id'] ?? null),
+                    'room_den' => $roomDen1 ?? ($sub1Data['room_den'] ?? null),
+                    'conflict_num' => $confNum1 ?? ($sub1Data['conflict_num'] ?? false),
+                    'conflict_den' => $confDen1 ?? ($sub1Data['conflict_den'] ?? false),
+                ]);
+            }
+            $schedule[$groupId]['days'][$day][$lesson]['sub1'] = $sub1Data;
 
-            $schedule[$groupId]['days'][$day][$lesson]['sub2'] = array_merge(
-                $schedule[$groupId]['days'][$day][$lesson]['sub2'] ?? [],
-                [
-                    'subject_num' => $num2 ? ($subjects[$num2] ?? '—') : null,
-                    'subject_num_id' => $num2,
-                    'teacher_num' => $teacherNum2 ? ($teachers[$teacherNum2] ?? '—') : null,
-                    'teacher_num_id' => $teacherNum2,
-                    'room_num' => $roomNum2,
-                    'subject_den' => $den2 ? ($subjects[$den2] ?? '—') : null,
-                    'subject_den_id' => $den2,
-                    'teacher_den' => $teacherDen2 ? ($teachers[$teacherDen2] ?? '—') : null,
-                    'teacher_den_id' => $teacherDen2,
-                    'room_den' => $roomDen2,
-                    'conflict_num' => $confNum2,
-                    'conflict_den' => $confDen2,
-                ]
-            );
+            $sub2Data = $schedule[$groupId]['days'][$day][$lesson]['sub2'] ?? [];
+            if ($subgroupFlag === 2 || $num2 || $teacherNum2 || $roomNum2 || $den2 || $teacherDen2 || $roomDen2) {
+                $sub2Data = array_merge($sub2Data, [
+                    'subject_num' => $num2 ? ($subjects[$num2] ?? '—') : ($sub2Data['subject_num'] ?? null),
+                    'subject_num_id' => $num2 ?? ($sub2Data['subject_num_id'] ?? null),
+                    'teacher_num' => $teacherNum2 ? ($teachers[$teacherNum2] ?? '—') : ($sub2Data['teacher_num'] ?? null),
+                    'teacher_num_id' => $teacherNum2 ?? ($sub2Data['teacher_num_id'] ?? null),
+                    'room_num' => $roomNum2 ?? ($sub2Data['room_num'] ?? null),
+                    'subject_den' => $den2 ? ($subjects[$den2] ?? '—') : ($sub2Data['subject_den'] ?? null),
+                    'subject_den_id' => $den2 ?? ($sub2Data['subject_den_id'] ?? null),
+                    'teacher_den' => $teacherDen2 ? ($teachers[$teacherDen2] ?? '—') : ($sub2Data['teacher_den'] ?? null),
+                    'teacher_den_id' => $teacherDen2 ?? ($sub2Data['teacher_den_id'] ?? null),
+                    'room_den' => $roomDen2 ?? ($sub2Data['room_den'] ?? null),
+                    'conflict_num' => $confNum2 ?? ($sub2Data['conflict_num'] ?? false),
+                    'conflict_den' => $confDen2 ?? ($sub2Data['conflict_den'] ?? false),
+                ]);
+            }
+            $schedule[$groupId]['days'][$day][$lesson]['sub2'] = $sub2Data;
         }
 
         // Проставляем активные значения по чётности недели
@@ -197,6 +199,7 @@ class FirstCourseSchedulePageController extends Controller
             'subject_id_second' => 'required_if:has_subgroups,1|integer|nullable',
             'teacher_id_second' => 'nullable|integer',
             'room_id_second'    => 'nullable|integer',
+            'has_denominator'   => 'sometimes|boolean',
             'subject_id_denominator' => 'nullable|integer',
             'teacher_id_denominator' => 'nullable|integer',
             'room_id_denominator'    => 'nullable|integer',
@@ -206,6 +209,7 @@ class FirstCourseSchedulePageController extends Controller
         ]);
 
         $hasSubgroups = $request->boolean('has_subgroups');
+        $hasDenominator = $request->boolean('has_denominator');
 
         $base = [
             'study_day'     => $validated['study_day'],

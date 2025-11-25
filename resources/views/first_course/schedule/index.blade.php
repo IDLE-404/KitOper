@@ -97,19 +97,21 @@
                                     <div class="conflict-hint">Конфликт: кабинет уже занят</div>
                                 @endif
                                 @php $sub2 = $pair['sub2'] ?? []; @endphp
-                                <div class="cell-line subpair-line">
-                                    <span class="pill badge-sub soft">2</span>
-                                    <span class="cell-title sub2 emphasis">{{ $sub2['active_subject'] ?? '—' }}</span>
-                                </div>
-                                <div class="cell-meta subpair">
-                                    <span class="pill"><span>👤</span>{{ $sub2['active_teacher'] ?? '—' }}</span>
-                                    <span class="pill room-pill {{ ($sub2['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($sub2['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
-                                        <span>🏫</span>{{ $sub2['active_room'] ?? '—' }}
-                                    </span>
-                                    <span class="pill"><span>🔸</span>{{ $sub2['label'] ?? '—' }}</span>
-                                </div>
-                                @if($sub2['active_conflict'] ?? false)
-                                    <div class="conflict-hint">Конфликт: кабинет уже занят</div>
+                                @if($hasSubgroups)
+                                    <div class="cell-line subpair-line">
+                                        <span class="pill badge-sub soft">2</span>
+                                        <span class="cell-title sub2 emphasis">{{ $sub2['active_subject'] ?? '—' }}</span>
+                                    </div>
+                                    <div class="cell-meta subpair">
+                                        <span class="pill"><span>👤</span>{{ $sub2['active_teacher'] ?? '—' }}</span>
+                                        <span class="pill room-pill {{ ($sub2['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($sub2['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
+                                            <span>🏫</span>{{ $sub2['active_room'] ?? '—' }}
+                                        </span>
+                                        <span class="pill"><span>🔸</span>{{ $sub2['label'] ?? '—' }}</span>
+                                    </div>
+                                    @if($sub2['active_conflict'] ?? false)
+                                        <div class="conflict-hint">Конфликт: кабинет уже занят</div>
+                                    @endif
                                 @endif
                                 @if($pair['has_denominator'])
                                     <div class="den-separator" title="Разделение числитель/знаменатель"></div>

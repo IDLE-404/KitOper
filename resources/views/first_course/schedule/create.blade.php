@@ -18,6 +18,11 @@
     <form action="{{ route('first.schedule.store') }}" method="POST">
         @csrf
 
+        <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="hasDenominator" name="has_denominator" value="1">
+            <label class="form-check-label" for="hasDenominator">Добавить варианты для знаменателя (неделя B)</label>
+        </div>
+
         <div class="mb-3">
             <label class="form-label">День</label>
             <select name="study_day" class="form-select" required>
@@ -59,7 +64,7 @@
         <div class="mb-3">
             <label class="form-label">Предмет (знаменатель)</label>
             <input type="search" class="form-control mb-2 filter-input" data-target="#subjectSelect1Den" placeholder="Поиск предмета">
-            <select name="subject_id_denominator" id="subjectSelect1Den" class="form-select filterable">
+            <select name="subject_id_denominator" id="subjectSelect1Den" class="form-select filterable denom-block d-none">
                 <option value="">— если пары чередуются</option>
                 @foreach($subjects as $s)
                     <option value="{{ $s->id }}">{{ $s->name_ru ?? $s->subject_name }}</option>
@@ -80,7 +85,7 @@
         <div class="mb-3">
             <label class="form-label">Преподаватель (знаменатель)</label>
             <input type="search" class="form-control mb-2 filter-input" data-target="#teacherSelect1Den" placeholder="Поиск преподавателя">
-            <select name="teacher_id_denominator" id="teacherSelect1Den" class="form-select filterable">
+            <select name="teacher_id_denominator" id="teacherSelect1Den" class="form-select filterable denom-block d-none">
                 <option value="">— если нужен другой преподаватель</option>
                 @foreach($teachers as $t)
                     <option value="{{ $t->id }}">{{ $t->teacher_name }}</option>
@@ -94,7 +99,7 @@
         </div>
         <div class="mb-3">
             <label class="form-label">Аудитория (знаменатель)</label>
-            <input type="number" name="room_id_denominator" class="form-control" placeholder="Если аудитория другая">
+            <input type="number" name="room_id_denominator" class="form-control denom-block d-none" placeholder="Если аудитория другая">
         </div>
 
         <div class="form-check form-switch mb-3">
@@ -124,7 +129,7 @@
             <div class="mt-3">
                 <label class="form-label">Преподаватель (знаменатель, подгруппа 2)</label>
                 <input type="search" class="form-control mb-2 filter-input" data-target="#teacherSelect2Den" placeholder="Поиск преподавателя">
-                <select name="teacher_id_second_denominator" id="teacherSelect2Den" class="form-select filterable">
+                <select name="teacher_id_second_denominator" id="teacherSelect2Den" class="form-select filterable denom-block d-none">
                     <option value="">— опционально для второй недели</option>
                     @foreach($teachers as $t)
                         <option value="{{ $t->id }}">{{ $t->teacher_name }}</option>
@@ -134,7 +139,7 @@
             <div class="mt-3">
                 <label class="form-label">Предмет (знаменатель, подгруппа 2)</label>
                 <input type="search" class="form-control mb-2 filter-input" data-target="#subjectSelect2Den" placeholder="Поиск предмета">
-                <select name="subject_id_second_denominator" id="subjectSelect2Den" class="form-select filterable">
+                <select name="subject_id_second_denominator" id="subjectSelect2Den" class="form-select filterable denom-block d-none">
                     <option value="">— если предмет отличается для знаменателя</option>
                     @foreach($subjects as $s)
                         <option value="{{ $s->id }}">{{ $s->name_ru ?? $s->subject_name }}</option>
@@ -147,7 +152,7 @@
             </div>
             <div class="mt-3">
                 <label class="form-label">Аудитория (знаменатель, подгруппа 2)</label>
-                <input type="number" name="room_id_second_denominator" class="form-control" placeholder="Если аудитория меняется">
+                <input type="number" name="room_id_second_denominator" class="form-control denom-block d-none" placeholder="Если аудитория меняется">
             </div>
             <small class="text-muted">Будут созданы две записи: для подгруппы A (основной предмет) и B (этот предмет/преподаватель/аудитория).</small>
         </div>
@@ -169,6 +174,23 @@
 
     switchEl.addEventListener('change', toggleSubgroup);
     toggleSubgroup();
+
+    const denomToggle = document.getElementById('hasDenominator');
+    const denomBlocks = document.querySelectorAll('.denom-block');
+    const toggleDenominator = () => {
+        denomBlocks.forEach(el => {
+            el.classList.toggle('d-none', !denomToggle.checked);
+            if (!denomToggle.checked) {
+                if (el.tagName === 'SELECT') {
+                    el.selectedIndex = 0;
+                } else {
+                    el.value = '';
+                }
+            }
+        });
+    };
+    denomToggle.addEventListener('change', toggleDenominator);
+    toggleDenominator();
 
     // Быстрый поиск по select
     const filterInputs = document.querySelectorAll('.filter-input');

@@ -53,8 +53,9 @@
                             @php $pair = $groupItems[$day][$i] ?? ['sub1'=>[], 'sub2'=>[]]; @endphp
                             @php
                                 $filled = !empty($pair['sub1']['active_subject']) || !empty($pair['sub1']['numerator_subject']) || !empty($pair['sub1']['denominator_subject']);
+                                $hasConflict = ($pair['sub1']['has_conflict'] ?? false) || ($pair['sub2']['has_conflict'] ?? false);
                             @endphp
-                            <div class="grid-cell pair-cell {{ $filled ? 'filled' : 'empty' }}">
+                            <div class="grid-cell pair-cell {{ $filled ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }}">
                                 <a href="#"
                                    class="cell-edit"
                                    title="Редактировать"
@@ -85,9 +86,14 @@
                                 </div>
                                 <div class="cell-meta">
                                     <span class="pill"><span>👤</span>{{ $main['active_teacher'] ?? '—' }}</span>
-                                    <span class="pill"><span>🏫</span>{{ $main['active_room'] ?? '—' }}</span>
+                                    <span class="pill room-pill {{ ($main['has_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($main['has_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
+                                        <span>🏫</span>{{ $main['active_room'] ?? '—' }}
+                                    </span>
                                     <span class="pill"><span>🔸</span>{{ $main['label'] ?? '—' }}</span>
                                 </div>
+                                @if($main['has_conflict'] ?? false)
+                                    <div class="conflict-hint">Конфликт: кабинет уже занят</div>
+                                @endif
                                 @if(!empty($main['is_fraction']))
                                     <div class="fraction-block">
                                         <div class="fraction-line {{ ($weekMode ?? 'num') === 'num' ? 'active' : '' }}">
@@ -110,9 +116,14 @@
                                     </div>
                                     <div class="cell-meta subpair">
                                         <span class="pill"><span>👤</span>{{ $sub2['active_teacher'] ?? '—' }}</span>
-                                        <span class="pill"><span>🏫</span>{{ $sub2['active_room'] ?? '—' }}</span>
+                                        <span class="pill room-pill {{ ($sub2['has_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($sub2['has_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
+                                            <span>🏫</span>{{ $sub2['active_room'] ?? '—' }}
+                                        </span>
                                         <span class="pill"><span>🔸</span>{{ $sub2['label'] ?? '—' }}</span>
                                     </div>
+                                    @if($sub2['has_conflict'] ?? false)
+                                        <div class="conflict-hint">Конфликт: кабинет уже занят</div>
+                                    @endif
                                     @if(!empty($sub2['is_fraction']))
                                         <div class="fraction-block subpair">
                                             <div class="fraction-line {{ ($weekMode ?? 'num') === 'num' ? 'active' : '' }}">

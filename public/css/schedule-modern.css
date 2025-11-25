@@ -404,6 +404,11 @@ body {
     box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
 }
 
+.pair-cell.conflict {
+    border: 1px solid #fca5a5;
+    box-shadow: 0 10px 20px rgba(248, 113, 113, 0.18);
+}
+
 .pair-cell.empty {
     background: #f7f8fa;
     box-shadow: none;
@@ -451,6 +456,19 @@ body {
     background: #e6eefb;
     color: #1f2937;
     font-weight: 700;
+}
+
+.pill-conflict {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.conflict-hint {
+    color: #b91c1c;
+    font-weight: 600;
+    font-size: 12px;
+    margin-top: -2px;
 }
 
 .subpair-line {

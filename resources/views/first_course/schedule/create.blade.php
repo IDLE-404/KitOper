@@ -9,6 +9,11 @@
     <a href="{{ route('first.schedule.index') }}" class="btn btn-outline-secondary mb-3">← Назад к расписанию</a>
 
     <h2 class="mb-4">Добавить запись в расписание (1 курс)</h2>
+    @if($errors->any())
+        <div class="alert alert-danger" role="alert">
+            {{ $errors->first() }}
+        </div>
+    @endif
 
     <form action="{{ route('first.schedule.store') }}" method="POST">
         @csrf

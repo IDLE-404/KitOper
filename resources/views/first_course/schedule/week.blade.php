@@ -13,6 +13,11 @@
     <div class="week-card">
         <form action="{{ route('first.schedule.week.save') }}" method="POST" id="weekForm">
             @csrf
+            @if($errors->any())
+                <div class="alert alert-danger mb-3" role="alert">
+                    {{ $errors->first() }}
+                </div>
+            @endif
             <div class="week-header">
                 <div>
                     <h1 class="week-title">Редактор недельного расписания</h1>

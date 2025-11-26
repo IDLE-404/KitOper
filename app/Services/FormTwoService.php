@@ -59,7 +59,7 @@ class FormTwoService
             $subjectsUsed[$norm->subject_id] = true;
         }
 
-        /** @var FormTwoRecord $rec */
+        /** @var object $rec */
         foreach ($records as $rec) {
             $subjectId = $rec->subject_id;
             $teacherId = $rec->teacher_id;
@@ -304,6 +304,42 @@ class FormTwoService
                 ]
             );
         }
+    }
+
+    /**
+     * Разворачиваем запись с заменой на две строки: больничный у основного и бонус у замещающего.
+     */
+    protected function expandReplacements(Collection $records): Collection
+    {
+        return $records->flatMap(function (FormTwoRecord $rec) {
+            $hasReplacement = $rec->replacement_teacher_id
+                && $rec->teacher_id
+                && $rec->teacher_id !== $rec->replacement_teacher_id;
+
+            if (!$hasReplacement) {
+                return [$rec];
+            }
+
+            $bonusHours = (int) ($rec->bonus_hours ?? $rec->hours_per_class ?? 0);
+            $base = $rec->getAttributes();
+
+            $sick = (object) array_merge($base, [
+                'status' => 'sick',
+                'used_hours' => 0,
+                'bonus_hours' => 0,
+            ]);
+
+            $replacement = (object) array_merge($base, [
+                'id' => null,
+                'teacher_id' => $rec->replacement_teacher_id,
+                'status' => 'replacement',
+                'used_hours' => 0,
+                'bonus_hours' => $bonusHours,
+                'replacement_teacher_id' => $rec->replacement_teacher_id,
+            ]);
+
+            return [$sick, $replacement];
+        });
     }
 
     protected function buildNormativeLookup(Collection $normatives): array

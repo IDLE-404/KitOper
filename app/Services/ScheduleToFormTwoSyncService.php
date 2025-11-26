@@ -52,27 +52,37 @@ class ScheduleToFormTwoSyncService
             $lessonNumber = (int) $row->lesson_number;
             $classDate = $weekStart->copy()->addDays($dayOffset[$dayName]);
 
-            $payload = array_merge($payload, $this->syncSubgroup(
-                $row,
-                1,
-                $weekMode,
-                $classDate,
-                $groupId,
-                $lessonNumber
-            ));
-            $payload = array_merge($payload, $this->syncSubgroup(
-                $row,
-                2,
-                $weekMode,
-                $classDate,
-                $groupId,
-                $lessonNumber
-            ));
+            foreach ($this->subgroupsForRow($row) as $subgroup) {
+                $payload = array_merge($payload, $this->syncSubgroup(
+                    $row,
+                    $subgroup,
+                    $weekMode,
+                    $classDate,
+                    $groupId,
+                    $lessonNumber
+                ));
+            }
         }
 
         if ($payload) {
+            $payload = $this->deduplicatePayload($payload);
             FormTwoRecord::insert($payload);
         }
+    }
+
+    protected function subgroupsForRow(object $row): array
+    {
+        $flag = $row->subgroup ?? null;
+        if (in_array($flag, ['2', 'B'], true)) {
+            return [2];
+        }
+
+        $hasSubgroup2Data = ($row->subject_id_2 ?? null)
+            || ($row->teacher_id_2 ?? null)
+            || ($row->subject_id_denominator_2 ?? null)
+            || ($row->teacher_id_denominator_2 ?? null);
+
+        return $hasSubgroup2Data ? [1, 2] : [1];
     }
 
     protected function syncSubgroup(
@@ -84,12 +94,21 @@ class ScheduleToFormTwoSyncService
         int $lessonNumber
     ): array {
         $isSub2 = $subgroup === 2;
+        $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? 2 : 1;
 
-        $subjectNum = $isSub2 ? ($row->subject_id_2 ?? null) : ($row->subject_id ?? null);
-        $teacherNum = $isSub2 ? ($row->teacher_id_2 ?? null) : ($row->teacher_id ?? null);
+        $subjectNum = $isSub2
+            ? ($row->subject_id_2 ?? ($subgroupFlag === 2 ? ($row->subject_id ?? null) : null))
+            : ($row->subject_id ?? null);
+        $teacherNum = $isSub2
+            ? ($row->teacher_id_2 ?? ($subgroupFlag === 2 ? ($row->teacher_id ?? null) : null))
+            : ($row->teacher_id ?? null);
 
-        $subjectDen = $isSub2 ? ($row->subject_id_denominator_2 ?? null) : ($row->subject_id_denominator ?? null);
-        $teacherDen = $isSub2 ? ($row->teacher_id_denominator_2 ?? null) : ($row->teacher_id_denominator ?? null);
+        $subjectDen = $isSub2
+            ? ($row->subject_id_denominator_2 ?? ($subgroupFlag === 2 ? ($row->subject_id_denominator ?? null) : null))
+            : ($row->subject_id_denominator ?? null);
+        $teacherDen = $isSub2
+            ? ($row->teacher_id_denominator_2 ?? ($subgroupFlag === 2 ? ($row->teacher_id_denominator ?? null) : null))
+            : ($row->teacher_id_denominator ?? null);
 
         $hasDenominator = $subjectDen || $teacherDen;
         $activeSubject = $hasDenominator && $weekMode === 'denominator' ? $subjectDen : $subjectNum;
@@ -160,6 +179,34 @@ class ScheduleToFormTwoSyncService
         }
 
         return $payload;
+    }
+
+    protected function deduplicatePayload(array $payload): array
+    {
+        $seen = [];
+        $result = [];
+
+        foreach ($payload as $row) {
+            $key = implode('|', [
+                $row['group_id'] ?? '',
+                $row['class_date'] ?? '',
+                $row['year'] ?? '',
+                $row['month'] ?? '',
+                $row['day'] ?? '',
+                $row['subject_id'] ?? '',
+                $row['mode'] ?? '',
+                $row['subgroup'] ?? '',
+            ]);
+
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $result[] = $row;
+        }
+
+        return $result;
     }
 
     protected function isAbsent(object $row, int $subgroup, string $weekMode): bool

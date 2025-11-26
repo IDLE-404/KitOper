@@ -199,13 +199,15 @@
     const sub2CardDen = document.getElementById('subgroup2CardDen');
     const hasDenToggle = document.getElementById('modalHasDen');
     const denBlock = document.getElementById('denominatorBlock');
-    const absent1 = document.getElementById('modalAbsent1');
-    const replacement1 = document.getElementById('modalReplacement1');
+    const changeType1 = document.getElementById('modalChangeType1');
+    const changeType2 = document.getElementById('modalChangeType2');
+    const absent1Hidden = document.getElementById('modalAbsent1Hidden');
+    const replacement1Hidden = document.getElementById('modalReplacement1Hidden');
     const replacementBlock1 = document.getElementById('replacementBlock1');
     const replacementTeacher1 = document.getElementById('modalReplacementTeacher1');
     const replacementComment1 = document.getElementById('modalReplacementComment1');
-    const absent2 = document.getElementById('modalAbsent2');
-    const replacement2 = document.getElementById('modalReplacement2');
+    const absent2Hidden = document.getElementById('modalAbsent2Hidden');
+    const replacement2Hidden = document.getElementById('modalReplacement2Hidden');
     const replacementBlock2 = document.getElementById('replacementBlock2');
     const replacementTeacher2 = document.getElementById('modalReplacementTeacher2');
     const replacementComment2 = document.getElementById('modalReplacementComment2');
@@ -213,6 +215,18 @@
     const hiddenGroup = document.getElementById('modalGroupId');
     const hiddenDay = document.getElementById('modalDay');
     const hiddenLesson = document.getElementById('modalLesson');
+
+    const applyChangeType = (selectEl, absentHidden, replHidden, replBlock, replTeacher, replComment) => {
+        const v = selectEl.value;
+        absentHidden.value = v === 'replaced' ? '1' : '0';
+        replHidden.value = v === 'replacement' ? '1' : '0';
+        const showRepl = v === 'replacement';
+        replBlock.classList.toggle('d-none', !showRepl);
+        if (!showRepl) {
+            replTeacher.value = '';
+            replComment.value = '';
+        }
+    };
 
     const openModal = (data) => {
         hiddenGroup.value = data.group;
@@ -245,17 +259,16 @@
         hasDenToggle.checked = !!hasDen;
         denBlock.classList.toggle('d-none', !hasDenToggle.checked);
 
-        absent1.checked = data.absent1 === '1';
-        replacement1.checked = data.replacement1 === '1';
-        replacementBlock1.classList.toggle('d-none', !replacement1.checked);
+        const type1 = data.replacement1 === '1' ? 'replacement' : (data.absent1 === '1' ? 'replaced' : 'none');
+        const type2 = data.replacement2 === '1' ? 'replacement' : (data.absent2 === '1' ? 'replaced' : 'none');
+        changeType1.value = type1;
+        changeType2.value = type2;
         replacementTeacher1.value = data.replacementTeacher1 || '';
         replacementComment1.value = data.replacementComment1 || '';
-
-        absent2.checked = data.absent2 === '1';
-        replacement2.checked = data.replacement2 === '1';
-        replacementBlock2.classList.toggle('d-none', !replacement2.checked);
         replacementTeacher2.value = data.replacementTeacher2 || '';
         replacementComment2.value = data.replacementComment2 || '';
+        applyChangeType(changeType1, absent1Hidden, replacement1Hidden, replacementBlock1, replacementTeacher1, replacementComment1);
+        applyChangeType(changeType2, absent2Hidden, replacement2Hidden, replacementBlock2, replacementTeacher2, replacementComment2);
 
         overlay.classList.add('show');
         modal.classList.add('show');
@@ -276,11 +289,8 @@
             subject2Den.value = '';
             teacher2Den.value = '';
             room2Den.value = '';
-            absent2.checked = false;
-            replacement2.checked = false;
-            replacementBlock2.classList.add('d-none');
-            replacementTeacher2.value = '';
-            replacementComment2.value = '';
+            changeType2.value = 'none';
+            applyChangeType(changeType2, absent2Hidden, replacement2Hidden, replacementBlock2, replacementTeacher2, replacementComment2);
         }
     });
 
@@ -296,20 +306,8 @@
         }
     });
 
-    replacement1.addEventListener('change', () => {
-        replacementBlock1.classList.toggle('d-none', !replacement1.checked);
-        if (!replacement1.checked) {
-            replacementTeacher1.value = '';
-            replacementComment1.value = '';
-        }
-    });
-    replacement2.addEventListener('change', () => {
-        replacementBlock2.classList.toggle('d-none', !replacement2.checked);
-        if (!replacement2.checked) {
-            replacementTeacher2.value = '';
-            replacementComment2.value = '';
-        }
-    });
+    changeType1.addEventListener('change', () => applyChangeType(changeType1, absent1Hidden, replacement1Hidden, replacementBlock1, replacementTeacher1, replacementComment1));
+    changeType2.addEventListener('change', () => applyChangeType(changeType2, absent2Hidden, replacement2Hidden, replacementBlock2, replacementTeacher2, replacementComment2));
 
     document.querySelectorAll('.cell-edit').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -592,14 +590,16 @@
                             <input type="text" class="form-control" name="room_id" id="modalRoom1" placeholder="101">
                         </div>
                     </div>
-                    <div class="d-flex gap-3 flex-wrap mt-2">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="modalAbsent1" name="is_absent_1" value="1">
-                            <label class="form-check-label" for="modalAbsent1">Болел</label>
-                        </div>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="modalReplacement1" name="is_replacement_1" value="1">
-                            <label class="form-check-label" for="modalReplacement1">Замена</label>
+                    <div class="d-flex gap-3 flex-wrap mt-2 align-items-start">
+                        <div class="flex-grow-1">
+                            <label class="form-label">Замена</label>
+                            <select class="form-select" id="modalChangeType1">
+                                <option value="none">Нет</option>
+                                <option value="replaced">Эта пара заменена</option>
+                                <option value="replacement">Эта пара замещает</option>
+                            </select>
+                            <input type="hidden" name="is_absent_1" id="modalAbsent1Hidden" value="0">
+                            <input type="hidden" name="is_replacement_1" id="modalReplacement1Hidden" value="0">
                         </div>
                         <div id="replacementBlock1" class="d-none replacement-card flex-grow-1">
                             <label class="form-label">Заменяющий (подгр. 1)</label>
@@ -641,14 +641,16 @@
                             <input type="text" class="form-control" name="room_id_2" id="modalRoom2" placeholder="102">
                         </div>
                     </div>
-                    <div class="d-flex gap-3 flex-wrap mt-2">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="modalAbsent2" name="is_absent_2" value="1">
-                            <label class="form-check-label" for="modalAbsent2">Болел</label>
-                        </div>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="modalReplacement2" name="is_replacement_2" value="1">
-                            <label class="form-check-label" for="modalReplacement2">Замена</label>
+                    <div class="d-flex gap-3 flex-wrap mt-2 align-items-start">
+                        <div class="flex-grow-1">
+                            <label class="form-label">Замена</label>
+                            <select class="form-select" id="modalChangeType2">
+                                <option value="none">Нет</option>
+                                <option value="replaced">Эта пара заменена</option>
+                                <option value="replacement">Эта пара замещает</option>
+                            </select>
+                            <input type="hidden" name="is_absent_2" id="modalAbsent2Hidden" value="0">
+                            <input type="hidden" name="is_replacement_2" id="modalReplacement2Hidden" value="0">
                         </div>
                         <div id="replacementBlock2" class="d-none replacement-card flex-grow-1">
                             <label class="form-label">Заменяющий (подгр. 2)</label>

@@ -56,8 +56,8 @@
                 <span class="text-muted ms-2 small">Пара проведена</span>
             </div>
             <div class="legend-item">
-                <span class="status-chip status-sick">Б</span>
-                <span class="text-muted ms-2 small">Преподаватель болел</span>
+                <span class="status-chip status-replaced">■</span>
+                <span class="text-muted ms-2 small">Пара заменена другим предметом</span>
             </div>
             <div class="legend-item">
                 <span class="status-chip status-replacement">2</span>
@@ -135,10 +135,17 @@
                                         $cell = $row['days'][$d] ?? [];
                                         $status = $cell['status'] ?? 'empty';
                                         $value = '';
+                                        // Сводим старый статус sick к replaced, чтобы “болел” отображался как замена.
+                                        if ($status === 'sick') {
+                                            $status = 'replaced';
+                                        }
+
                                         if ($status === 'normal') {
                                             $value = $cell['used_hours'] ?? $row['hours_per_class'] ?? '2';
                                         } elseif ($status === 'replacement') {
                                             $value = $cell['bonus_hours'] ?? $row['hours_per_class'] ?? '2';
+                                        } elseif ($status === 'replaced') {
+                                            $value = '■';
                                         } elseif ($status === 'sick') {
                                             $value = 'Б';
                                         } else {
@@ -172,8 +179,8 @@
                                             <select class="form-select form-select-sm cell-status" data-day="{{ $d }}">
                                                 <option value="empty" @selected($status === 'empty')>—</option>
                                                 <option value="normal" @selected($status === 'normal')>Норма</option>
-                                                <option value="sick" @selected($status === 'sick')>Болел</option>
-                                                <option value="replacement" @selected($status === 'replacement')>Замена</option>
+                                                <option value="replaced" @selected($status === 'replaced')>Замена (замещённая)</option>
+                                                <option value="replacement" @selected($status === 'replacement')>Замена (замещающая)</option>
                                             </select>
                                             <select class="form-select form-select-sm cell-repl mt-1" data-day="{{ $d }}">
                                                 <option value="">— заменяющий</option>
@@ -238,15 +245,15 @@
         color: #1d4ed8;
         border-color: #bfdbfe;
     }
-    .status-chip.status-sick {
-        background: #fff4e5;
+    .status-chip.status-replaced {
+        background: #fff7d6;
         color: #b45309;
-        border-color: #fbbf24;
+        border-color: #facc15;
     }
     .status-chip.status-replacement {
-        background: #fff7d6;
+        background: #ffeaea;
         color: #c1121f;
-        border-color: #facc15;
+        border-color: #f87171;
     }
     .status-chip.status-empty {
         background: #f8fafc;

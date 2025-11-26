@@ -321,24 +321,21 @@ class FormTwoService
             }
 
             $bonusHours = (int) ($rec->bonus_hours ?? $rec->hours_per_class ?? 0);
-            $base = $rec->getAttributes();
 
-            $sick = (object) array_merge($base, [
-                'status' => 'sick',
-                'used_hours' => 0,
-                'bonus_hours' => 0,
-            ]);
+            $replaced = $rec->replicate();
+            $replaced->status = 'replaced';
+            $replaced->used_hours = 0;
+            $replaced->bonus_hours = 0;
 
-            $replacement = (object) array_merge($base, [
-                'id' => null,
-                'teacher_id' => $rec->replacement_teacher_id,
-                'status' => 'replacement',
-                'used_hours' => 0,
-                'bonus_hours' => $bonusHours,
-                'replacement_teacher_id' => $rec->replacement_teacher_id,
-            ]);
+            $replacement = $rec->replicate();
+            $replacement->id = null;
+            $replacement->teacher_id = $rec->replacement_teacher_id;
+            $replacement->status = 'replacement';
+            $replacement->used_hours = 0;
+            $replacement->bonus_hours = $bonusHours;
+            $replacement->replacement_teacher_id = $rec->replacement_teacher_id;
 
-            return [$sick, $replacement];
+            return [$replaced, $replacement];
         });
     }
 
@@ -416,12 +413,16 @@ class FormTwoService
         return $subjectId . ':' . ($teacherId ?? 0);
     }
 
-    protected function resolveStatus(string $current, FormTwoRecord $rec): string
+    protected function resolveStatus(string $current, object $rec): string
     {
         $incoming = $rec->status ?: (($rec->used_hours ?? 0) > 0 ? 'normal' : 'empty');
+        if ($incoming === 'sick') {
+            $incoming = 'replaced';
+        }
         $priority = [
             'empty' => 0,
             'normal' => 1,
+            'replaced' => 2,
             'sick' => 2,
             'replacement' => 3,
         ];

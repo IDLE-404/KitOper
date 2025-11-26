@@ -146,25 +146,18 @@ class ScheduleToFormTwoSyncService
             'updated_at' => now(),
         ];
 
-        if ($isReplacement && $activeTeacher && $replacementTeacherId) {
-            // Больничный у основного
+        if ($isReplacement) {
+            // Пара используется как замена: добавляем нагрузку через bonus_hours.
             $payload[] = array_merge($base, [
-                'status' => 'sick',
-                'used_hours' => 0,
-                'bonus_hours' => null,
-                'replacement_teacher_id' => null,
-            ]);
-            // Замещающий
-            $payload[] = array_merge($base, [
-                'teacher_id' => $replacementTeacherId,
                 'status' => 'replacement',
                 'used_hours' => 0,
-                'bonus_hours' => $hoursPerClass,
+                'bonus_hours' => 2,
                 'replacement_teacher_id' => $replacementTeacherId,
             ]);
-        } elseif ($isAbsent && $activeTeacher) {
+        } elseif ($isAbsent) {
+            // Пара снята/отменена: отмечаем как заменённую без часов.
             $payload[] = array_merge($base, [
-                'status' => 'sick',
+                'status' => 'replaced',
                 'used_hours' => 0,
                 'bonus_hours' => null,
                 'replacement_teacher_id' => null,

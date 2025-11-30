@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Хост: db
--- Время создания: Ноя 25 2025 г., 16:30
+-- Время создания: Ноя 30 2025 г., 14:55
 -- Версия сервера: 8.0.43
 -- Версия PHP: 8.3.26
 
@@ -108,30 +108,68 @@ INSERT INTO `first_course_group` (`id`, `group_name`, `group_number`, `subgroup`
 
 CREATE TABLE `first_course_schedules` (
   `id` bigint UNSIGNED NOT NULL,
+  `replaces_schedule_id` bigint UNSIGNED DEFAULT NULL,
+  `week_start` date DEFAULT NULL,
   `study_day` enum('Понедельник','Вторник','Среда','Четверг','Пятница','Суббота') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `lesson_number` tinyint UNSIGNED NOT NULL,
   `group_id` bigint UNSIGNED NOT NULL,
   `subject_id` bigint UNSIGNED DEFAULT NULL,
   `subject_id_denominator` bigint UNSIGNED DEFAULT NULL,
+  `subject_id_denominator_2` bigint UNSIGNED DEFAULT NULL,
   `subject_id_2` bigint UNSIGNED DEFAULT NULL,
   `teacher_id` bigint UNSIGNED DEFAULT NULL,
   `teacher_id_denominator` bigint UNSIGNED DEFAULT NULL,
+  `teacher_id_denominator_2` bigint UNSIGNED DEFAULT NULL,
   `teacher_id_2` bigint UNSIGNED DEFAULT NULL,
   `room_id` bigint UNSIGNED DEFAULT NULL,
+  `is_absent_1_num` tinyint(1) NOT NULL DEFAULT '0',
+  `is_replacement_1_num` tinyint(1) NOT NULL DEFAULT '0',
+  `replacement_teacher_id_1_num` bigint UNSIGNED DEFAULT NULL,
+  `replacement_comment_1_num` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `room_id_denominator` bigint UNSIGNED DEFAULT NULL,
+  `is_absent_1_den` tinyint(1) NOT NULL DEFAULT '0',
+  `is_replacement_1_den` tinyint(1) NOT NULL DEFAULT '0',
+  `replacement_teacher_id_1_den` bigint UNSIGNED DEFAULT NULL,
+  `replacement_comment_1_den` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `room_id_denominator_2` bigint UNSIGNED DEFAULT NULL,
+  `is_absent_2_den` tinyint(1) NOT NULL DEFAULT '0',
+  `is_replacement_2_den` tinyint(1) NOT NULL DEFAULT '0',
+  `replacement_teacher_id_2_den` bigint UNSIGNED DEFAULT NULL,
+  `replacement_comment_2_den` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `room_id_2` bigint UNSIGNED DEFAULT NULL,
+  `is_absent_2_num` tinyint(1) NOT NULL DEFAULT '0',
+  `is_replacement_2_num` tinyint(1) NOT NULL DEFAULT '0',
+  `replacement_teacher_id_2_num` bigint UNSIGNED DEFAULT NULL,
+  `replacement_comment_2_num` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `subgroup` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `is_replacement` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `mode` varchar(12) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci GENERATED ALWAYS AS ((case when ((`subject_id_denominator` is null) and (`teacher_id_denominator` is null) and (`room_id_denominator` is null)) then _utf8mb4'single' else _utf8mb4'numerator' end)) STORED
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Дамп данных таблицы `first_course_schedules`
 --
 
-INSERT INTO `first_course_schedules` (`id`, `study_day`, `lesson_number`, `group_id`, `subject_id`, `subject_id_denominator`, `subject_id_2`, `teacher_id`, `teacher_id_denominator`, `teacher_id_2`, `room_id`, `room_id_denominator`, `room_id_2`, `subgroup`, `is_replacement`, `created_at`, `updated_at`) VALUES
-(1, 'Понедельник', 1, 12, 21, 26, NULL, 17, 24, NULL, 12, 12, NULL, NULL, 0, '2025-11-24 19:10:37', '2025-11-24 19:10:37');
+INSERT INTO `first_course_schedules` (`id`, `replaces_schedule_id`, `week_start`, `study_day`, `lesson_number`, `group_id`, `subject_id`, `subject_id_denominator`, `subject_id_denominator_2`, `subject_id_2`, `teacher_id`, `teacher_id_denominator`, `teacher_id_denominator_2`, `teacher_id_2`, `room_id`, `room_id_denominator`, `room_id_denominator_2`, `room_id_2`, `subgroup`, `is_replacement`, `created_at`, `updated_at`) VALUES
+(1, NULL, '2025-11-24', 'Понедельник', 1, 12, 7, 3, NULL, NULL, 14, 23, NULL, NULL, NULL, NULL, NULL, NULL, '1', 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(2, NULL, '2025-11-24', 'Понедельник', 1, 12, 8, 3, NULL, NULL, 18, 23, NULL, NULL, NULL, NULL, NULL, NULL, '2', 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(3, NULL, '2025-11-24', 'Понедельник', 2, 12, 26, NULL, NULL, NULL, 17, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(4, NULL, '2025-11-24', 'Понедельник', 3, 12, 7, 16, NULL, NULL, 10, 4, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(5, NULL, '2025-11-24', 'Вторник', 1, 12, 8, NULL, NULL, NULL, 21, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(6, NULL, '2025-11-24', 'Вторник', 2, 12, 14, 5, NULL, NULL, 5, 16, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(7, NULL, '2025-11-24', 'Вторник', 3, 12, 15, NULL, NULL, NULL, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(8, NULL, '2025-11-24', 'Вторник', 4, 12, 1, NULL, NULL, NULL, 20, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(9, NULL, '2025-11-24', 'Среда', 1, 12, 1, NULL, NULL, NULL, 16, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(10, NULL, '2025-11-24', 'Среда', 2, 12, 15, NULL, NULL, NULL, 27, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(11, NULL, '2025-11-24', 'Четверг', 1, 12, 9, 7, NULL, NULL, 19, 23, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(12, NULL, '2025-11-24', 'Четверг', 2, 12, 16, NULL, NULL, NULL, 10, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(13, NULL, '2025-11-24', 'Четверг', 3, 12, 15, NULL, NULL, NULL, 4, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(14, NULL, '2025-11-24', 'Четверг', 4, 12, 14, NULL, NULL, NULL, 7, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(15, NULL, '2025-11-24', 'Четверг', 5, 12, 1, NULL, NULL, NULL, 20, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(16, NULL, '2025-11-24', 'Пятница', 1, 12, 2, NULL, NULL, NULL, 18, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(17, NULL, '2025-11-24', 'Пятница', 2, 12, 6, NULL, NULL, NULL, 30, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, '2025-11-27 09:01:00', '2025-11-27 09:01:00');
 
 -- --------------------------------------------------------
 
@@ -171,18 +209,7 @@ INSERT INTO `first_course_subjects` (`id`, `module_title`, `module_index`, `subj
 (14, 'ООД 14', 14, 'Графика и проектирование', 'Графика и проектирование', 'Графика және жобалау', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
 (15, 'ООД 15', 15, 'Всемирная история', 'Всемирная история', 'Дүниежүзі тарихы', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
 (16, 'ООД 16', 16, 'Глобальные компетенции', 'Глобальные компетенции', 'Ғаламдық құзыреттер', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
-(17, 'ООД 17', 17, 'Қазақ тілі', 'Қазақ тілі', 'Қазақ тілі', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
-(18, 'ООД 18', 18, 'Қазақ әдебиеті', 'Қазақ әдебиеті', 'Қазақ әдебиеті', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
-(19, 'ООД 19', 19, 'Орыс тілі', 'Орыс тілі', 'Орыс тілі', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
-(20, 'ООД 20', 20, 'Орыс тілі және әдебиеті', 'Орыс тілі және әдебиеті', 'Орыс тілі және әдебиеті', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
-(21, 'ООД 21', 21, 'Қазақстан тарихы', 'Қазақстан тарихы', 'Қазақстан тарихы', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
-(22, 'ООД 22', 22, 'Дүниежүзі тарихы', 'Дүниежүзі тарихы', 'Дүниежүзі тарихы', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
-(23, 'ООД 23', 23, 'Дене тәрбиесі', 'Дене тәрбиесі', 'Дене тәрбиесі', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
-(24, 'ООД 24', 24, 'Графика және жобалау', 'Графика және жобалау', 'Графика және жобалау', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
-(25, 'ООД 25', 25, 'БӘжТД', 'БӘжТД', 'БӘжТД', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
-(26, 'ООД 26', 26, 'НВиТП', 'НВиТП', 'НВиТП', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
-(27, 'ООД 27', 27, 'НВТП', 'НВТП', 'НВТП', '2025-11-23 14:15:39', '2025-11-23 16:03:20'),
-(28, 'ООД 28', 28, 'Шет тілі', 'Шет тілі', 'Шет тілі', '2025-11-23 14:15:39', '2025-11-23 16:03:20');
+(26, 'ООД 26', 26, 'НВиТП', 'НВиТП', 'НВиТП', '2025-11-23 14:15:39', '2025-11-23 16:03:20');
 
 -- --------------------------------------------------------
 
@@ -203,6 +230,27 @@ CREATE TABLE `form_two_normatives` (
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+--
+-- Дамп данных таблицы `form_two_normatives`
+--
+
+INSERT INTO `form_two_normatives` (`id`, `group_id`, `subject_id`, `teacher_id`, `month`, `year`, `total_hours`, `hours_per_class`, `created_at`, `updated_at`) VALUES
+(25, 12, 1, 16, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(26, 12, 1, 20, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(27, 12, 2, 18, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(28, 12, 7, 14, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(29, 12, 8, 18, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(30, 12, 8, 21, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(31, 12, 14, 5, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(32, 12, 14, 7, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(33, 12, 15, 3, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(34, 12, 15, 4, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(35, 12, 15, 27, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(36, 12, 16, 10, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(37, 12, 6, 30, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(38, 12, 9, 19, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(39, 12, 26, 17, 11, 2025, 48, 2, '2025-11-27 09:02:03', '2025-11-27 09:03:05');
+
 -- --------------------------------------------------------
 
 --
@@ -214,13 +262,15 @@ CREATE TABLE `form_two_records` (
   `group_id` bigint UNSIGNED NOT NULL,
   `month` tinyint UNSIGNED NOT NULL,
   `year` smallint UNSIGNED NOT NULL,
+  `class_date` date DEFAULT NULL,
+  `lesson_number` tinyint UNSIGNED DEFAULT NULL,
   `day` tinyint UNSIGNED NOT NULL,
   `subject_id` bigint UNSIGNED DEFAULT NULL,
   `teacher_id` bigint UNSIGNED DEFAULT NULL,
   `subgroup` tinyint UNSIGNED NOT NULL DEFAULT '1',
   `total_hours` smallint UNSIGNED DEFAULT '0',
   `hours_per_class` tinyint UNSIGNED DEFAULT '2',
-  `status` enum('normal','sick','replacement') DEFAULT 'normal',
+  `status` enum('normal','sick','replacement','replaced','replacement_subject') DEFAULT 'normal',
   `replacement_teacher_id` bigint UNSIGNED DEFAULT NULL,
   `bonus_hours` tinyint UNSIGNED DEFAULT NULL,
   `used_hours` tinyint UNSIGNED DEFAULT '0',
@@ -230,6 +280,32 @@ CREATE TABLE `form_two_records` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Дамп данных таблицы `form_two_records`
+--
+
+INSERT INTO `form_two_records` (`id`, `group_id`, `month`, `year`, `class_date`, `lesson_number`, `day`, `subject_id`, `teacher_id`, `subgroup`, `total_hours`, `hours_per_class`, `status`, `replacement_teacher_id`, `bonus_hours`, `used_hours`, `absent_reason`, `replacement_comment`, `mode`, `created_at`, `updated_at`) VALUES
+(896, 12, 11, 2025, '2025-11-24', 1, 24, 7, 14, 1, 0, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'numerator', '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(897, 12, 11, 2025, '2025-11-24', 1, 24, 8, 18, 2, 0, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'numerator', '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(898, 12, 11, 2025, '2025-11-24', NULL, 24, 26, 17, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:01:00', '2025-11-27 09:03:05'),
+(899, 12, 11, 2025, '2025-11-25', NULL, 25, 8, 21, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:01:00', '2025-11-27 09:03:05'),
+(900, 12, 11, 2025, '2025-11-25', 2, 25, 14, 5, 1, 0, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'numerator', '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(901, 12, 11, 2025, '2025-11-25', NULL, 25, 15, 3, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:01:00', '2025-11-27 09:03:05'),
+(902, 12, 11, 2025, '2025-11-25', NULL, 25, 1, 20, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:01:00', '2025-11-27 09:03:05'),
+(903, 12, 11, 2025, '2025-11-26', NULL, 26, 1, 16, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:01:00', '2025-11-27 09:03:05'),
+(904, 12, 11, 2025, '2025-11-26', NULL, 26, 15, 27, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:01:00', '2025-11-27 09:03:05'),
+(905, 12, 11, 2025, '2025-11-27', 1, 27, 9, 19, 1, 0, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'numerator', '2025-11-27 09:01:00', '2025-11-27 09:01:00'),
+(906, 12, 11, 2025, '2025-11-27', NULL, 27, 16, 10, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:01:00', '2025-11-27 09:03:05'),
+(907, 12, 11, 2025, '2025-11-27', NULL, 27, 15, 4, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:01:00', '2025-11-27 09:03:05'),
+(908, 12, 11, 2025, '2025-11-27', NULL, 27, 14, 7, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:01:00', '2025-11-27 09:03:05'),
+(909, 12, 11, 2025, '2025-11-27', NULL, 27, 1, 20, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:01:00', '2025-11-27 09:03:05'),
+(910, 12, 11, 2025, '2025-11-28', NULL, 28, 2, 18, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:01:00', '2025-11-27 09:03:05'),
+(911, 12, 11, 2025, '2025-11-28', NULL, 28, 6, 30, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:01:00', '2025-11-27 09:03:05'),
+(912, 12, 11, 2025, '2025-11-24', NULL, 24, 7, 14, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(913, 12, 11, 2025, '2025-11-24', NULL, 24, 8, 18, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(914, 12, 11, 2025, '2025-11-25', NULL, 25, 14, 5, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:02:03', '2025-11-27 09:03:05'),
+(915, 12, 11, 2025, '2025-11-27', NULL, 27, 9, 19, 1, 48, 2, 'normal', NULL, NULL, 2, NULL, NULL, 'single', '2025-11-27 09:02:03', '2025-11-27 09:03:05');
 
 -- --------------------------------------------------------
 
@@ -367,7 +443,17 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
 (2, '0001_01_01_000001_create_cache_table', 1),
 (3, '0001_01_01_000002_create_jobs_table', 1),
 (4, '2025_11_23_175206_create_schedule_lessons_table', 1),
-(5, '2025_11_24_120000_add_denominator_fields_to_first_course_schedules', 2);
+(5, '2025_11_24_120000_add_denominator_fields_to_first_course_schedules', 2),
+(6, '2026_02_01_120000_add_room_slot_indexes_to_first_course_schedules', 3),
+(7, '2026_02_01_131000_add_denominator_subgroup2_columns_to_first_course_schedules', 3),
+(8, '2026_02_15_120000_create_schedule_replacements_table', 4),
+(9, '2026_02_20_000000_add_replacements_and_week_start_to_first_course_schedules', 4),
+(10, '2026_02_20_000100_add_subgroup_and_date_to_form_two_records', 4),
+(11, '2026_02_25_000000_create_form_two_normatives_table', 5),
+(12, '2026_11_27_000200_add_replaced_status_to_form_two_records', 6),
+(13, '2026_11_28_000000_add_replacement_subject_status_to_form_two_records', 7),
+(14, '2025_11_27_065525_add_replacement_subject_status_to_form_two_records', 8),
+(15, '2025_11_27_080013_refactor_replacements_logic', 9);
 
 -- --------------------------------------------------------
 
@@ -441,7 +527,7 @@ CREATE TABLE `sessions` (
 --
 
 INSERT INTO `sessions` (`id`, `user_id`, `ip_address`, `user_agent`, `payload`, `last_activity`) VALUES
-('3BqQhbjP5NBtPIcnOklx4Fl0lae6m4VtnrBUugWW', NULL, '172.31.0.1', 'Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0', 'YTozOntzOjY6Il90b2tlbiI7czo0MDoiTktrRXZwSWV0SEVHd2JGY2RNVG85N3pzRm5qVHlNZzdLQzNsSlh3bCI7czo5OiJfcHJldmlvdXMiO2E6Mjp7czozOiJ1cmwiO3M6NDM6Imh0dHA6Ly9sb2NhbGhvc3Q6ODAwMC9maXJzdC1jb3Vyc2UvZm9ybS10d28iO3M6NToicm91dGUiO3M6MjM6ImZpcnN0LnNjaGVkdWxlLmZvcm1fdHdvIjt9czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319fQ==', 1764013342);
+('RbwchpE76r04N43aMcajdIUcGzT6XRX0PoCMfOCx', NULL, '172.32.0.1', 'Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0', 'YTozOntzOjY6Il90b2tlbiI7czo0MDoiZllxaFNrUjZNcWtSRGZ1Z0hMbkVlVlFsZXhoT2xoSEIzTGhNZTRGMSI7czo5OiJfcHJldmlvdXMiO2E6Mjp7czozOiJ1cmwiO3M6NDM6Imh0dHA6Ly9sb2NhbGhvc3Q6ODAwMC9maXJzdC1jb3Vyc2Uvc2NoZWR1bGUiO3M6NToicm91dGUiO3M6MjA6ImZpcnN0LnNjaGVkdWxlLmluZGV4Ijt9czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319fQ==', 1764514034);
 
 -- --------------------------------------------------------
 
@@ -493,7 +579,11 @@ ALTER TABLE `first_course_group`
 -- Индексы таблицы `first_course_schedules`
 --
 ALTER TABLE `first_course_schedules`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `first_course_schedules_room_mode_idx` (`room_id`,`study_day`,`lesson_number`,`mode`),
+  ADD KEY `first_course_schedules_room_den_idx` (`room_id_denominator`,`study_day`,`lesson_number`),
+  ADD KEY `first_course_schedules_group_week_idx` (`group_id`,`week_start`),
+  ADD KEY `first_course_schedules_replaces_schedule_id_foreign` (`replaces_schedule_id`);
 
 --
 -- Индексы таблицы `first_course_subjects`
@@ -507,6 +597,7 @@ ALTER TABLE `first_course_subjects`
 ALTER TABLE `form_two_normatives`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `unique_normative` (`group_id`,`subject_id`,`teacher_id`,`month`,`year`),
+  ADD UNIQUE KEY `form2_normative_unique` (`group_id`,`subject_id`,`teacher_id`,`month`,`year`),
   ADD KEY `fk_norm_subject` (`subject_id`),
   ADD KEY `fk_norm_teacher` (`teacher_id`);
 
@@ -519,7 +610,8 @@ ALTER TABLE `form_two_records`
   ADD KEY `idx_group` (`group_id`),
   ADD KEY `idx_subject` (`subject_id`),
   ADD KEY `idx_teacher` (`teacher_id`),
-  ADD KEY `idx_replacement_teacher` (`replacement_teacher_id`);
+  ADD KEY `idx_replacement_teacher` (`replacement_teacher_id`),
+  ADD KEY `form2_group_date_lesson_mode_idx` (`group_id`,`class_date`,`lesson_number`,`subgroup`,`mode`);
 
 --
 -- Индексы таблицы `frist_course_teachers`
@@ -603,7 +695,7 @@ ALTER TABLE `first_course_group`
 -- AUTO_INCREMENT для таблицы `first_course_schedules`
 --
 ALTER TABLE `first_course_schedules`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=72;
 
 --
 -- AUTO_INCREMENT для таблицы `first_course_subjects`
@@ -615,13 +707,13 @@ ALTER TABLE `first_course_subjects`
 -- AUTO_INCREMENT для таблицы `form_two_normatives`
 --
 ALTER TABLE `form_two_normatives`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=56;
 
 --
 -- AUTO_INCREMENT для таблицы `form_two_records`
 --
 ALTER TABLE `form_two_records`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=945;
 
 --
 -- AUTO_INCREMENT для таблицы `jobs`
@@ -633,7 +725,7 @@ ALTER TABLE `jobs`
 -- AUTO_INCREMENT для таблицы `migrations`
 --
 ALTER TABLE `migrations`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT для таблицы `schedule_lessons`
@@ -656,6 +748,12 @@ ALTER TABLE `users`
 --
 -- Ограничения внешнего ключа сохраненных таблиц
 --
+
+--
+-- Ограничения внешнего ключа таблицы `first_course_schedules`
+--
+ALTER TABLE `first_course_schedules`
+  ADD CONSTRAINT `first_course_schedules_replaces_schedule_id_foreign` FOREIGN KEY (`replaces_schedule_id`) REFERENCES `first_course_schedules` (`id`) ON DELETE SET NULL;
 
 --
 -- Ограничения внешнего ключа таблицы `form_two_normatives`

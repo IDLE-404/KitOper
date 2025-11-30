@@ -23,6 +23,7 @@ class FormTwoController extends Controller
         $report = $groupId ? $this->service->buildMonthReport($groupId, $year, $month) : ['rows' => [], 'days' => []];
         $days = $report['days'] ?? range(1, Carbon::create($year, max(1, min(12, $month)), 1)->daysInMonth);
         $rows = $report['rows'] ?? [];
+        $replacementRows = $report['replacement_rows'] ?? [];
 
         $teachers = DB::table('frist_course_teachers')->orderBy('teacher_name')->get(['id', 'teacher_name']);
 
@@ -34,6 +35,7 @@ class FormTwoController extends Controller
             'rows' => $rows,
             'days' => $days,
             'teachers' => $teachers,
+            'replacementRows' => $replacementRows,
         ]);
     }
 

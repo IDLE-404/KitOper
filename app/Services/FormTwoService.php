@@ -43,6 +43,7 @@ class FormTwoService
             ->pluck('teacher_name', 'id');
 
         $rows = [];
+        $replacementRows = [];
         $normMap = $this->buildNormativeLookup($normatives);
         $subjectsUsed = [];
         foreach ($normatives as $norm) {
@@ -67,6 +68,63 @@ class FormTwoService
                 continue;
             }
 
+            $day = (int) ($rec->day ?? 0);
+            if ($day < 1 || $day > $daysCount) {
+                $day = (int) Carbon::parse($rec->class_date ?? now())->day;
+                if ($day < 1 || $day > $daysCount) {
+                    continue;
+                }
+            }
+
+            if ($rec->status === 'replacement') {
+                if (!$teacherId) {
+                    continue;
+                }
+
+                $key = $this->rowKey($subjectId, $teacherId);
+                if (!isset($replacementRows[$key])) {
+                    $norm = $this->matchNormative($normMap, $subjectId, $teacherId);
+                    $replacementRows[$key] = $this->emptyRow(
+                        $subjectId,
+                        $teacherId,
+                        $norm['total_hours'] ?? (int) ($rec->total_hours ?? 0),
+                        $norm['hours_per_class'] ?? (int) ($rec->hours_per_class ?? 2),
+                        $days,
+                        $subjectNames,
+                        $teachers
+                    );
+                }
+
+                $dayData = $replacementRows[$key]['days'][$day] ?? $this->emptyDay();
+                $dayData['used_hours'] += (int) ($rec->used_hours ?? 0);
+                $dayData['bonus_hours'] += (int) ($rec->bonus_hours ?? 0);
+                $dayData['status'] = $this->resolveStatus($dayData['status'], $rec);
+                $dayData['mode'] = $rec->mode ?? $dayData['mode'];
+                $dayData['lesson_number'] = $rec->lesson_number ?? $dayData['lesson_number'];
+                $dayData['subgroup'] = $rec->subgroup ?? $dayData['subgroup'];
+                $dayData['replacement_teacher_id'] = $rec->replacement_teacher_id ?: $dayData['replacement_teacher_id'];
+                $dayData['replacement_teacher_name'] = $rec->replacement_teacher_id
+                    ? ($teachers[$rec->replacement_teacher_id] ?? '—')
+                    : ($dayData['replacement_teacher_name'] ?? null);
+                $dayData['replacement_comment'] = $rec->replacement_comment ?? $dayData['replacement_comment'];
+                $dayData['details'][] = [
+                    'status' => $rec->status,
+                    'lesson_number' => $rec->lesson_number,
+                    'subgroup' => $rec->subgroup,
+                    'mode' => $rec->mode,
+                    'used_hours' => (int) ($rec->used_hours ?? 0),
+                    'bonus_hours' => (int) ($rec->bonus_hours ?? 0),
+                    'replacement_teacher_id' => $rec->replacement_teacher_id,
+                    'replacement_teacher_name' => $rec->replacement_teacher_id ? ($teachers[$rec->replacement_teacher_id] ?? '—') : null,
+                    'comment' => $rec->replacement_comment,
+                    'absent_reason' => $rec->absent_reason,
+                ];
+
+                $replacementRows[$key]['days'][$day] = $dayData;
+                $subjectsUsed[$subjectId] = true;
+                continue;
+            }
+
             $key = $this->rowKey($subjectId, $teacherId);
             if (!isset($rows[$key])) {
                 $norm = $this->matchNormative($normMap, $subjectId, $teacherId);
@@ -81,14 +139,6 @@ class FormTwoService
                 );
             }
             $subjectsUsed[$subjectId] = true;
-
-            $day = (int) ($rec->day ?? 0);
-            if ($day < 1 || $day > $daysCount) {
-                $day = (int) Carbon::parse($rec->class_date ?? now())->day;
-                if ($day < 1 || $day > $daysCount) {
-                    continue;
-                }
-            }
 
             $dayData = $rows[$key]['days'][$day] ?? $this->emptyDay();
             $dayData['used_hours'] += (int) ($rec->used_hours ?? 0);
@@ -119,6 +169,18 @@ class FormTwoService
         }
 
         foreach ($rows as &$row) {
+            $used = 0;
+            $bonus = 0;
+            foreach ($row['days'] as $cell) {
+                $used += (int) ($cell['used_hours'] ?? 0);
+                $bonus += (int) ($cell['bonus_hours'] ?? 0);
+            }
+            $row['used_hours_total'] = $used;
+            $row['bonus_hours_total'] = $bonus;
+            $row['hours_left'] = max(0, (int) $row['total_hours'] - $used + $bonus);
+        }
+
+        foreach ($replacementRows as &$row) {
             $used = 0;
             $bonus = 0;
             foreach ($row['days'] as $cell) {
@@ -165,27 +227,13 @@ class FormTwoService
             'Всемирная история',
         ];
 
-        $rows = array_values($rows);
-        usort($rows, function (array $a, array $b) use ($preferredOrder) {
-            $posA = array_search($a['subject_name'], $preferredOrder, true);
-            $posB = array_search($b['subject_name'], $preferredOrder, true);
-            $posA = $posA === false ? PHP_INT_MAX : $posA;
-            $posB = $posB === false ? PHP_INT_MAX : $posB;
-
-            if ($posA !== $posB) {
-                return $posA <=> $posB;
-            }
-
-            if ($a['subject_name'] !== $b['subject_name']) {
-                return $a['subject_name'] <=> $b['subject_name'];
-            }
-
-            return ($a['teacher_name'] ?? '') <=> ($b['teacher_name'] ?? '');
-        });
+        $rows = $this->sortRows($rows, $preferredOrder);
+        $replacementRows = $this->sortRows($replacementRows, $preferredOrder);
 
         return [
             'days' => $days,
             'rows' => $rows,
+            'replacement_rows' => $replacementRows,
         ];
     }
 
@@ -428,5 +476,28 @@ class FormTwoService
         ];
 
         return ($priority[$incoming] ?? 0) >= ($priority[$current] ?? 0) ? $incoming : $current;
+    }
+
+    protected function sortRows(array $rows, array $preferredOrder): array
+    {
+        $rows = array_values($rows);
+        usort($rows, function (array $a, array $b) use ($preferredOrder) {
+            $posA = array_search($a['subject_name'], $preferredOrder, true);
+            $posB = array_search($b['subject_name'], $preferredOrder, true);
+            $posA = $posA === false ? PHP_INT_MAX : $posA;
+            $posB = $posB === false ? PHP_INT_MAX : $posB;
+
+            if ($posA !== $posB) {
+                return $posA <=> $posB;
+            }
+
+            if ($a['subject_name'] !== $b['subject_name']) {
+                return $a['subject_name'] <=> $b['subject_name'];
+            }
+
+            return ($a['teacher_name'] ?? '') <=> ($b['teacher_name'] ?? '');
+        });
+
+        return $rows;
     }
 }

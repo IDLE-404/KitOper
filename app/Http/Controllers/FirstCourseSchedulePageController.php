@@ -113,9 +113,11 @@ class FirstCourseSchedulePageController extends Controller
                     'absent_den' => $row->is_absent_1_den ?? false,
                     'replacement_flag_num' => $row->is_replacement_1_num ?? false,
                     'replacement_teacher_num' => $row->replacement_teacher_id_1_num ?? null,
+                    'replacement_subject_num' => $row->replacement_subject_id_1_num ?? null,
                     'replacement_comment_num' => $row->replacement_comment_1_num ?? null,
                     'replacement_flag_den' => $row->is_replacement_1_den ?? false,
                     'replacement_teacher_den' => $row->replacement_teacher_id_1_den ?? null,
+                    'replacement_subject_den' => $row->replacement_subject_id_1_den ?? null,
                     'replacement_comment_den' => $row->replacement_comment_1_den ?? null,
                 ]);
             }
@@ -140,9 +142,11 @@ class FirstCourseSchedulePageController extends Controller
                     'absent_den' => $row->is_absent_2_den ?? false,
                     'replacement_flag_num' => $row->is_replacement_2_num ?? false,
                     'replacement_teacher_num' => $row->replacement_teacher_id_2_num ?? null,
+                    'replacement_subject_num' => $row->replacement_subject_id_2_num ?? null,
                     'replacement_comment_num' => $row->replacement_comment_2_num ?? null,
                     'replacement_flag_den' => $row->is_replacement_2_den ?? false,
                     'replacement_teacher_den' => $row->replacement_teacher_id_2_den ?? null,
+                    'replacement_subject_den' => $row->replacement_subject_id_2_den ?? null,
                     'replacement_comment_den' => $row->replacement_comment_2_den ?? null,
                 ]);
             }
@@ -165,9 +169,14 @@ class FirstCourseSchedulePageController extends Controller
                         $absent = ($isDenominatorWeek && $denExists) ? ($pair[$key]['absent_den'] ?? false) : ($pair[$key]['absent_num'] ?? false);
                         $replacementFlag = ($isDenominatorWeek && $denExists) ? ($pair[$key]['replacement_flag_den'] ?? false) : ($pair[$key]['replacement_flag_num'] ?? false);
                         $replacementTeacherId = ($isDenominatorWeek && $denExists) ? ($pair[$key]['replacement_teacher_den'] ?? null) : ($pair[$key]['replacement_teacher_num'] ?? null);
+                        $replacementSubjectId = ($isDenominatorWeek && $denExists) ? ($pair[$key]['replacement_subject_den'] ?? null) : ($pair[$key]['replacement_subject_num'] ?? null);
+                        $replacementSubjectName = $replacementSubjectId ? ($subjects[$replacementSubjectId] ?? '—') : null;
                         $replacementComment = ($isDenominatorWeek && $denExists) ? ($pair[$key]['replacement_comment_den'] ?? null) : ($pair[$key]['replacement_comment_num'] ?? null);
                         $replacementTeacherName = $replacementTeacherId ? ($teachers[$replacementTeacherId] ?? '—') : null;
 
+                        if ($replacementFlag && $replacementSubjectName) {
+                            $activeSubject = $replacementSubjectName;
+                        }
                         if ($replacementFlag && $replacementTeacherName) {
                             $activeTeacher = $replacementTeacherName;
                         } elseif ($absent && !$replacementFlag) {
@@ -188,6 +197,8 @@ class FirstCourseSchedulePageController extends Controller
                         $pair[$key]['replacement_teacher_id'] = $replacementTeacherId;
                         $pair[$key]['replacement_teacher'] = $replacementTeacherName;
                         $pair[$key]['replacement_comment'] = $replacementComment;
+                        $pair[$key]['replacement_subject_id'] = $replacementSubjectId;
+                        $pair[$key]['replacement_subject'] = $replacementSubjectName;
                     }
                     $schedule[$groupId]['days'][$day][$lesson] = $pair;
                 }
@@ -655,9 +666,11 @@ class FirstCourseSchedulePageController extends Controller
             'is_absent_2' => 'sometimes|boolean',
             'is_replacement_1' => 'sometimes|boolean',
             'replacement_teacher_id_1' => 'nullable|integer',
+            'replacement_subject_id_1' => 'nullable|integer',
             'replacement_comment_1' => 'nullable|string|max:255',
             'is_replacement_2' => 'sometimes|boolean',
             'replacement_teacher_id_2' => 'nullable|integer',
+            'replacement_subject_id_2' => 'nullable|integer',
             'replacement_comment_2' => 'nullable|string|max:255',
         ]);
 
@@ -819,10 +832,12 @@ class FirstCourseSchedulePageController extends Controller
                 'is_absent_1_num' => $weekMode === 'denominator' ? ($prev1?->is_absent_1_num ?? false) : $absent1,
                 'is_replacement_1_num' => $weekMode === 'denominator' ? ($prev1?->is_replacement_1_num ?? false) : $isReplacement1,
                 'replacement_teacher_id_1_num' => $weekMode === 'denominator' ? ($prev1?->replacement_teacher_id_1_num ?? null) : ($data['replacement_teacher_id_1'] ?? null),
+                'replacement_subject_id_1_num' => $weekMode === 'denominator' ? ($prev1?->replacement_subject_id_1_num ?? null) : ($data['replacement_subject_id_1'] ?? null),
                 'replacement_comment_1_num' => $weekMode === 'denominator' ? ($prev1?->replacement_comment_1_num ?? null) : ($data['replacement_comment_1'] ?? null),
                 'is_absent_1_den' => $weekMode === 'denominator' ? $absent1 : ($prev1?->is_absent_1_den ?? false),
                 'is_replacement_1_den' => $weekMode === 'denominator' ? $isReplacement1 : ($prev1?->is_replacement_1_den ?? false),
                 'replacement_teacher_id_1_den' => $weekMode === 'denominator' ? ($data['replacement_teacher_id_1'] ?? null) : ($prev1?->replacement_teacher_id_1_den ?? null),
+                'replacement_subject_id_1_den' => $weekMode === 'denominator' ? ($data['replacement_subject_id_1'] ?? null) : ($prev1?->replacement_subject_id_1_den ?? null),
                 'replacement_comment_1_den' => $weekMode === 'denominator' ? ($data['replacement_comment_1'] ?? null) : ($prev1?->replacement_comment_1_den ?? null),
             ]];
 
@@ -852,10 +867,12 @@ class FirstCourseSchedulePageController extends Controller
                     'is_absent_2_num' => $weekMode === 'denominator' ? ($prev2?->is_absent_2_num ?? false) : $absent2,
                     'is_replacement_2_num' => $weekMode === 'denominator' ? ($prev2?->is_replacement_2_num ?? false) : $isReplacement2,
                     'replacement_teacher_id_2_num' => $weekMode === 'denominator' ? ($prev2?->replacement_teacher_id_2_num ?? null) : ($data['replacement_teacher_id_2'] ?? null),
+                    'replacement_subject_id_2_num' => $weekMode === 'denominator' ? ($prev2?->replacement_subject_id_2_num ?? null) : ($data['replacement_subject_id_2'] ?? null),
                     'replacement_comment_2_num' => $weekMode === 'denominator' ? ($prev2?->replacement_comment_2_num ?? null) : ($data['replacement_comment_2'] ?? null),
                     'is_absent_2_den' => $weekMode === 'denominator' ? $absent2 : ($prev2?->is_absent_2_den ?? false),
                     'is_replacement_2_den' => $weekMode === 'denominator' ? $isReplacement2 : ($prev2?->is_replacement_2_den ?? false),
                     'replacement_teacher_id_2_den' => $weekMode === 'denominator' ? ($data['replacement_teacher_id_2'] ?? null) : ($prev2?->replacement_teacher_id_2_den ?? null),
+                    'replacement_subject_id_2_den' => $weekMode === 'denominator' ? ($data['replacement_subject_id_2'] ?? null) : ($prev2?->replacement_subject_id_2_den ?? null),
                     'replacement_comment_2_den' => $weekMode === 'denominator' ? ($data['replacement_comment_2'] ?? null) : ($prev2?->replacement_comment_2_den ?? null),
                 ];
             }
@@ -949,7 +966,12 @@ class FirstCourseSchedulePageController extends Controller
         $report = $groupId ? $formTwoService->buildMonthReport($groupId, $year, $month) : ['rows' => [], 'days' => []];
         $days = $report['days'] ?? range(1, Carbon::create($year, max(1, min(12, $month)), 1)->daysInMonth);
         $rows = $report['rows'] ?? [];
+        $replacementRows = $report['replacement_rows'] ?? [];
         $teachers = DB::table('frist_course_teachers')->orderBy('teacher_name')->get(['id', 'teacher_name']);
+        $subjects = DB::table('first_course_subjects')
+            ->select('id', DB::raw('COALESCE(name_ru, subject_name) as title'))
+            ->orderBy('title')
+            ->get();
 
         return view('first_course.form_two', [
             'groups' => $groups,
@@ -959,6 +981,8 @@ class FirstCourseSchedulePageController extends Controller
             'rows' => $rows,
             'days' => $days,
             'teachers' => $teachers,
+            'subjects' => $subjects,
+            'replacementRows' => $replacementRows,
         ]);
     }
 

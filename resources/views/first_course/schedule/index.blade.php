@@ -97,6 +97,8 @@
                                     data-replacement2="{{ ($pair['sub2']['is_replacement'] ?? false) ? '1' : '0' }}"
                                     data-replacement-teacher-1="{{ $pair['sub1']['replacement_teacher_id'] ?? '' }}"
                                     data-replacement-teacher-2="{{ $pair['sub2']['replacement_teacher_id'] ?? '' }}"
+                                    data-replacement-subject-1="{{ $pair['sub1']['replacement_subject_id'] ?? '' }}"
+                                    data-replacement-subject-2="{{ $pair['sub2']['replacement_subject_id'] ?? '' }}"
                                     data-replacement-comment-1="{{ $pair['sub1']['replacement_comment'] ?? '' }}"
                                     data-replacement-comment-2="{{ $pair['sub2']['replacement_comment'] ?? '' }}"
                                 >✏️</a>
@@ -109,6 +111,9 @@
                                         <span class="status-chip tiny status-replacement" title="Замена">2</span>
                                     @endif
                                     <span class="cell-title emphasis">{{ $main['active_subject'] ?? '—' }}</span>
+                                    @if(($main['replacement_subject'] ?? null) && ($main['is_replacement'] ?? false) && ($main['replacement_subject'] !== ($main['active_subject'] ?? null)))
+                                        <span class="text-danger ms-1">→ {{ $main['replacement_subject'] }}</span>
+                                    @endif
                                 </div>
                                 <div class="cell-meta">
                                     <span class="pill">
@@ -135,6 +140,9 @@
                                             <span class="status-chip tiny status-replacement" title="Замена">2</span>
                                         @endif
                                         <span class="cell-title sub2 emphasis">{{ $sub2['active_subject'] ?? '—' }}</span>
+                                        @if(($sub2['replacement_subject'] ?? null) && ($sub2['is_replacement'] ?? false) && ($sub2['replacement_subject'] !== ($sub2['active_subject'] ?? null)))
+                                            <span class="text-danger ms-1">→ {{ $sub2['replacement_subject'] }}</span>
+                                        @endif
                                     </div>
                                     <div class="cell-meta subpair">
                                         <span class="pill">
@@ -205,25 +213,32 @@
     const replacement1Hidden = document.getElementById('modalReplacement1Hidden');
     const replacementBlock1 = document.getElementById('replacementBlock1');
     const replacementTeacher1 = document.getElementById('modalReplacementTeacher1');
+    const replacementSubject1 = document.getElementById('modalReplacementSubject1');
     const replacementComment1 = document.getElementById('modalReplacementComment1');
     const absent2Hidden = document.getElementById('modalAbsent2Hidden');
     const replacement2Hidden = document.getElementById('modalReplacement2Hidden');
     const replacementBlock2 = document.getElementById('replacementBlock2');
     const replacementTeacher2 = document.getElementById('modalReplacementTeacher2');
+    const replacementSubject2 = document.getElementById('modalReplacementSubject2');
     const replacementComment2 = document.getElementById('modalReplacementComment2');
 
     const hiddenGroup = document.getElementById('modalGroupId');
     const hiddenDay = document.getElementById('modalDay');
     const hiddenLesson = document.getElementById('modalLesson');
 
-    const applyChangeType = (selectEl, absentHidden, replHidden, replBlock, replTeacher, replComment) => {
+    const applyChangeType = (selectEl, absentHidden, replHidden, replBlock, replTeacher, replSubject, replComment) => {
         const v = selectEl.value;
-        absentHidden.value = v === 'replaced' ? '1' : '0';
+        const isReplaced = v === 'replaced';
+        const isReplacement = v === 'replacement';
+        absentHidden.value = isReplaced ? '1' : '0';
         replHidden.value = v === 'replacement' ? '1' : '0';
-        const showRepl = v === 'replacement';
+        const showRepl = isReplacement || isReplaced;
         replBlock.classList.toggle('d-none', !showRepl);
         if (!showRepl) {
             replTeacher.value = '';
+            if (replSubject) {
+                replSubject.value = '';
+            }
             replComment.value = '';
         }
     };
@@ -264,11 +279,13 @@
         changeType1.value = type1;
         changeType2.value = type2;
         replacementTeacher1.value = data.replacementTeacher1 || '';
+        replacementSubject1.value = data.replacementSubject1 || '';
         replacementComment1.value = data.replacementComment1 || '';
         replacementTeacher2.value = data.replacementTeacher2 || '';
+        replacementSubject2.value = data.replacementSubject2 || '';
         replacementComment2.value = data.replacementComment2 || '';
-        applyChangeType(changeType1, absent1Hidden, replacement1Hidden, replacementBlock1, replacementTeacher1, replacementComment1);
-        applyChangeType(changeType2, absent2Hidden, replacement2Hidden, replacementBlock2, replacementTeacher2, replacementComment2);
+        applyChangeType(changeType1, absent1Hidden, replacement1Hidden, replacementBlock1, replacementTeacher1, replacementSubject1, replacementComment1);
+        applyChangeType(changeType2, absent2Hidden, replacement2Hidden, replacementBlock2, replacementTeacher2, replacementSubject2, replacementComment2);
 
         overlay.classList.add('show');
         modal.classList.add('show');
@@ -290,7 +307,7 @@
             teacher2Den.value = '';
             room2Den.value = '';
             changeType2.value = 'none';
-            applyChangeType(changeType2, absent2Hidden, replacement2Hidden, replacementBlock2, replacementTeacher2, replacementComment2);
+            applyChangeType(changeType2, absent2Hidden, replacement2Hidden, replacementBlock2, replacementTeacher2, replacementSubject2, replacementComment2);
         }
     });
 
@@ -306,8 +323,8 @@
         }
     });
 
-    changeType1.addEventListener('change', () => applyChangeType(changeType1, absent1Hidden, replacement1Hidden, replacementBlock1, replacementTeacher1, replacementComment1));
-    changeType2.addEventListener('change', () => applyChangeType(changeType2, absent2Hidden, replacement2Hidden, replacementBlock2, replacementTeacher2, replacementComment2));
+    changeType1.addEventListener('change', () => applyChangeType(changeType1, absent1Hidden, replacement1Hidden, replacementBlock1, replacementTeacher1, replacementSubject1, replacementComment1));
+    changeType2.addEventListener('change', () => applyChangeType(changeType2, absent2Hidden, replacement2Hidden, replacementBlock2, replacementTeacher2, replacementSubject2, replacementComment2));
 
     document.querySelectorAll('.cell-edit').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -604,8 +621,14 @@
                         <div id="replacementBlock1" class="d-none replacement-card flex-grow-1">
                             <label class="form-label">Заменяющий (подгр. 1)</label>
                             <select class="form-select mb-2" name="replacement_teacher_id_1" id="modalReplacementTeacher1">
-                                <option value="">—</option>
+                                <option value="">— преподаватель</option>
                                 @foreach($teachers as $id => $title)
+                                    <option value="{{ $id }}">{{ $title }}</option>
+                                @endforeach
+                            </select>
+                            <select class="form-select mb-2" name="replacement_subject_id_1" id="modalReplacementSubject1">
+                                <option value="">— предмет</option>
+                                @foreach($subjects as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
                                 @endforeach
                             </select>
@@ -655,8 +678,14 @@
                         <div id="replacementBlock2" class="d-none replacement-card flex-grow-1">
                             <label class="form-label">Заменяющий (подгр. 2)</label>
                             <select class="form-select mb-2" name="replacement_teacher_id_2" id="modalReplacementTeacher2">
-                                <option value="">—</option>
+                                <option value="">— преподаватель</option>
                                 @foreach($teachers as $id => $title)
+                                    <option value="{{ $id }}">{{ $title }}</option>
+                                @endforeach
+                            </select>
+                            <select class="form-select mb-2" name="replacement_subject_id_2" id="modalReplacementSubject2">
+                                <option value="">— предмет</option>
+                                @foreach($subjects as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
                                 @endforeach
                             </select>

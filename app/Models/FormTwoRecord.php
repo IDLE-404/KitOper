@@ -22,6 +22,7 @@ class FormTwoRecord extends Model
         'hours_per_class',
         'status',
         'replacement_teacher_id',
+        'replacement_subject_id',
         'bonus_hours',
         'used_hours',
         'absent_reason',

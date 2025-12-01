@@ -122,6 +122,7 @@ class ScheduleToFormTwoSyncService
         $isAbsent = $this->isAbsent($row, $subgroup, $weekMode);
         $isReplacement = $this->isReplacement($row, $subgroup, $weekMode);
         $replacementTeacherId = $this->replacementTeacherId($row, $subgroup, $weekMode);
+        $replacementSubjectId = $this->replacementSubjectId($row, $subgroup, $weekMode);
         $replacementComment = $this->replacementComment($row, $subgroup, $weekMode);
 
         $hoursPerClass = $this->hoursPerClass($groupId, $activeSubject, $activeTeacher, $classDate);
@@ -153,6 +154,7 @@ class ScheduleToFormTwoSyncService
                 'used_hours' => 0,
                 'bonus_hours' => 2,
                 'replacement_teacher_id' => $replacementTeacherId,
+                'replacement_subject_id' => $replacementSubjectId,
             ]);
         } elseif ($isAbsent) {
             // Пара снята/отменена: отмечаем как заменённую без часов.
@@ -160,14 +162,44 @@ class ScheduleToFormTwoSyncService
                 'status' => 'replaced',
                 'used_hours' => 0,
                 'bonus_hours' => null,
-                'replacement_teacher_id' => null,
+                'replacement_teacher_id' => $replacementTeacherId,
+                'replacement_subject_id' => $replacementSubjectId,
             ]);
+
+            // Если указали, чем заменили (предмет/учитель), добавляем строку замещения.
+            if ($replacementSubjectId || $replacementTeacherId) {
+                $replacementHoursPerClass = $this->hoursPerClass(
+                    $groupId,
+                    $replacementSubjectId ?: $activeSubject,
+                    $replacementTeacherId ?: $activeTeacher,
+                    $classDate
+                );
+                $replacementTotalHours = $this->totalHours(
+                    $groupId,
+                    $replacementSubjectId ?: $activeSubject,
+                    $replacementTeacherId ?: $activeTeacher,
+                    $classDate
+                );
+
+                $payload[] = array_merge($base, [
+                    'subject_id' => $replacementSubjectId ?: $activeSubject,
+                    'teacher_id' => $replacementTeacherId ?: $activeTeacher,
+                    'hours_per_class' => $replacementHoursPerClass,
+                    'total_hours' => $replacementTotalHours,
+                    'status' => 'replacement',
+                    'used_hours' => 0,
+                    'bonus_hours' => $replacementHoursPerClass,
+                    'replacement_teacher_id' => $replacementTeacherId,
+                    'replacement_subject_id' => $replacementSubjectId,
+                ]);
+            }
         } else {
             $payload[] = array_merge($base, [
                 'status' => 'normal',
                 'used_hours' => $hoursPerClass,
                 'bonus_hours' => null,
                 'replacement_teacher_id' => null,
+                'replacement_subject_id' => null,
             ]);
         }
 
@@ -223,6 +255,14 @@ class ScheduleToFormTwoSyncService
         $suffix = $subgroup === 2 ? '_2' : '_1';
         $modeSuffix = $weekMode === 'denominator' ? '_den' : '_num';
         $key = "replacement_teacher_id{$suffix}{$modeSuffix}";
+        return $row->{$key} ?? null;
+    }
+
+    protected function replacementSubjectId(object $row, int $subgroup, string $weekMode): ?int
+    {
+        $suffix = $subgroup === 2 ? '_2' : '_1';
+        $modeSuffix = $weekMode === 'denominator' ? '_den' : '_num';
+        $key = "replacement_subject_id{$suffix}{$modeSuffix}";
         return $row->{$key} ?? null;
     }
 

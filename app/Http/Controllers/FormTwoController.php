@@ -26,6 +26,10 @@ class FormTwoController extends Controller
         $replacementRows = $report['replacement_rows'] ?? [];
 
         $teachers = DB::table('frist_course_teachers')->orderBy('teacher_name')->get(['id', 'teacher_name']);
+        $subjects = DB::table('first_course_subjects')
+            ->select('id', DB::raw('COALESCE(name_ru, subject_name) as title'))
+            ->orderBy('title')
+            ->get();
 
         return view('first_course.form_two', [
             'groups' => $groups,
@@ -36,6 +40,7 @@ class FormTwoController extends Controller
             'days' => $days,
             'teachers' => $teachers,
             'replacementRows' => $replacementRows,
+            'subjects' => $subjects,
         ]);
     }
 

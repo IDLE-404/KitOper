@@ -9,6 +9,7 @@
     ];
     $daysCount = count($days ?? []);
     $replacementRows = $replacementRows ?? [];
+    $subjects = $subjects ?? collect();
 @endphp
 
 <div class="container-fluid form-two-container py-3">
@@ -169,6 +170,9 @@
                                             if (!empty($detail['replacement_teacher_name'])) {
                                                 $parts[] = 'замена: ' . $detail['replacement_teacher_name'];
                                             }
+                                            if (!empty($detail['replacement_subject_name'])) {
+                                                $parts[] = 'предмет: ' . $detail['replacement_subject_name'];
+                                            }
                                             return implode(', ', $parts);
                                         })->filter()->implode(' | ');
                                     @endphp
@@ -189,6 +193,12 @@
                                                     <option value="{{ $t->id }}" @selected(($cell['replacement_teacher_id'] ?? null) == $t->id)>{{ $t->teacher_name }}</option>
                                                 @endforeach
                                             </select>
+                                            <select class="form-select form-select-sm cell-repl-subject mt-1" data-day="{{ $d }}">
+                                                <option value="">— замещающий предмет</option>
+                                                @foreach($subjects as $s)
+                                                    <option value="{{ $s->id }}" @selected(($cell['replacement_subject_id'] ?? null) == $s->id)>{{ $s->title }}</option>
+                                                @endforeach
+                                            </select>
                                         </div>
                                     </td>
                                 @endforeach
@@ -205,98 +215,7 @@
         </div>
     </div>
 
-    @if(!empty($replacementRows))
-        <div class="card shadow-sm mt-4">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
-                    <div>
-                        <div class="fw-semibold">Замены</div>
-                        <div class="text-muted small">{{ $months[$month] ?? $month }} {{ $year }}</div>
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle form-two-table">
-                        <thead>
-                            <tr>
-                                <th class="text-muted">#</th>
-                                <th class="text-muted">Предмет</th>
-                                <th class="text-muted">Преподаватель</th>
-                                <th class="text-muted">Норматив</th>
-                                @foreach($days as $d)
-                                    <th class="text-center text-muted day-head">{{ $d }}</th>
-                                @endforeach
-                                <th class="text-muted">Использовано</th>
-                                <th class="text-muted">Бонус</th>
-                                <th class="text-muted">Остаток</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($replacementRows as $idx => $row)
-                                <tr>
-                                    <td>{{ $idx + 1 }}</td>
-                                    <td>
-                                        <div class="fw-semibold">{{ $row['subject_name'] ?? '—' }}</div>
-                                    </td>
-                                    <td>
-                                        <div>{{ $row['teacher_name'] ?? '—' }}</div>
-                                    </td>
-                                    <td>
-                                        <div class="small text-muted">Всего: <strong>{{ $row['total_hours'] ?? 0 }}</strong></div>
-                                        <div class="small text-muted">По паре: {{ $row['hours_per_class'] ?? 2 }}</div>
-                                    </td>
-                                    @foreach($days as $d)
-                                        @php
-                                            $cell = $row['days'][$d] ?? [];
-                                            $status = $cell['status'] ?? 'empty';
-                                            if ($status === 'sick') {
-                                                $status = 'replaced';
-                                            }
-                                            if ($status === 'normal') {
-                                                $value = $cell['used_hours'] ?? $row['hours_per_class'] ?? '2';
-                                            } elseif ($status === 'replacement') {
-                                                $value = $cell['bonus_hours'] ?? $row['hours_per_class'] ?? '2';
-                                            } elseif ($status === 'replaced') {
-                                                $value = '■';
-                                            } else {
-                                                $value = '•';
-                                            }
-                                            $tooltip = collect($cell['details'] ?? [])->map(function ($detail) {
-                                                $parts = [];
-                                                if (!empty($detail['lesson_number'])) {
-                                                    $parts[] = 'Пара ' . $detail['lesson_number'];
-                                                }
-                                                if (!empty($detail['subgroup'])) {
-                                                    $parts[] = 'подгр. ' . $detail['subgroup'];
-                                                }
-                                                if (!empty($detail['mode'])) {
-                                                    $parts[] = 'режим: ' . $detail['mode'];
-                                                }
-                                                if (!empty($detail['status'])) {
-                                                    $parts[] = 'статус: ' . $detail['status'];
-                                                }
-                                                if (!empty($detail['replacement_teacher_name'])) {
-                                                    $parts[] = 'замена: ' . $detail['replacement_teacher_name'];
-                                                }
-                                                return implode(', ', $parts);
-                                            })->filter()->implode(' | ');
-                                        @endphp
-                                        <td class="text-center day-cell">
-                                            <div class="status-chip status-{{ $status }}" title="{{ $tooltip ?: 'Нет записи' }}">
-                                                <span class="chip-value">{{ $value }}</span>
-                                            </div>
-                                        </td>
-                                    @endforeach
-                                    <td class="fw-semibold used-cell">{{ $row['used_hours_total'] ?? 0 }}</td>
-                                    <td class="fw-semibold text-primary">{{ $row['bonus_hours_total'] ?? 0 }}</td>
-                                    <td class="fw-semibold text-success">{{ $row['hours_left'] ?? 0 }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    @endif
+</div>
 </div>
 
 @endsection
@@ -420,8 +339,10 @@
                 const day = sel.dataset.day;
                 const status = sel.value;
                 const replSel = tr.querySelector(`.cell-repl[data-day="${day}"]`);
+                const replSubjectSel = tr.querySelector(`.cell-repl-subject[data-day="${day}"]`);
                 const replacement_teacher_id = replSel && replSel.value ? Number(replSel.value) : null;
-                days[day] = { status, replacement_teacher_id };
+                const replacement_subject_id = replSubjectSel && replSubjectSel.value ? Number(replSubjectSel.value) : null;
+                days[day] = { status, replacement_teacher_id, replacement_subject_id };
             });
             rows.push({
                 subject_id: subjectId,

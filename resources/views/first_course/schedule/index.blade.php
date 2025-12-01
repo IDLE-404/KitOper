@@ -57,7 +57,10 @@
                             @php
                                 $filled = ($pair['sub1']['has_den'] ?? false) || ($pair['sub1']['has_num'] ?? false) || ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
                                 $hasConflict = ($pair['sub1']['active_conflict'] ?? false) || ($pair['sub2']['active_conflict'] ?? false);
-                                $hasSubgroups = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
+                                $hasSubgroupsAny = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
+                                $hasSubgroupsCurrentWeek = (($weekMode ?? 'num') === 'den')
+                                    ? ($pair['sub2']['has_den'] ?? false)
+                                    : ($pair['sub2']['has_num'] ?? false);
                                 $pairStatus = '';
                                 if (($pair['sub1']['is_replacement'] ?? false) || ($pair['sub2']['is_replacement'] ?? false)) {
                                     $pairStatus = 'pair-replacement';
@@ -79,7 +82,7 @@
                                     data-den-teacher1="{{ $pair['sub1']['teacher_den_id'] ?? '' }}"
                                     data-den-room1="{{ $pair['sub1']['room_den'] ?? '' }}"
                                     data-sub1="1"
-                                    data-has-sub2="{{ $hasSubgroups ? '1' : '0' }}"
+                                    data-has-sub2="{{ $hasSubgroupsAny ? '1' : '0' }}"
                                     data-subject2="{{ $pair['sub2']['subject_num_id'] ?? '' }}"
                                     data-teacher2="{{ $pair['sub2']['teacher_num_id'] ?? '' }}"
                                     data-room2="{{ $pair['sub2']['room_num'] ?? '' }}"
@@ -132,7 +135,7 @@
                                     <div class="conflict-hint">Конфликт: кабинет уже занят</div>
                                 @endif
                                 @php $sub2 = $pair['sub2'] ?? []; @endphp
-                                @if($hasSubgroups)
+                                @if($hasSubgroupsCurrentWeek)
                                     <div class="cell-line subpair-line">
                                         <span class="pill badge-sub soft">2</span>
                                         @if($sub2['is_absent'] ?? false)

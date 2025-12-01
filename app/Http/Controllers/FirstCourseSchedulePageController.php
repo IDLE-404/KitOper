@@ -67,6 +67,7 @@ class FirstCourseSchedulePageController extends Controller
                     'sub1' => null,
                     'sub2' => null,
                     'has_denominator' => false,
+                    'has_denominator_subgroup2' => false,
                 ];
             }
 
@@ -83,9 +84,14 @@ class FirstCourseSchedulePageController extends Controller
             $teacherDen1 = $subgroupFlag === 1 ? ($row->teacher_id_denominator ?? null) : null;
             $roomDen1 = $subgroupFlag === 1 ? ($row->room_id_denominator ?? null) : null;
 
-            $den2 = $row->subject_id_denominator_2 ?? ($subgroupFlag === 2 ? ($row->subject_id_denominator ?? null) : null);
-            $teacherDen2 = $row->teacher_id_denominator_2 ?? ($subgroupFlag === 2 ? ($row->teacher_id_denominator ?? null) : null);
-            $roomDen2 = $row->room_id_denominator_2 ?? ($subgroupFlag === 2 ? ($row->room_id_denominator ?? null) : null);
+            $den2Group2Exists = $subgroupFlag === 2 && (
+                ($row->subject_id_denominator_2 ?? null)
+                || ($row->teacher_id_denominator_2 ?? null)
+                || ($row->room_id_denominator_2 ?? null)
+            );
+            $den2 = $den2Group2Exists ? ($row->subject_id_denominator_2 ?? null) : null;
+            $teacherDen2 = $den2Group2Exists ? ($row->teacher_id_denominator_2 ?? null) : null;
+            $roomDen2 = $den2Group2Exists ? ($row->room_id_denominator_2 ?? null) : null;
 
             $confNum1 = $roomConflicts[$groupId][$day][$lesson]['numerator'][1] ?? false;
             $confNum2 = $roomConflicts[$groupId][$day][$lesson]['numerator'][2] ?? false;
@@ -94,6 +100,8 @@ class FirstCourseSchedulePageController extends Controller
 
             $schedule[$groupId]['days'][$day][$lesson]['has_denominator'] = $schedule[$groupId]['days'][$day][$lesson]['has_denominator']
                 || $den1 || $den2 || $teacherDen1 || $teacherDen2 || $roomDen1 || $roomDen2;
+            $schedule[$groupId]['days'][$day][$lesson]['has_denominator_subgroup2'] = $schedule[$groupId]['days'][$day][$lesson]['has_denominator_subgroup2']
+                || $den2Group2Exists;
 
             $sub1Data = $schedule[$groupId]['days'][$day][$lesson]['sub1'] ?? [];
             if ($subgroupFlag === 1 || $num1 || $teacherNum1 || $roomNum1 || $den1 || $teacherDen1 || $roomDen1) {

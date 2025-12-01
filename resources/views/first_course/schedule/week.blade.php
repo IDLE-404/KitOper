@@ -11,13 +11,66 @@
 @section('content')
 <div class="week-shell">
     <div class="week-card">
+        @if($errors->any())
+            <div class="alert alert-danger mb-3" role="alert">
+                {{ $errors->first() }}
+            </div>
+        @endif
+        @if(session('success'))
+            <div class="alert alert-success mb-3" role="alert">
+                {{ session('success') }}
+            </div>
+        @endif
+
+        <div class="p-3 border rounded mb-4 bg-light" id="semester-expand">
+            <form action="{{ route('first.schedule.semester.expand') }}" method="POST" class="d-flex flex-column gap-3">
+                @csrf
+                <div class="d-flex flex-wrap gap-3">
+                    <div>
+                        <label class="form-label mb-1 text-muted">Группа</label>
+                        <select class="select-soft" name="group_id">
+                            @foreach($groups as $g)
+                                <option value="{{ $g->id }}" {{ $g->id == $selectedGroupId ? 'selected' : '' }}>{{ $g->group_name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label mb-1 text-muted">Эталонная неделя</label>
+                        <input type="date" class="select-soft" name="template_week_start" value="{{ $weekStart ?? '' }}">
+                    </div>
+                    <div>
+                        <label class="form-label mb-1 text-muted">Начало семестра (пн)</label>
+                        <input type="date" class="select-soft" name="semester_start" value="{{ $weekStart ?? '' }}">
+                    </div>
+                    <div>
+                        <label class="form-label mb-1 text-muted">Конец семестра (пн)</label>
+                        <input type="date" class="select-soft" name="semester_end" value="">
+                    </div>
+                    <div>
+                        <label class="form-label mb-1 text-muted">Первая неделя для Формы 2</label>
+                        <select class="select-soft" name="first_week_mode">
+                            <option value="numerator" @selected(($weekMode ?? 'numerator') === 'numerator')>Числитель</option>
+                            <option value="denominator" @selected(($weekMode ?? '') === 'denominator')>Знаменатель</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="d-flex flex-wrap gap-4 align-items-center">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="1" id="skipExisting" name="skip_existing" checked>
+                        <label class="form-check-label" for="skipExisting">Не трогать недели, где уже есть расписание</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="1" id="syncFormTwo" name="sync_form_two" checked>
+                        <label class="form-check-label" for="syncFormTwo">Сразу заполнить Форму 2 с чередованием недель</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Развернуть на семестр</button>
+                </div>
+                <small class="text-muted">Будет скопировано текущее расписание недели на весь диапазон. Замены/отсутствия при копировании обнуляются.</small>
+            </form>
+        </div>
+
         <form action="{{ route('first.schedule.week.save') }}" method="POST" id="weekForm">
             @csrf
-            @if($errors->any())
-                <div class="alert alert-danger mb-3" role="alert">
-                    {{ $errors->first() }}
-                </div>
-            @endif
             <div class="week-header">
                 <div>
                     <h1 class="week-title">Редактор недельного расписания</h1>

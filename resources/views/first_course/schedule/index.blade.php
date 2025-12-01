@@ -28,6 +28,7 @@
             <button type="button" class="btn-pill ghost" id="weekModeToggle" data-week="{{ $weekMode ?? 'num' }}">
                 Переключить неделю
             </button>
+            <a href="{{ route('first.schedule.week', ['group_id' => $schedule ? array_key_first($schedule) : null, 'week_start' => $weekStart ?? null]) }}#semester-expand" class="btn-pill ghost">Развернуть семестр</a>
             <a href="{{ route('first.schedule.week') }}" class="btn-pill primary">Редактор недели</a>
             <a href="{{ route('first.schedule.form_two') }}" class="btn-pill ghost">Форма 2</a>
         </div>

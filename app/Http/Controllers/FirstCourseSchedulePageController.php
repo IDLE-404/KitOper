@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\FirstCourseSchedule;
 use App\Services\ScheduleToFormTwoSyncService;
 use App\Services\FormTwoService;
+use App\Services\SemesterScheduleService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -437,6 +438,66 @@ class FirstCourseSchedulePageController extends Controller
             'weekStart' => $weekStart->toDateString(),
             'weekMode' => $weekMode,
         ]);
+    }
+
+    /**
+     * Развернуть расписание одной недели на весь семестр.
+     */
+    public function expandSemester(Request $request, SemesterScheduleService $semesterService)
+    {
+        $data = $request->validate([
+            'group_id' => 'required|integer',
+            'template_week_start' => 'required|date',
+            'semester_start' => 'required|date',
+            'semester_end' => 'required|date',
+            'first_week_mode' => 'nullable|string|in:numerator,denominator',
+            'skip_existing' => 'sometimes|boolean',
+            'sync_form_two' => 'sometimes|boolean',
+        ]);
+
+        $groupId = (int) $data['group_id'];
+        $templateWeek = Carbon::parse($data['template_week_start'])->startOfWeek(Carbon::MONDAY);
+        $semesterStart = Carbon::parse($data['semester_start'])->startOfWeek(Carbon::MONDAY);
+        $semesterEnd = Carbon::parse($data['semester_end'])->startOfWeek(Carbon::MONDAY);
+
+        if ($semesterEnd->lt($semesterStart)) {
+            return back()->withErrors(['semester_end' => 'Дата окончания семестра не может быть раньше начала'])->withInput();
+        }
+
+        $firstWeekMode = $data['first_week_mode'] ?? 'numerator';
+        $skipExisting = $request->boolean('skip_existing');
+        $syncFormTwo = $request->boolean('sync_form_two', true);
+
+        $result = $semesterService->expandFromTemplate(
+            $groupId,
+            $templateWeek,
+            $semesterStart,
+            $semesterEnd,
+            $firstWeekMode,
+            $skipExisting,
+            $syncFormTwo
+        );
+
+        if ($result['inserted_weeks'] === 0 && empty($result['skipped_weeks'])) {
+            return back()->withErrors(['template_week_start' => 'Нет строк в выбранной эталонной неделе'])->withInput();
+        }
+
+        $message = sprintf(
+            'Развернули %d недель (%d строк).',
+            $result['inserted_weeks'],
+            $result['inserted_rows']
+        );
+        if (!empty($result['skipped_weeks'])) {
+            $message .= ' Пропущены (уже есть): ' . implode(', ', $result['skipped_weeks']);
+        }
+
+        return redirect()
+            ->route('first.schedule.week', [
+                'group_id' => $groupId,
+                'week_start' => $templateWeek->toDateString(),
+                'week_mode' => $firstWeekMode === 'denominator' ? 'den' : 'num',
+            ])
+            ->with('success', $message);
     }
 
     /**

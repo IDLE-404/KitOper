@@ -12,11 +12,18 @@ class ScheduleToFormTwoSyncService
     /**
       * Синхронизация расписания за неделю в Form 2.
       */
-    public function syncWeek(int $groupId, Carbon $weekStart, string $weekMode = 'numerator'): void
+    public function syncWeek(
+        int $groupId,
+        Carbon $weekStart,
+        string $weekMode = 'numerator',
+        ?Carbon $classWeekStart = null,
+        ?\Illuminate\Support\Collection $rows = null
+    ): void
     {
-        $weekMode = in_array($weekMode, ['numerator', 'denominator'], true) ? $weekMode : 'numerator';
+        $weekMode = $this->resolveWeekMode($weekMode, $weekStart);
+        $classWeekStart = ($classWeekStart ?? $weekStart)->copy()->startOfDay();
         $weekStart = $weekStart->copy()->startOfDay();
-        $weekEnd = $weekStart->copy()->addDays(6);
+        $weekEnd = $classWeekStart->copy()->addDays(6);
 
         $dayOffset = [
             'Понедельник' => 0,
@@ -29,13 +36,10 @@ class ScheduleToFormTwoSyncService
 
         DB::table('form_two_records')
             ->where('group_id', $groupId)
-            ->whereBetween('class_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->whereBetween('class_date', [$classWeekStart->toDateString(), $weekEnd->toDateString()])
             ->delete();
 
-        $rows = DB::table('first_course_schedules')
-            ->where('group_id', $groupId)
-            ->whereDate('week_start', $weekStart->toDateString())
-            ->get();
+        $rows = $rows ?? $this->fetchWeekRows($groupId, $weekStart);
 
         if ($rows->isEmpty()) {
             return;
@@ -50,7 +54,7 @@ class ScheduleToFormTwoSyncService
             }
 
             $lessonNumber = (int) $row->lesson_number;
-            $classDate = $weekStart->copy()->addDays($dayOffset[$dayName]);
+            $classDate = $classWeekStart->copy()->addDays($dayOffset[$dayName]);
 
             foreach ($this->subgroupsForRow($row) as $subgroup) {
                 $payload = array_merge($payload, $this->syncSubgroup(
@@ -232,6 +236,62 @@ class ScheduleToFormTwoSyncService
         }
 
         return $result;
+    }
+
+    /**
+     * Синхронизирует текущую неделю и соседнюю (чередование ч/з) в Форму 2.
+     * Неделя weekStart идёт со своим режимом (по чётности), соседняя — противоположным режимом.
+     */
+    public function syncWeekWithAlternation(int $groupId, Carbon $weekStart): void
+    {
+        $baseMode = $this->resolveWeekMode(null, $weekStart);
+        $otherMode = $baseMode === 'denominator' ? 'numerator' : 'denominator';
+        $otherWeekStart = $baseMode === 'denominator'
+            ? $weekStart->copy()->subWeek()
+            : $weekStart->copy()->addWeek();
+
+        $rows = $this->fetchWeekRows($groupId, $weekStart);
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        // Текущая неделя
+        $this->syncWeek($groupId, $weekStart, $baseMode, $weekStart, $rows);
+        // Чередующаяся неделя
+        $this->syncWeek($groupId, $weekStart, $otherMode, $otherWeekStart, $rows);
+    }
+
+    protected function fetchWeekRows(int $groupId, Carbon $weekStart)
+    {
+        return DB::table('first_course_schedules')
+            ->where('group_id', $groupId)
+            ->whereDate('week_start', $weekStart->toDateString())
+            ->get();
+    }
+
+    /**
+     * Определяем режим недели. Если явно не передан numerator/denominator, берём чётность ISO-недели:
+     * нечётная — числитель, чётная — знаменатель.
+     */
+    public function resolveWeekMode(?string $weekMode, ?Carbon $weekStart): string
+    {
+        $normalized = match ($weekMode) {
+            'den', 'denominator' => 'denominator',
+            'num', 'numerator' => 'numerator',
+            'single' => 'numerator', // single трактуем как обычную неделю
+            default => null,
+        };
+
+        if ($normalized) {
+            return $normalized;
+        }
+
+        if (!$weekStart) {
+            return 'numerator';
+        }
+
+        $isoWeek = $weekStart->copy()->startOfWeek(Carbon::MONDAY)->isoWeek();
+        return $isoWeek % 2 === 0 ? 'denominator' : 'numerator';
     }
 
     protected function isAbsent(object $row, int $subgroup, string $weekMode): bool

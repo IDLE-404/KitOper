@@ -91,8 +91,9 @@
                 <div class="group-select">
                     <label class="form-label mb-1 text-muted">Режим</label>
                     <select class="select-soft" name="week_mode" id="weekModeSelect">
-                        <option value="numerator" @selected(($weekMode ?? 'numerator') === 'numerator')>Числитель</option>
-                        <option value="denominator" @selected(($weekMode ?? '') === 'denominator')>Знаменатель</option>
+                        <option value="auto" @selected(($weekModeInput ?? 'auto') === 'auto')>Авто (по чётности недели)</option>
+                        <option value="numerator" @selected(($weekModeInput ?? $weekMode ?? 'numerator') === 'numerator')>Числитель</option>
+                        <option value="denominator" @selected(($weekModeInput ?? '') === 'denominator')>Знаменатель</option>
                     </select>
                 </div>
             </div>

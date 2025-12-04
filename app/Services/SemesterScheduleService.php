@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use App\Support\CourseContext;
 
 class SemesterScheduleService
 {
@@ -24,13 +25,15 @@ class SemesterScheduleService
         Carbon $semesterEnd,
         string $firstWeekMode = 'numerator',
         bool $skipExistingWeeks = false,
-        bool $syncFormTwo = true
+        bool $syncFormTwo = true,
+        int $course = 1
     ): array {
+        $tables = CourseContext::tables($course);
         $templateWeekStart = $templateWeekStart->copy()->startOfWeek(Carbon::MONDAY);
         $semesterStart = $semesterStart->copy()->startOfWeek(Carbon::MONDAY);
         $semesterEnd = $semesterEnd->copy()->startOfWeek(Carbon::MONDAY);
 
-        $templateRows = DB::table('first_course_schedules')
+        $templateRows = DB::table($tables['schedules'])
             ->where('group_id', $groupId)
             ->whereDate('week_start', $templateWeekStart->toDateString())
             ->get();
@@ -45,13 +48,13 @@ class SemesterScheduleService
         $skippedWeeks = [];
         $weekIndex = 0;
 
-        $nextId = (int) DB::table('first_course_schedules')->max('id') + 1;
+        $nextId = (int) DB::table($tables['schedules'])->max('id') + 1;
 
         $weekPointer = $semesterStart->copy();
         while ($weekPointer->lte($semesterEnd)) {
             $weekDate = $weekPointer->toDateString();
 
-            if ($skipExistingWeeks && DB::table('first_course_schedules')
+            if ($skipExistingWeeks && DB::table($tables['schedules'])
                 ->where('group_id', $groupId)
                 ->whereDate('week_start', $weekDate)
                 ->exists()) {
@@ -61,7 +64,7 @@ class SemesterScheduleService
                 continue;
             }
 
-            DB::table('first_course_schedules')
+            DB::table($tables['schedules'])
                 ->where('group_id', $groupId)
                 ->whereDate('week_start', $weekDate)
                 ->delete();
@@ -74,13 +77,13 @@ class SemesterScheduleService
             }
 
             if ($rowsToInsert) {
-                DB::table('first_course_schedules')->insert($rowsToInsert);
+                DB::table($tables['schedules'])->insert($rowsToInsert);
                 $insertedWeeks++;
                 $insertedRows += count($rowsToInsert);
 
                 if ($syncFormTwo) {
                     $mode = $this->modeForIndex($firstWeekMode, $weekIndex);
-                    $this->syncService->syncWeek($groupId, $weekPointer->copy(), $mode);
+                    $this->syncService->syncWeek($groupId, $weekPointer->copy(), $mode, null, null, $course);
                 }
             }
 

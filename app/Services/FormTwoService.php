@@ -2,30 +2,31 @@
 
 namespace App\Services;
 
-use App\Models\FormTwoNormative;
-use App\Models\FormTwoRecord;
+use App\Support\CourseContext;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class FormTwoService
 {
-    public function buildMonthReport(int $groupId, int $year, int $month): array
+    public function buildMonthReport(int $groupId, int $year, int $month, int $course = 1): array
     {
+        $tables = CourseContext::tables($course);
+
         $daysCount = Carbon::create($year, $month, 1)->daysInMonth;
         $days = range(1, $daysCount);
 
-        $subjectNames = DB::table('first_course_subjects')
+        $subjectNames = DB::table($tables['subjects'])
             ->orderBy('name_ru')
             ->pluck(DB::raw('COALESCE(name_ru, subject_name)'), 'id');
 
-        $normatives = FormTwoNormative::query()
+        $normatives = DB::table($tables['form_two_normatives'])
             ->where('group_id', $groupId)
             ->where('year', $year)
             ->where('month', $month)
             ->get();
 
-        $records = FormTwoRecord::query()
+        $records = DB::table($tables['form_two_records'])
             ->where('group_id', $groupId)
             ->where('year', $year)
             ->where('month', $month)
@@ -38,7 +39,7 @@ class FormTwoService
             ->filter()
             ->unique();
 
-        $teachers = DB::table('frist_course_teachers')
+        $teachers = DB::table($tables['teachers'])
             ->whereIn('id', $teacherIds)
             ->pluck('teacher_name', 'id');
 
@@ -184,8 +185,9 @@ class FormTwoService
     /**
      * Ручная коррекция (используется редко). Ограничиваемся изменением статуса/комментария.
      */
-    public function saveMonthRecords(int $groupId, int $year, int $month, array $rows): void
+    public function saveMonthRecords(int $groupId, int $year, int $month, array $rows, int $course = 1): void
     {
+        $tables = CourseContext::tables($course);
         $payload = [];
         $normativePayload = [];
         $now = now();
@@ -269,7 +271,7 @@ class FormTwoService
         }
 
         if ($normativePayload) {
-            FormTwoNormative::upsert(
+            DB::table($tables['form_two_normatives'])->upsert(
                 $normativePayload,
                 ['group_id', 'subject_id', 'teacher_id', 'month', 'year'],
                 ['total_hours', 'hours_per_class', 'updated_at']
@@ -279,7 +281,7 @@ class FormTwoService
         if ($payload) {
             $uniqueBy = ['group_id', 'year', 'month', 'day', 'subject_id', 'mode'];
 
-            FormTwoRecord::upsert(
+            DB::table($tables['form_two_records'])->upsert(
                 $payload,
                 $uniqueBy,
                 [
@@ -308,44 +310,47 @@ class FormTwoService
      */
     protected function expandReplacements(Collection $records): Collection
     {
-        return $records->flatMap(function (FormTwoRecord $rec) {
-            if ($rec->status !== 'replacement') {
-                return [$rec];
+        return $records->flatMap(function ($rec) {
+            $recArr = (array) $rec;
+            $recObj = (object) $recArr;
+
+            if (($recArr['status'] ?? null) !== 'replacement') {
+                return [$recObj];
             }
             $hasReplacement = (
-                $rec->replacement_teacher_id
-                && $rec->teacher_id
-                && $rec->teacher_id !== $rec->replacement_teacher_id
+                !empty($recArr['replacement_teacher_id'])
+                && !empty($recArr['teacher_id'])
+                && $recArr['teacher_id'] !== $recArr['replacement_teacher_id']
             ) || (
-                $rec->replacement_subject_id
-                && $rec->subject_id
-                && $rec->subject_id !== $rec->replacement_subject_id
+                !empty($recArr['replacement_subject_id'])
+                && !empty($recArr['subject_id'])
+                && $recArr['subject_id'] !== $recArr['replacement_subject_id']
             );
 
             if (!$hasReplacement) {
-                return [$rec];
+                return [$recObj];
             }
 
-            $bonusHours = (int) ($rec->bonus_hours ?? $rec->hours_per_class ?? 0);
-            $replacementSubjectId = $rec->replacement_subject_id ?: $rec->subject_id;
-            $replacementTeacherId = $rec->replacement_teacher_id ?: $rec->teacher_id;
+            $bonusHours = (int) ($recArr['bonus_hours'] ?? $recArr['hours_per_class'] ?? 0);
+            $replacementSubjectId = $recArr['replacement_subject_id'] ?: $recArr['subject_id'];
+            $replacementTeacherId = $recArr['replacement_teacher_id'] ?: $recArr['teacher_id'];
 
-            $replaced = $rec->replicate();
-            $replaced->status = 'replaced';
-            $replaced->used_hours = 0;
-            $replaced->bonus_hours = 0;
+            $replaced = $recArr;
+            $replaced['status'] = 'replaced';
+            $replaced['used_hours'] = 0;
+            $replaced['bonus_hours'] = 0;
 
-            $replacement = $rec->replicate();
-            $replacement->id = null;
-            $replacement->teacher_id = $replacementTeacherId;
-            $replacement->subject_id = $replacementSubjectId;
-            $replacement->status = 'replacement';
-            $replacement->used_hours = 0;
-            $replacement->bonus_hours = $bonusHours;
-            $replacement->replacement_teacher_id = $rec->replacement_teacher_id;
-            $replacement->replacement_subject_id = $rec->replacement_subject_id;
+            $replacement = $recArr;
+            unset($replacement['id']);
+            $replacement['teacher_id'] = $replacementTeacherId;
+            $replacement['subject_id'] = $replacementSubjectId;
+            $replacement['status'] = 'replacement';
+            $replacement['used_hours'] = 0;
+            $replacement['bonus_hours'] = $bonusHours;
+            $replacement['replacement_teacher_id'] = $recArr['replacement_teacher_id'] ?? null;
+            $replacement['replacement_subject_id'] = $recArr['replacement_subject_id'] ?? null;
 
-            return [$replaced, $replacement];
+            return [(object) $replaced, (object) $replacement];
         });
     }
 

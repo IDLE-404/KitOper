@@ -25,7 +25,16 @@
         <div class="p-3 border rounded mb-4 bg-light" id="semester-expand">
             <form action="{{ route('first.schedule.semester.expand') }}" method="POST" class="d-flex flex-column gap-3">
                 @csrf
+                <input type="hidden" name="course" value="{{ $course ?? 1 }}">
                 <div class="d-flex flex-wrap gap-3">
+                    <div>
+                        <label class="form-label mb-1 text-muted">Курс</label>
+                        <select class="select-soft" id="courseSelect">
+                            @for($c = 1; $c <= 4; $c++)
+                                <option value="{{ $c }}" @selected(($course ?? 1) == $c)>{{ $c }}</option>
+                            @endfor
+                        </select>
+                    </div>
                     <div>
                         <label class="form-label mb-1 text-muted">Группа</label>
                         <select class="select-soft" name="group_id">
@@ -69,8 +78,10 @@
             </form>
         </div>
 
+        @if(empty($expandOnly))
         <form action="{{ route('first.schedule.week.save') }}" method="POST" id="weekForm">
             @csrf
+            <input type="hidden" name="course" value="{{ $course ?? 1 }}">
             <div class="week-header">
                 <div>
                     <h1 class="week-title">Редактор недельного расписания</h1>
@@ -98,7 +109,7 @@
                 </div>
             </div>
             <div class="mb-3">
-                <a href="{{ route('first.schedule.index') }}" class="btn btn-outline-secondary">← Назад к списку расписания</a>
+                <a href="{{ route('first.schedule.index', ['course' => $course ?? 1]) }}" class="btn btn-outline-secondary">← Назад к списку расписания</a>
             </div>
 
             <div class="day-tabs" id="dayTabs">
@@ -266,6 +277,11 @@
                 <button class="btn-save" type="submit">Сохранить расписание</button>
             </div>
         </form>
+        @else
+            <div class="text-center">
+                <a href="{{ route('first.schedule.index') }}" class="btn btn-outline-secondary">← Назад к расписанию</a>
+            </div>
+        @endif
     </div>
 </div>
 @endsection
@@ -329,10 +345,21 @@
 
     // Смена группы — перезагрузка с параметром
     const groupSelect = document.getElementById('groupSelect');
-    groupSelect.addEventListener('change', () => {
-        const params = new URLSearchParams(window.location.search);
-        params.set('group_id', groupSelect.value);
-        window.location.search = params.toString();
-    });
+    if (groupSelect) {
+        groupSelect.addEventListener('change', () => {
+            const params = new URLSearchParams(window.location.search);
+            params.set('group_id', groupSelect.value);
+            window.location.search = params.toString();
+        });
+    }
+
+    const courseSelect = document.getElementById('courseSelect');
+    if (courseSelect) {
+        courseSelect.addEventListener('change', () => {
+            const params = new URLSearchParams(window.location.search);
+            params.set('course', courseSelect.value);
+            window.location.search = params.toString();
+        });
+    }
 </script>
 @endpush

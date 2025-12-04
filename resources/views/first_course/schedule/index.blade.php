@@ -13,8 +13,16 @@
 <div class="schedule-shell compact">
     <div class="header-row">
         <div>
-            <h1 class="page-title">Расписание — 1 курс</h1>
+            <h1 class="page-title">Расписание — {{ $course ?? 1 }} курс</h1>
             <p class="page-subtitle">Компактный обзор по всем группам</p>
+            <div class="mt-2 d-flex align-items-center gap-2">
+                <label class="text-muted small mb-0">Курс:</label>
+                <select id="courseSelect" class="search-input" style="width:auto;">
+                    @for($c = 1; $c <= 4; $c++)
+                        <option value="{{ $c }}" @selected(($course ?? 1) == $c)>{{ $c }}</option>
+                    @endfor
+                </select>
+            </div>
             <div class="mt-2">
                 <span class="pill {{ ($weekMode ?? 'num') === 'den' ? 'primary' : 'soft' }}">
                     Сейчас показывается: {{ ($weekMode ?? 'num') === 'den' ? 'неделя B (знаменатель)' : 'неделя A (числитель)' }} (неделя от {{ $weekStart ?? '—' }})
@@ -28,9 +36,9 @@
             <button type="button" class="btn-pill ghost" id="weekModeToggle" data-week="{{ $weekMode ?? 'num' }}">
                 Переключить неделю
             </button>
-            <a href="{{ route('first.schedule.week', ['group_id' => $schedule ? array_key_first($schedule) : null, 'week_start' => $weekStart ?? null]) }}#semester-expand" class="btn-pill ghost">Развернуть семестр</a>
-            <a href="{{ route('first.schedule.week') }}" class="btn-pill primary">Редактор недели</a>
-            <a href="{{ route('first.schedule.form_two') }}" class="btn-pill ghost">Форма 2</a>
+            <a href="{{ route('first.schedule.week', ['group_id' => $schedule ? array_key_first($schedule) : null, 'week_start' => $weekStart ?? null, 'expand_only' => 1, 'course' => $course ?? 1]) }}#semester-expand" class="btn-pill ghost">Развернуть семестр</a>
+            <a href="{{ route('first.schedule.week', ['course' => $course ?? 1]) }}" class="btn-pill primary">Редактор недели</a>
+            <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Форма 2</a>
         </div>
     </div>
 
@@ -365,6 +373,7 @@
     overlay.addEventListener('click', closeModal);
 
     const searchInput = document.getElementById('groupSearch');
+    const courseSelect = document.getElementById('courseSelect');
     if (searchInput) {
         const groups = document.querySelectorAll('.group-compact');
         searchInput.addEventListener('input', () => {
@@ -438,6 +447,14 @@
             if (weekStartPicker && weekStartPicker.value) {
                 params.set('week_start', weekStartPicker.value);
             }
+            window.location.search = params.toString();
+        });
+    }
+
+    if (courseSelect) {
+        courseSelect.addEventListener('change', () => {
+            const params = new URLSearchParams(window.location.search);
+            params.set('course', courseSelect.value);
             window.location.search = params.toString();
         });
     }
@@ -596,6 +613,7 @@
         <input type="hidden" name="lesson_number" id="modalLesson">
         <input type="hidden" name="week_mode" id="modalWeekMode" value="{{ ($weekMode ?? 'num') === 'den' ? 'denominator' : 'numerator' }}">
         <input type="hidden" name="week_start" id="modalWeekStart" value="{{ $weekStart ?? '' }}">
+        <input type="hidden" name="course" value="{{ $course ?? 1 }}">
 
         <div class="modal-topline">
             <div class="form-check">

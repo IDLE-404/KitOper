@@ -6,6 +6,7 @@ use App\Models\FirstCourseSchedule;
 use App\Services\ScheduleToFormTwoSyncService;
 use App\Services\FormTwoService;
 use App\Services\SemesterScheduleService;
+use App\Support\CourseContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,11 +14,19 @@ use Illuminate\Validation\ValidationException;
 
 class FirstCourseSchedulePageController extends Controller
 {
+    protected function tables(int $course): array
+    {
+        return CourseContext::tables($course);
+    }
+
     /**
      * Показать расписание 1 курса.
      */
     public function index()
     {
+        $course = CourseContext::normalize(request()->integer('course') ?? 1);
+        $tables = CourseContext::tables($course);
+
         $weekStartInput = request()->get('week_start');
         $weekStart = $weekStartInput ? Carbon::parse($weekStartInput)->startOfWeek(Carbon::MONDAY) : Carbon::now()->startOfWeek(Carbon::MONDAY);
 
@@ -27,17 +36,17 @@ class FirstCourseSchedulePageController extends Controller
         $resolvedWeekMode = $syncService->resolveWeekMode($weekModeRaw, $weekStart);
         $isDenominatorWeek = $resolvedWeekMode === 'denominator';
 
-        $subjects = DB::table('first_course_subjects')
+        $subjects = DB::table($tables['subjects'])
             ->select('id', DB::raw('COALESCE(name_ru, subject_name) as title'))
             ->pluck('title', 'id');
 
-        $teachers = DB::table('frist_course_teachers')
+        $teachers = DB::table($tables['teachers'])
             ->pluck('teacher_name', 'id');
 
-        $groups = DB::table('first_course_group')
+        $groups = DB::table($tables['groups'])
             ->pluck('group_name', 'id');
 
-        $raw = DB::table('first_course_schedules as s')
+        $raw = DB::table($tables['schedules'] . ' as s')
             ->whereDate('s.week_start', $weekStart->toDateString())
             ->orderBy('s.study_day')
             ->orderBy('s.lesson_number')
@@ -219,6 +228,7 @@ class FirstCourseSchedulePageController extends Controller
             'teachers' => $teachers,
             'weekMode' => $isDenominatorWeek ? 'den' : 'num',
             'weekStart' => $weekStart->toDateString(),
+            'course' => $course,
         ]);
     }
 
@@ -387,9 +397,12 @@ class FirstCourseSchedulePageController extends Controller
      */
     public function week()
     {
-        $groups = DB::table('first_course_group')->orderBy('group_name')->get();
-        $subjects = DB::table('first_course_subjects')->orderBy('name_ru')->get();
-        $teachers = DB::table('frist_course_teachers')->orderBy('teacher_name')->get();
+        $course = CourseContext::normalize(request()->integer('course') ?? 1);
+        $tables = CourseContext::tables($course);
+
+        $groups = DB::table($tables['groups'])->orderBy('group_name')->get();
+        $subjects = DB::table($tables['subjects'])->orderBy('name_ru')->get();
+        $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get();
 
         $selectedGroupId = request()->integer('group_id') ?: ($groups->first()->id ?? null);
         $weekStartInput = request()->get('week_start');
@@ -413,8 +426,9 @@ class FirstCourseSchedulePageController extends Controller
         $dayNames = collect($days)->mapWithKeys(fn($d) => [$d['key'] => $d['full']]);
 
         $existing = [];
+        $expandOnly = request()->boolean('expand_only');
         if ($selectedGroupId) {
-            $existingRows = DB::table('first_course_schedules')
+            $existingRows = DB::table($tables['schedules'])
                 ->where('group_id', $selectedGroupId)
                 ->whereIn('study_day', $dayNames->values())
                 ->whereDate('week_start', $weekStart->toDateString())
@@ -445,6 +459,8 @@ class FirstCourseSchedulePageController extends Controller
             'weekStart' => $weekStart->toDateString(),
             'weekMode' => $weekMode,
             'weekModeInput' => $weekModeInput,
+            'expandOnly' => $expandOnly,
+            'course' => $course,
         ]);
     }
 
@@ -461,8 +477,10 @@ class FirstCourseSchedulePageController extends Controller
             'first_week_mode' => 'nullable|string|in:numerator,denominator',
             'skip_existing' => 'sometimes|boolean',
             'sync_form_two' => 'sometimes|boolean',
+            'course' => 'nullable|integer|min:1|max:4',
         ]);
 
+        $course = CourseContext::normalize($data['course'] ?? request()->integer('course') ?? 1);
         $groupId = (int) $data['group_id'];
         $templateWeek = Carbon::parse($data['template_week_start'])->startOfWeek(Carbon::MONDAY);
         $semesterStart = Carbon::parse($data['semester_start'])->startOfWeek(Carbon::MONDAY);
@@ -483,7 +501,8 @@ class FirstCourseSchedulePageController extends Controller
             $semesterEnd,
             $firstWeekMode,
             $skipExisting,
-            $syncFormTwo
+            $syncFormTwo,
+            $course
         );
 
         if ($result['inserted_weeks'] === 0 && empty($result['skipped_weeks'])) {
@@ -504,6 +523,7 @@ class FirstCourseSchedulePageController extends Controller
                 'group_id' => $groupId,
                 'week_start' => $templateWeek->toDateString(),
                 'week_mode' => $firstWeekMode === 'denominator' ? 'den' : 'num',
+                'course' => $course,
             ])
             ->with('success', $message);
     }
@@ -526,7 +546,11 @@ class FirstCourseSchedulePageController extends Controller
             'week_start' => 'required|date',
             'week_mode' => 'nullable|string|in:numerator,denominator,auto',
             'schedule' => 'array',
+            'course' => 'nullable|integer|min:1|max:4',
         ]);
+
+        $course = CourseContext::normalize($validated['course'] ?? request()->integer('course') ?? 1);
+        $tables = CourseContext::tables($course);
 
         $groupId = $validated['group_id'];
         $weekStart = Carbon::parse($validated['week_start'])->startOfWeek(Carbon::MONDAY);
@@ -622,8 +646,8 @@ class FirstCourseSchedulePageController extends Controller
                     $teacherSlots[] = ['id' => $teacherDenominator, 'mode' => 'denominator'];
                 }
                 try {
-                    $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slots, $weekStart);
-                    $this->validateTeachersOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $teacherSlots, $weekStart);
+                    $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slots, $weekStart, $tables['schedules']);
+                    $this->validateTeachersOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $teacherSlots, $weekStart, $tables['schedules']);
                 } catch (ValidationException $e) {
                     $msg = collect($e->errors())->flatten()->first() ?: 'Недоступно в это время';
                     return back()
@@ -664,8 +688,8 @@ class FirstCourseSchedulePageController extends Controller
                         $teacherSlotsSecond[] = ['id' => $teacherSecondDenominator ?: $teacherSecondDenominator2, 'mode' => 'denominator'];
                     }
                     try {
-                        $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slotsSecond, $weekStart);
-                        $this->validateTeachersOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $teacherSlotsSecond, $weekStart);
+                        $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slotsSecond, $weekStart, $tables['schedules']);
+                        $this->validateTeachersOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $teacherSlotsSecond, $weekStart, $tables['schedules']);
                     } catch (ValidationException $e) {
                         $msg = collect($e->errors())->flatten()->first() ?: 'Недоступно в это время';
                         return back()
@@ -677,24 +701,24 @@ class FirstCourseSchedulePageController extends Controller
         }
 
         DB::transaction(function () use ($groupId, $rows, $weekStart) {
-            DB::table('first_course_schedules')
+            DB::table($tables['schedules'])
                 ->where('group_id', $groupId)
                 ->whereDate('week_start', $weekStart->toDateString())
                 ->delete();
             if ($rows) {
-                $nextId = (int) DB::table('first_course_schedules')->max('id') + 1;
+                $nextId = (int) DB::table($tables['schedules'])->max('id') + 1;
                 $rowsWithIds = [];
                 foreach ($rows as $r) {
                     $rowsWithIds[] = array_merge(['id' => $nextId++], $r);
                 }
-                DB::table('first_course_schedules')->insert($rowsWithIds);
+                DB::table($tables['schedules'])->insert($rowsWithIds);
             }
         });
 
-        $sync->syncWeekWithAlternation($groupId, $weekStart);
+        $sync->syncWeekWithAlternation($groupId, $weekStart, $course);
 
         return redirect()
-            ->route('first.schedule.week', ['group_id' => $groupId, 'week_start' => $weekStart->toDateString()])
+            ->route('first.schedule.week', ['group_id' => $groupId, 'week_start' => $weekStart->toDateString(), 'course' => $course])
             ->with('success', 'Недельное расписание сохранено.');
     }
 
@@ -741,11 +765,15 @@ class FirstCourseSchedulePageController extends Controller
             'replacement_teacher_id_2' => 'nullable|integer',
             'replacement_subject_id_2' => 'nullable|integer',
             'replacement_comment_2' => 'nullable|string|max:255',
+            'course' => 'nullable|integer|min:1|max:4',
         ]);
 
         if (!in_array($data['study_day'], $dayMap, true)) {
             return response()->json(['message' => 'Некорректный день недели'], 422);
         }
+
+        $course = CourseContext::normalize($data['course'] ?? request()->integer('course') ?? 1);
+        $tables = CourseContext::tables($course);
 
         $groupId = $data['group_id'];
         $day = $data['study_day'];
@@ -756,7 +784,7 @@ class FirstCourseSchedulePageController extends Controller
         $sync = app(ScheduleToFormTwoSyncService::class);
         $weekMode = $sync->resolveWeekMode($data['week_mode'] ?? null, $weekStart);
 
-        $existingRows = DB::table('first_course_schedules')
+        $existingRows = DB::table($tables['schedules'])
             ->where('group_id', $groupId)
             ->where('study_day', $day)
             ->where('lesson_number', $lesson)
@@ -775,7 +803,7 @@ class FirstCourseSchedulePageController extends Controller
         $teacherIdsToCheck = array_values(array_filter($possibleTeachers));
 
         if ($teacherIdsToCheck) {
-            $busy = DB::table('first_course_schedules')
+            $busy = DB::table($tables['schedules'])
                 ->where('study_day', $day)
                 ->where('lesson_number', $lesson)
                 ->where('group_id', '<>', $groupId)
@@ -847,8 +875,8 @@ class FirstCourseSchedulePageController extends Controller
         }
 
         try {
-            $this->validateRoomsOrFail($groupId, $day, $lesson, $roomSlots, $weekStart);
-            $this->validateTeachersOrFail($groupId, $day, $lesson, $teacherSlots, $weekStart);
+            $this->validateRoomsOrFail($groupId, $day, $lesson, $roomSlots, $weekStart, $tables['schedules']);
+            $this->validateTeachersOrFail($groupId, $day, $lesson, $teacherSlots, $weekStart, $tables['schedules']);
         } catch (ValidationException $e) {
             $msg = collect($e->errors())->flatten()->first() ?: 'Недоступно в это время';
             return response()->json(['message' => $msg], 422);
@@ -864,9 +892,10 @@ class FirstCourseSchedulePageController extends Controller
             $hasSub2Numerator,
             $weekStart,
             $weekMode,
-            $existingRows
+            $existingRows,
+            $tables
         ) {
-            DB::table('first_course_schedules')
+            DB::table($tables['schedules'])
                 ->where('group_id', $groupId)
                 ->where('study_day', $day)
                 ->where('lesson_number', $lesson)
@@ -945,10 +974,10 @@ class FirstCourseSchedulePageController extends Controller
                 ];
             }
 
-            DB::table('first_course_schedules')->insert($rows);
+            DB::table($tables['schedules'])->insert($rows);
         });
 
-        $sync->syncWeekWithAlternation($groupId, $weekStart);
+        $sync->syncWeekWithAlternation($groupId, $weekStart, $course);
 
         return response()->json(['message' => 'Пара обновлена']);
     }
@@ -958,7 +987,7 @@ class FirstCourseSchedulePageController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    protected function validateRoomsOrFail(int $groupId, string $studyDay, int $lessonNumber, array $slots, ?Carbon $weekStart = null): void
+    protected function validateRoomsOrFail(int $groupId, string $studyDay, int $lessonNumber, array $slots, ?Carbon $weekStart = null, ?string $table = null): void
     {
         foreach ($slots as $slot) {
             $room = $slot['room'] ?? null;
@@ -968,7 +997,7 @@ class FirstCourseSchedulePageController extends Controller
                 continue;
             }
 
-            if (FirstCourseSchedule::roomConflictExists($groupId, $studyDay, $lessonNumber, $room, $mode, $weekStart)) {
+            if (FirstCourseSchedule::roomConflictExists($groupId, $studyDay, $lessonNumber, $room, $mode, $weekStart, $table)) {
                 throw ValidationException::withMessages([
                     'room_id' => 'Кабинет занят другой группой',
                 ]);
@@ -981,7 +1010,7 @@ class FirstCourseSchedulePageController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    protected function validateTeachersOrFail(int $groupId, string $studyDay, int $lessonNumber, array $slots, ?Carbon $weekStart = null): void
+    protected function validateTeachersOrFail(int $groupId, string $studyDay, int $lessonNumber, array $slots, ?Carbon $weekStart = null, ?string $table = null): void
     {
         foreach ($slots as $slot) {
             $teacherId = $slot['id'] ?? null;
@@ -990,7 +1019,7 @@ class FirstCourseSchedulePageController extends Controller
             }
             $mode = $slot['mode'] ?? null;
 
-            $busy = DB::table('first_course_schedules')
+            $busy = DB::table($table ?? 'first_course_schedules')
                 ->where('study_day', $studyDay)
                 ->where('lesson_number', $lessonNumber)
                 ->where('group_id', '<>', $groupId)

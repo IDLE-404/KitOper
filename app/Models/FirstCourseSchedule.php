@@ -28,7 +28,8 @@ class FirstCourseSchedule extends Model
         int $lessonNumber,
         $roomId,
         string $mode,
-        ?\Carbon\Carbon $weekStart = null
+        ?\Carbon\Carbon $weekStart = null,
+        ?string $table = null
     ): bool {
         if ($roomId === null || $roomId === '') {
             return false;
@@ -36,7 +37,7 @@ class FirstCourseSchedule extends Model
 
         $roomId = (string) $roomId;
 
-        $rows = DB::table('first_course_schedules')
+        $rows = DB::table($table ?? 'first_course_schedules')
             ->where('study_day', $studyDay)
             ->where('lesson_number', $lessonNumber)
             ->where('group_id', '<>', $groupId)

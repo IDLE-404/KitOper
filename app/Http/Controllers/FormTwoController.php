@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\FormTwoService;
+use App\Support\CourseContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,18 +16,21 @@ class FormTwoController extends Controller
 
     public function index(Request $request)
     {
-        $groups = DB::table('first_course_group')->orderBy('group_name')->get();
+        $course = CourseContext::normalize($request->integer('course') ?? 1);
+        $tables = CourseContext::tables($course);
+
+        $groups = DB::table($tables['groups'])->orderBy('group_name')->get();
         $groupId = (int) ($request->input('group_id') ?? ($groups->first()->id ?? 0));
         $month = (int) ($request->input('month') ?? now()->month);
         $year = (int) ($request->input('year') ?? now()->year);
 
-        $report = $groupId ? $this->service->buildMonthReport($groupId, $year, $month) : ['rows' => [], 'days' => []];
+        $report = $groupId ? $this->service->buildMonthReport($groupId, $year, $month, $course) : ['rows' => [], 'days' => []];
         $days = $report['days'] ?? range(1, Carbon::create($year, max(1, min(12, $month)), 1)->daysInMonth);
         $rows = $report['rows'] ?? [];
         $replacementRows = $report['replacement_rows'] ?? [];
 
-        $teachers = DB::table('frist_course_teachers')->orderBy('teacher_name')->get(['id', 'teacher_name']);
-        $subjects = DB::table('first_course_subjects')
+        $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get(['id', 'teacher_name']);
+        $subjects = DB::table($tables['subjects'])
             ->select('id', DB::raw('COALESCE(name_ru, subject_name) as title'))
             ->orderBy('title')
             ->get();
@@ -41,6 +45,7 @@ class FormTwoController extends Controller
             'teachers' => $teachers,
             'replacementRows' => $replacementRows,
             'subjects' => $subjects,
+            'course' => $course,
         ]);
     }
 
@@ -52,17 +57,21 @@ class FormTwoController extends Controller
             'year' => 'required|integer|min:2000|max:2100',
             'rows' => 'required|array',
             'allow_manual' => 'nullable|boolean',
+            'course' => 'nullable|integer|min:1|max:4',
         ]);
 
         if (!$request->boolean('allow_manual')) {
             return response()->json(['message' => 'Форма 2 открыта в режиме отчёта. Включите коррекцию, если хотите вручную поправить статусы.'], 422);
         }
 
+        $course = CourseContext::normalize($data['course'] ?? $request->integer('course') ?? 1);
+
         $this->service->saveMonthRecords(
             (int) $data['group_id'],
             (int) $data['year'],
             (int) $data['month'],
-            $data['rows']
+            $data['rows'],
+            $course
         );
 
         return response()->json(['status' => 'ok']);

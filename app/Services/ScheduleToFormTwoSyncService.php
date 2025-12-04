@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\FormTwoNormative;
-use App\Models\FormTwoRecord;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -17,9 +15,11 @@ class ScheduleToFormTwoSyncService
         Carbon $weekStart,
         string $weekMode = 'numerator',
         ?Carbon $classWeekStart = null,
-        ?\Illuminate\Support\Collection $rows = null
+        ?\Illuminate\Support\Collection $rows = null,
+        int $course = 1
     ): void
     {
+        $tables = \App\Support\CourseContext::tables($course);
         $weekMode = $this->resolveWeekMode($weekMode, $weekStart);
         $classWeekStart = ($classWeekStart ?? $weekStart)->copy()->startOfDay();
         $weekStart = $weekStart->copy()->startOfDay();
@@ -34,12 +34,12 @@ class ScheduleToFormTwoSyncService
             'Суббота' => 5,
         ];
 
-        DB::table('form_two_records')
+        DB::table($tables['form_two_records'])
             ->where('group_id', $groupId)
             ->whereBetween('class_date', [$classWeekStart->toDateString(), $weekEnd->toDateString()])
             ->delete();
 
-        $rows = $rows ?? $this->fetchWeekRows($groupId, $weekStart);
+        $rows = $rows ?? $this->fetchWeekRows($groupId, $weekStart, $tables['schedules']);
 
         if ($rows->isEmpty()) {
             return;
@@ -70,7 +70,7 @@ class ScheduleToFormTwoSyncService
 
         if ($payload) {
             $payload = $this->deduplicatePayload($payload);
-            FormTwoRecord::insert($payload);
+            DB::table($tables['form_two_records'])->insert($payload);
         }
     }
 
@@ -129,8 +129,8 @@ class ScheduleToFormTwoSyncService
         $replacementSubjectId = $this->replacementSubjectId($row, $subgroup, $weekMode);
         $replacementComment = $this->replacementComment($row, $subgroup, $weekMode);
 
-        $hoursPerClass = $this->hoursPerClass($groupId, $activeSubject, $activeTeacher, $classDate);
-        $totalHours = $this->totalHours($groupId, $activeSubject, $activeTeacher, $classDate);
+        $hoursPerClass = $this->hoursPerClass($groupId, $activeSubject, $activeTeacher, $classDate, $course);
+        $totalHours = $this->totalHours($groupId, $activeSubject, $activeTeacher, $classDate, $course);
 
         $payload = [];
         $base = [
@@ -176,13 +176,15 @@ class ScheduleToFormTwoSyncService
                     $groupId,
                     $replacementSubjectId ?: $activeSubject,
                     $replacementTeacherId ?: $activeTeacher,
-                    $classDate
+                    $classDate,
+                    $course
                 );
                 $replacementTotalHours = $this->totalHours(
                     $groupId,
                     $replacementSubjectId ?: $activeSubject,
                     $replacementTeacherId ?: $activeTeacher,
-                    $classDate
+                    $classDate,
+                    $course
                 );
 
                 $payload[] = array_merge($base, [
@@ -242,7 +244,7 @@ class ScheduleToFormTwoSyncService
      * Синхронизирует текущую неделю и соседнюю (чередование ч/з) в Форму 2.
      * Неделя weekStart идёт со своим режимом (по чётности), соседняя — противоположным режимом.
      */
-    public function syncWeekWithAlternation(int $groupId, Carbon $weekStart): void
+    public function syncWeekWithAlternation(int $groupId, Carbon $weekStart, int $course = 1): void
     {
         $baseMode = $this->resolveWeekMode(null, $weekStart);
         $otherMode = $baseMode === 'denominator' ? 'numerator' : 'denominator';
@@ -250,20 +252,21 @@ class ScheduleToFormTwoSyncService
             ? $weekStart->copy()->subWeek()
             : $weekStart->copy()->addWeek();
 
-        $rows = $this->fetchWeekRows($groupId, $weekStart);
+        $tables = \App\Support\CourseContext::tables($course);
+        $rows = $this->fetchWeekRows($groupId, $weekStart, $tables['schedules']);
         if ($rows->isEmpty()) {
             return;
         }
 
         // Текущая неделя
-        $this->syncWeek($groupId, $weekStart, $baseMode, $weekStart, $rows);
+        $this->syncWeek($groupId, $weekStart, $baseMode, $weekStart, $rows, $course);
         // Чередующаяся неделя
-        $this->syncWeek($groupId, $weekStart, $otherMode, $otherWeekStart, $rows);
+        $this->syncWeek($groupId, $weekStart, $otherMode, $otherWeekStart, $rows, $course);
     }
 
-    protected function fetchWeekRows(int $groupId, Carbon $weekStart)
+    protected function fetchWeekRows(int $groupId, Carbon $weekStart, string $scheduleTable)
     {
-        return DB::table('first_course_schedules')
+        return DB::table($scheduleTable)
             ->where('group_id', $groupId)
             ->whereDate('week_start', $weekStart->toDateString())
             ->get();
@@ -334,25 +337,27 @@ class ScheduleToFormTwoSyncService
         return $row->{$key} ?? null;
     }
 
-    protected function hoursPerClass(int $groupId, ?int $subjectId, ?int $teacherId, Carbon $date): int
+    protected function hoursPerClass(int $groupId, ?int $subjectId, ?int $teacherId, Carbon $date, int $course = 1): int
     {
-        $norm = $this->fetchNormative($groupId, $subjectId, $teacherId, $date);
+        $norm = $this->fetchNormative($groupId, $subjectId, $teacherId, $date, $course);
         return (int) ($norm['hours_per_class'] ?? 2);
     }
 
-    protected function totalHours(int $groupId, ?int $subjectId, ?int $teacherId, Carbon $date): int
+    protected function totalHours(int $groupId, ?int $subjectId, ?int $teacherId, Carbon $date, int $course = 1): int
     {
-        $norm = $this->fetchNormative($groupId, $subjectId, $teacherId, $date);
+        $norm = $this->fetchNormative($groupId, $subjectId, $teacherId, $date, $course);
         return (int) ($norm['total_hours'] ?? 0);
     }
 
-    protected function fetchNormative(int $groupId, ?int $subjectId, ?int $teacherId, Carbon $date): array
+    protected function fetchNormative(int $groupId, ?int $subjectId, ?int $teacherId, Carbon $date, int $course = 1): array
     {
         if (!$subjectId) {
             return [];
         }
 
-        $row = FormTwoNormative::query()
+        $tables = \App\Support\CourseContext::tables($course);
+
+        $row = \Illuminate\Support\Facades\DB::table($tables['form_two_normatives'])
             ->where('group_id', $groupId)
             ->where('subject_id', $subjectId)
             ->when($teacherId, fn ($q) => $q->where(function ($qq) use ($teacherId) {

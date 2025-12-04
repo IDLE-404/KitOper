@@ -18,12 +18,20 @@
             <h1 class="h4 mb-1">Форма 2 — 1 курс</h1>
             <div class="text-muted">Отчёт по фактическим занятиям за месяц</div>
         </div>
-        <a href="{{ route('first.schedule.index') }}" class="btn btn-outline-secondary">← Расписание</a>
+        <a href="{{ route('first.schedule.index', ['course' => $course ?? 1]) }}" class="btn btn-outline-secondary">← Расписание</a>
     </div>
 
     <div class="card shadow-sm mb-3">
         <div class="card-body">
             <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label text-muted small mb-1">Курс</label>
+                    <select class="form-select" id="courseSelect">
+                        @for($c = 1; $c <= 4; $c++)
+                            <option value="{{ $c }}" @selected(($course ?? 1) == $c)>{{ $c }}</option>
+                        @endfor
+                    </select>
+                </div>
                 <div class="col-md-4">
                     <label class="form-label text-muted small mb-1">Группа</label>
                     <select class="form-select" id="groupSelect">
@@ -32,7 +40,7 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label text-muted small mb-1">Месяц</label>
                     <select class="form-select" id="monthSelect">
                         @foreach($months as $num => $label)
@@ -40,7 +48,7 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label text-muted small mb-1">Год</label>
                     <input type="number" class="form-control" id="yearInput" value="{{ $year }}">
                 </div>
@@ -299,16 +307,25 @@
     const groupSelect = document.getElementById('groupSelect');
     const monthSelect = document.getElementById('monthSelect');
     const yearInput = document.getElementById('yearInput');
+    const courseSelect = document.getElementById('courseSelect');
     const reloadBtn = document.getElementById('reloadBtn');
     const saveBtn = document.getElementById('saveBtn');
     const formBody = document.getElementById('formBody');
     const manualToggle = document.getElementById('manualToggle');
+
+    courseSelect?.addEventListener('change', () => {
+        const params = new URLSearchParams(window.location.search);
+        params.set('course', courseSelect.value);
+        params.delete('group_id');
+        window.location.search = params.toString();
+    });
 
     reloadBtn?.addEventListener('click', () => {
         const params = new URLSearchParams();
         params.set('group_id', groupSelect.value);
         params.set('month', monthSelect.value);
         params.set('year', yearInput.value);
+        params.set('course', courseSelect ? courseSelect.value : '{{ $course ?? 1 }}');
         window.location.search = params.toString();
     });
 
@@ -357,6 +374,7 @@
             group_id: Number(groupSelect.value),
             month: Number(monthSelect.value),
             year: Number(yearInput.value),
+            course: courseSelect ? Number(courseSelect.value) : 1,
             allow_manual: true,
             rows,
         };

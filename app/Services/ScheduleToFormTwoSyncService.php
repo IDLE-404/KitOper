@@ -63,7 +63,8 @@ class ScheduleToFormTwoSyncService
                     $weekMode,
                     $classDate,
                     $groupId,
-                    $lessonNumber
+                    $lessonNumber,
+                    $course
                 ));
             }
         }
@@ -95,7 +96,8 @@ class ScheduleToFormTwoSyncService
         string $weekMode,
         Carbon $classDate,
         int $groupId,
-        int $lessonNumber
+        int $lessonNumber,
+        int $course
     ): array {
         $isSub2 = $subgroup === 2;
         $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? 2 : 1;
@@ -106,28 +108,32 @@ class ScheduleToFormTwoSyncService
         $teacherNum = $isSub2
             ? ($row->teacher_id_2 ?? ($subgroupFlag === 2 ? ($row->teacher_id ?? null) : null))
             : ($row->teacher_id ?? null);
-
         $subjectDen = $isSub2
             ? ($row->subject_id_denominator_2 ?? ($subgroupFlag === 2 ? ($row->subject_id_denominator ?? null) : null))
             : ($row->subject_id_denominator ?? null);
         $teacherDen = $isSub2
             ? ($row->teacher_id_denominator_2 ?? ($subgroupFlag === 2 ? ($row->teacher_id_denominator ?? null) : null))
             : ($row->teacher_id_denominator ?? null);
+        $roomDen = $isSub2
+            ? ($row->room_id_denominator_2 ?? ($subgroupFlag === 2 ? ($row->room_id_denominator ?? null) : null))
+            : ($row->room_id_denominator ?? null);
 
-        $hasDenominator = $subjectDen || $teacherDen;
-        $activeSubject = $hasDenominator && $weekMode === 'denominator' ? $subjectDen : $subjectNum;
-        $activeTeacher = $hasDenominator && $weekMode === 'denominator' ? $teacherDen : $teacherNum;
+        $hasDenominator = $subjectDen || $teacherDen || $roomDen;
+        $useDenominator = $hasDenominator && $weekMode === 'denominator';
+        $activeSubject = $useDenominator ? ($subjectDen ?: $subjectNum) : $subjectNum;
+        $activeTeacher = $useDenominator ? ($teacherDen ?: $teacherNum) : $teacherNum;
         $mode = $hasDenominator ? $weekMode : 'single';
 
         if (!$activeSubject && !$activeTeacher) {
             return [];
         }
 
-        $isAbsent = $this->isAbsent($row, $subgroup, $weekMode);
-        $isReplacement = $this->isReplacement($row, $subgroup, $weekMode);
-        $replacementTeacherId = $this->replacementTeacherId($row, $subgroup, $weekMode);
-        $replacementSubjectId = $this->replacementSubjectId($row, $subgroup, $weekMode);
-        $replacementComment = $this->replacementComment($row, $subgroup, $weekMode);
+        $statusMode = $useDenominator ? 'denominator' : 'numerator';
+        $isAbsent = $this->isAbsent($row, $subgroup, $statusMode);
+        $isReplacement = $this->isReplacement($row, $subgroup, $statusMode);
+        $replacementTeacherId = $this->replacementTeacherId($row, $subgroup, $statusMode);
+        $replacementSubjectId = $this->replacementSubjectId($row, $subgroup, $statusMode);
+        $replacementComment = $this->replacementComment($row, $subgroup, $statusMode);
 
         $hoursPerClass = $this->hoursPerClass($groupId, $activeSubject, $activeTeacher, $classDate, $course);
         $totalHours = $this->totalHours($groupId, $activeSubject, $activeTeacher, $classDate, $course);

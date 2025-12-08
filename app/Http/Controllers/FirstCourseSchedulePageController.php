@@ -10,6 +10,7 @@ use App\Support\CourseContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class FirstCourseSchedulePageController extends Controller
@@ -399,14 +400,21 @@ class FirstCourseSchedulePageController extends Controller
                     (int) $rowToCheck['group_id'],
                     $rowToCheck['study_day'],
                     (int) $rowToCheck['lesson_number'],
-                    $slots
+                    $slots,
+                    null,
+                    'first_course_schedules',
+                    1
                 );
 
                 $this->validateTeachersOrFail(
                     (int) $rowToCheck['group_id'],
                     $rowToCheck['study_day'],
                     (int) $rowToCheck['lesson_number'],
-                    $teacherSlots
+                    $teacherSlots,
+                    null,
+                    'first_course_schedules',
+                    CourseContext::tables(1)['teachers'] ?? null,
+                    1
                 );
             }
         } catch (ValidationException $e) {
@@ -679,8 +687,17 @@ class FirstCourseSchedulePageController extends Controller
                     $teacherSlots[] = ['id' => $teacherDenominator, 'mode' => 'denominator'];
                 }
                 try {
-                    $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slots, $weekStart, $tables['schedules']);
-                    $this->validateTeachersOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $teacherSlots, $weekStart, $tables['schedules']);
+                    $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slots, $weekStart, $tables['schedules'], $course);
+                    $this->validateTeachersOrFail(
+                        $groupId,
+                        $dayMap[$dayKey],
+                        (int) $lessonNumber,
+                        $teacherSlots,
+                        $weekStart,
+                        $tables['schedules'],
+                        $tables['teachers'],
+                        $course
+                    );
                 } catch (ValidationException $e) {
                     $msg = collect($e->errors())->flatten()->first() ?: 'Недоступно в это время';
                     return back()
@@ -724,8 +741,17 @@ class FirstCourseSchedulePageController extends Controller
                         $teacherSlotsSecond[] = ['id' => $teacherSecondDenominator ?: $teacherSecondDenominator2, 'mode' => 'denominator'];
                     }
                     try {
-                        $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slotsSecond, $weekStart, $tables['schedules']);
-                        $this->validateTeachersOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $teacherSlotsSecond, $weekStart, $tables['schedules']);
+                        $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slotsSecond, $weekStart, $tables['schedules'], $course);
+                        $this->validateTeachersOrFail(
+                            $groupId,
+                            $dayMap[$dayKey],
+                            (int) $lessonNumber,
+                            $teacherSlotsSecond,
+                            $weekStart,
+                            $tables['schedules'],
+                            $tables['teachers'],
+                            $course
+                        );
                     } catch (ValidationException $e) {
                         $msg = collect($e->errors())->flatten()->first() ?: 'Недоступно в это время';
                         return back()
@@ -801,6 +827,14 @@ class FirstCourseSchedulePageController extends Controller
             'replacement_teacher_id_2' => 'nullable|integer',
             'replacement_subject_id_2' => 'nullable|integer',
             'replacement_comment_2' => 'nullable|string|max:255',
+            'den_is_replacement_1' => 'sometimes|boolean',
+            'replacement_teacher_id_1_den' => 'nullable|integer',
+            'replacement_subject_id_1_den' => 'nullable|integer',
+            'replacement_comment_1_den' => 'nullable|string|max:255',
+            'den_is_replacement_2' => 'sometimes|boolean',
+            'replacement_teacher_id_2_den' => 'nullable|integer',
+            'replacement_subject_id_2_den' => 'nullable|integer',
+            'replacement_comment_2_den' => 'nullable|string|max:255',
             'course' => 'nullable|integer|min:1|max:4',
         ]);
 
@@ -911,8 +945,17 @@ class FirstCourseSchedulePageController extends Controller
         }
 
         try {
-            $this->validateRoomsOrFail($groupId, $day, $lesson, $roomSlots, $weekStart, $tables['schedules']);
-            $this->validateTeachersOrFail($groupId, $day, $lesson, $teacherSlots, $weekStart, $tables['schedules']);
+            $this->validateRoomsOrFail($groupId, $day, $lesson, $roomSlots, $weekStart, $tables['schedules'], $course);
+            $this->validateTeachersOrFail(
+                $groupId,
+                $day,
+                $lesson,
+                $teacherSlots,
+                $weekStart,
+                $tables['schedules'],
+                $tables['teachers'],
+                $course
+            );
         } catch (ValidationException $e) {
             $msg = collect($e->errors())->flatten()->first() ?: 'Недоступно в это время';
             return response()->json(['message' => $msg], 422);
@@ -946,6 +989,8 @@ class FirstCourseSchedulePageController extends Controller
             $absent2 = (bool)($data['is_absent_2'] ?? false);
             $isReplacement1 = (bool)($data['is_replacement_1'] ?? false);
             $isReplacement2 = (bool)($data['is_replacement_2'] ?? false);
+            $isReplacement1DenInput = (bool)($data['den_is_replacement_1'] ?? false);
+            $isReplacement2DenInput = (bool)($data['den_is_replacement_2'] ?? false);
 
             $prev1 = $existingRows['1'] ?? null;
             $prev2 = $existingRows['2'] ?? null;
@@ -954,21 +999,30 @@ class FirstCourseSchedulePageController extends Controller
             $teacherDen1 = $hasDenominatorMain ? ($data['den_teacher_id'] ?? null) : null;
             $roomDen1 = $hasDenominatorMain ? ($data['den_room_id'] ?? null) : null;
 
-            $denAbsent1 = $hasDenominatorMain
-                ? ($weekMode === 'denominator' ? $absent1 : ($prev1?->is_absent_1_den ?? false))
-                : false;
-            $denReplacement1 = $hasDenominatorMain
-                ? ($weekMode === 'denominator' ? $isReplacement1 : ($prev1?->is_replacement_1_den ?? false))
-                : false;
-            $denReplacementTeacher1 = $hasDenominatorMain
-                ? ($weekMode === 'denominator' ? ($data['replacement_teacher_id_1'] ?? null) : ($prev1?->replacement_teacher_id_1_den ?? null))
-                : null;
-            $denReplacementSubject1 = $hasDenominatorMain
-                ? ($weekMode === 'denominator' ? ($data['replacement_subject_id_1'] ?? null) : ($prev1?->replacement_subject_id_1_den ?? null))
-                : null;
-            $denReplacementComment1 = $hasDenominatorMain
-                ? ($weekMode === 'denominator' ? ($data['replacement_comment_1'] ?? null) : ($prev1?->replacement_comment_1_den ?? null))
-                : null;
+            $denAbsent1 = false;
+            $denReplacement1 = false;
+            $denReplacementTeacher1 = null;
+            $denReplacementSubject1 = null;
+            $denReplacementComment1 = null;
+            if ($hasDenominatorMain) {
+                $denAbsent1 = $weekMode === 'denominator'
+                    ? $absent1
+                    : ($prev1?->is_absent_1_den ?? false);
+
+                if ($weekMode === 'denominator') {
+                    $denReplacement1 = $isReplacement1;
+                    $denReplacementTeacher1 = $data['replacement_teacher_id_1'] ?? null;
+                    $denReplacementSubject1 = $data['replacement_subject_id_1'] ?? null;
+                    $denReplacementComment1 = $data['replacement_comment_1'] ?? null;
+                } else {
+                    $denReplacement1 = ($data['den_is_replacement_1'] ?? null) !== null
+                        ? $isReplacement1DenInput
+                        : ($prev1?->is_replacement_1_den ?? false);
+                    $denReplacementTeacher1 = $data['replacement_teacher_id_1_den'] ?? $prev1?->replacement_teacher_id_1_den ?? null;
+                    $denReplacementSubject1 = $data['replacement_subject_id_1_den'] ?? $prev1?->replacement_subject_id_1_den ?? null;
+                    $denReplacementComment1 = $data['replacement_comment_1_den'] ?? $prev1?->replacement_comment_1_den ?? null;
+                }
+            }
 
             $rows = [[
                 'week_start'   => $weekStart->toDateString(),
@@ -1001,21 +1055,30 @@ class FirstCourseSchedulePageController extends Controller
                 $teacherDen2 = $hasSub2Denominator ? ($data['den_teacher_id_2'] ?? null) : null;
                 $roomDen2 = $hasSub2Denominator ? ($data['den_room_id_2'] ?? null) : null;
 
-                $denAbsent2 = $hasSub2Denominator
-                    ? ($weekMode === 'denominator' ? $absent2 : ($prev2?->is_absent_2_den ?? false))
-                    : false;
-                $denReplacement2 = $hasSub2Denominator
-                    ? ($weekMode === 'denominator' ? $isReplacement2 : ($prev2?->is_replacement_2_den ?? false))
-                    : false;
-                $denReplacementTeacher2 = $hasSub2Denominator
-                    ? ($weekMode === 'denominator' ? ($data['replacement_teacher_id_2'] ?? null) : ($prev2?->replacement_teacher_id_2_den ?? null))
-                    : null;
-                $denReplacementSubject2 = $hasSub2Denominator
-                    ? ($weekMode === 'denominator' ? ($data['replacement_subject_id_2'] ?? null) : ($prev2?->replacement_subject_id_2_den ?? null))
-                    : null;
-                $denReplacementComment2 = $hasSub2Denominator
-                    ? ($weekMode === 'denominator' ? ($data['replacement_comment_2'] ?? null) : ($prev2?->replacement_comment_2_den ?? null))
-                    : null;
+                $denAbsent2 = false;
+                $denReplacement2 = false;
+                $denReplacementTeacher2 = null;
+                $denReplacementSubject2 = null;
+                $denReplacementComment2 = null;
+                if ($hasSub2Denominator) {
+                    $denAbsent2 = $weekMode === 'denominator'
+                        ? $absent2
+                        : ($prev2?->is_absent_2_den ?? false);
+
+                    if ($weekMode === 'denominator') {
+                        $denReplacement2 = $isReplacement2;
+                        $denReplacementTeacher2 = $data['replacement_teacher_id_2'] ?? null;
+                        $denReplacementSubject2 = $data['replacement_subject_id_2'] ?? null;
+                        $denReplacementComment2 = $data['replacement_comment_2'] ?? null;
+                    } else {
+                        $denReplacement2 = ($data['den_is_replacement_2'] ?? null) !== null
+                            ? $isReplacement2DenInput
+                            : ($prev2?->is_replacement_2_den ?? false);
+                        $denReplacementTeacher2 = $data['replacement_teacher_id_2_den'] ?? $prev2?->replacement_teacher_id_2_den ?? null;
+                        $denReplacementSubject2 = $data['replacement_subject_id_2_den'] ?? $prev2?->replacement_subject_id_2_den ?? null;
+                        $denReplacementComment2 = $data['replacement_comment_2_den'] ?? $prev2?->replacement_comment_2_den ?? null;
+                    }
+                }
 
                 $rows[] = [
                     'week_start'   => $weekStart->toDateString(),
@@ -1057,22 +1120,113 @@ class FirstCourseSchedulePageController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    protected function validateRoomsOrFail(int $groupId, string $studyDay, int $lessonNumber, array $slots, ?Carbon $weekStart = null, ?string $table = null): void
+    protected function validateRoomsOrFail(
+        int $groupId,
+        string $studyDay,
+        int $lessonNumber,
+        array $slots,
+        ?Carbon $weekStart = null,
+        ?string $table = null,
+        int $currentCourse = 1
+    ): void
     {
         foreach ($slots as $slot) {
-            $room = $slot['room'] ?? null;
+            $room = $this->normalizeRoomString($slot['room'] ?? null);
             $mode = $slot['mode'] ?? 'numerator';
 
             if ($room === null || $room === '') {
                 continue;
             }
 
-            if (FirstCourseSchedule::roomConflictExists($groupId, $studyDay, $lessonNumber, $room, $mode, $weekStart, $table)) {
+            if ($this->roomBusyInTable($room, $mode, $studyDay, $lessonNumber, $weekStart, $table ?: 'first_course_schedules', $groupId)) {
                 throw ValidationException::withMessages([
                     'room_id' => 'Кабинет занят другой группой',
                 ]);
             }
+
+            foreach ([1, 2, 3, 4] as $course) {
+                if ($course === $currentCourse) {
+                    continue;
+                }
+                $courseTables = CourseContext::tables($course);
+                $scheduleTable = $courseTables['schedules'] ?? null;
+                if (!$scheduleTable || !Schema::hasTable($scheduleTable)) {
+                    continue;
+                }
+                if ($this->roomBusyInTable($room, $mode, $studyDay, $lessonNumber, $weekStart, $scheduleTable, null)) {
+                    throw ValidationException::withMessages([
+                        'room_id' => 'Кабинет занят другой группой',
+                    ]);
+                }
+            }
         }
+    }
+
+    protected function normalizeRoomString($room): ?string
+    {
+        if ($room === null) {
+            return null;
+        }
+        $room = trim((string) $room);
+        return $room === '' ? null : $room;
+    }
+
+    protected function roomBusyInTable(
+        string $room,
+        string $mode,
+        string $studyDay,
+        int $lessonNumber,
+        ?Carbon $weekStart,
+        string $table,
+        ?int $excludeGroupId
+    ): bool {
+        if (!Schema::hasTable($table)) {
+            return false;
+        }
+
+        $rows = DB::table($table)
+            ->where('study_day', $studyDay)
+            ->where('lesson_number', $lessonNumber)
+            ->when($excludeGroupId, fn ($q) => $q->where('group_id', '<>', $excludeGroupId))
+            ->when($weekStart, fn ($q) => $q->whereDate('week_start', $weekStart->toDateString()))
+            ->get();
+
+        foreach ($rows as $row) {
+            $hasDenominator = ($row->subject_id_denominator ?? null)
+                || ($row->teacher_id_denominator ?? null)
+                || ($row->room_id_denominator ?? null)
+                || ($row->subject_id_denominator_2 ?? null)
+                || ($row->teacher_id_denominator_2 ?? null)
+                || ($row->room_id_denominator_2 ?? null);
+
+            $modes = $hasDenominator ? ['numerator'] : ['numerator', 'denominator'];
+            $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? '2' : '1';
+
+            $roomNum1 = $subgroupFlag === '1' ? ($row->room_id ?? null) : null;
+            $roomNum2 = ($row->room_id_2 ?? null) ?: ($subgroupFlag === '2' ? ($row->room_id ?? null) : null);
+            $roomDen1 = $subgroupFlag === '1' ? ($row->room_id_denominator ?? null) : null;
+            $roomDen2 = ($row->room_id_denominator_2 ?? null) ?: ($subgroupFlag === '2' ? ($row->room_id_denominator ?? null) : null);
+
+            $rowSlots = [];
+            foreach ($modes as $m) {
+                $rowSlots[] = ['room' => $roomNum1, 'mode' => $m];
+                $rowSlots[] = ['room' => $roomNum2, 'mode' => $m];
+            }
+            $rowSlots[] = ['room' => $roomDen1, 'mode' => 'denominator'];
+            $rowSlots[] = ['room' => $roomDen2, 'mode' => 'denominator'];
+
+            foreach ($rowSlots as $rowSlot) {
+                $rowRoom = $this->normalizeRoomString($rowSlot['room'] ?? null);
+                if ($rowRoom === null) {
+                    continue;
+                }
+                if ($rowRoom === $room && $rowSlot['mode'] === $mode) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1080,7 +1234,16 @@ class FirstCourseSchedulePageController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    protected function validateTeachersOrFail(int $groupId, string $studyDay, int $lessonNumber, array $slots, ?Carbon $weekStart = null, ?string $table = null): void
+    protected function validateTeachersOrFail(
+        int $groupId,
+        string $studyDay,
+        int $lessonNumber,
+        array $slots,
+        ?Carbon $weekStart = null,
+        ?string $table = null,
+        ?string $teacherTable = null,
+        int $currentCourse = 1
+    ): void
     {
         foreach ($slots as $slot) {
             $teacherId = $slot['id'] ?? null;
@@ -1108,6 +1271,96 @@ class FirstCourseSchedulePageController extends Controller
                 ]);
             }
         }
+
+        if (!$teacherTable || !$slots) {
+            return;
+        }
+
+        $teacherIds = collect($slots)->pluck('id')->filter()->map(fn($id) => (int) $id)->unique()->values()->all();
+        $teacherNames = $this->teacherNamesByIds($teacherIds, $teacherTable);
+        $normalizedNames = $this->normalizeNames($teacherNames);
+        if (empty($normalizedNames)) {
+            return;
+        }
+
+        foreach ([1, 2, 3, 4] as $course) {
+            if ($course === $currentCourse) {
+                continue;
+            }
+            $courseTables = CourseContext::tables($course);
+            if (!Schema::hasTable($courseTables['schedules']) || !Schema::hasTable($courseTables['teachers'])) {
+                continue;
+            }
+            $matchingTeacherIds = $this->teacherIdsByNames($courseTables['teachers'], $normalizedNames);
+            if (empty($matchingTeacherIds)) {
+                continue;
+            }
+
+            $busy = DB::table($courseTables['schedules'])
+                ->where('study_day', $studyDay)
+                ->where('lesson_number', $lessonNumber)
+                ->when($weekStart, fn($q) => $q->whereDate('week_start', $weekStart->toDateString()))
+                ->where(function ($q) use ($matchingTeacherIds) {
+                    $q->whereIn('teacher_id', $matchingTeacherIds)
+                        ->orWhereIn('teacher_id_2', $matchingTeacherIds)
+                        ->orWhereIn('teacher_id_denominator', $matchingTeacherIds)
+                        ->orWhereIn('teacher_id_denominator_2', $matchingTeacherIds);
+                })
+                ->exists();
+
+            if ($busy) {
+                throw ValidationException::withMessages([
+                    'teacher_id' => 'Преподаватель занят в это время на другом курсе',
+                ]);
+            }
+        }
+    }
+
+    protected function normalizeNames(array $names): array
+    {
+        return collect($names)
+            ->filter(fn($v) => $v !== null && $v !== '')
+            ->map(fn($v) => mb_strtolower(trim((string) $v)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function teacherNamesByIds(array $teacherIds, ?string $teacherTable): array
+    {
+        if (empty($teacherIds) || !$teacherTable || !Schema::hasTable($teacherTable)) {
+            return [];
+        }
+
+        return DB::table($teacherTable)
+            ->whereIn('id', $teacherIds)
+            ->pluck('teacher_name')
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    protected function teacherIdsByNames(string $teacherTable, array $normalizedNames): array
+    {
+        if (empty($normalizedNames) || !Schema::hasTable($teacherTable)) {
+            return [];
+        }
+
+        $rows = DB::table($teacherTable)
+            ->select('id', 'teacher_name')
+            ->get();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $name = mb_strtolower(trim((string) ($row->teacher_name ?? '')));
+            if ($name === '' || !in_array($name, $normalizedNames, true)) {
+                continue;
+            }
+            $map[] = (int) $row->id;
+        }
+
+        return array_values(array_unique($map));
     }
 
     /**

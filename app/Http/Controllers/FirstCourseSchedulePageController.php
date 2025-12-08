@@ -323,34 +323,31 @@ class FirstCourseSchedulePageController extends Controller
         $hasSubgroups = $request->boolean('has_subgroups');
         $hasDenominator = $request->boolean('has_denominator');
 
-        $base = [
+        $baseCommon = [
             'study_day'     => $validated['study_day'],
             'lesson_number' => $validated['lesson_number'],
             'group_id'      => $validated['group_id'],
-            'room_id'       => $validated['room_id'] ?? null,
-            'teacher_id'    => $validated['teacher_id'] ?? null,
-            'subject_id_denominator_2' => null,
-            'teacher_id_denominator_2' => null,
-            'room_id_denominator_2'    => null,
             'created_at'    => now(),
             'updated_at'    => now(),
         ];
 
         $rows = [];
 
-        $rows[] = array_merge($base, [
+        $rows[] = array_merge($baseCommon, [
+            'room_id'       => $validated['room_id'] ?? null,
+            'teacher_id'    => $validated['teacher_id'] ?? null,
             'subject_id' => $validated['subject_id'] ?? null,
             'subgroup'   => $hasSubgroups ? '1' : null,
             'subject_id_denominator' => $validated['subject_id_denominator'] ?? null,
             'teacher_id_denominator' => $validated['teacher_id_denominator'] ?? null,
             'room_id_denominator'    => $validated['room_id_denominator'] ?? null,
-            'subject_id_denominator_2' => $validated['subject_id_denominator'] ?? null,
-            'teacher_id_denominator_2' => $validated['teacher_id_denominator'] ?? null,
-            'room_id_denominator_2'    => $validated['room_id_denominator'] ?? null,
+            'subject_id_denominator_2' => null,
+            'teacher_id_denominator_2' => null,
+            'room_id_denominator_2'    => null,
         ]);
 
         if ($hasSubgroups && !empty($validated['subject_id_second'])) {
-            $rows[] = array_merge($base, [
+            $rows[] = array_merge($baseCommon, [
                 'subject_id' => $validated['subject_id_second'],
                 'teacher_id' => $validated['teacher_id_second'] ?? $validated['teacher_id'] ?? null,
                 'room_id'    => $validated['room_id_second'] ?? $validated['room_id'] ?? null,
@@ -358,9 +355,9 @@ class FirstCourseSchedulePageController extends Controller
                 'subject_id_denominator_2' => $validated['subject_id_second_denominator'] ?? null,
                 'teacher_id_denominator_2' => $validated['teacher_id_second_denominator'] ?? null,
                 'room_id_denominator_2'    => $validated['room_id_second_denominator'] ?? null,
-                'subject_id_denominator' => $validated['subject_id_denominator'] ?? null,
-                'teacher_id_denominator' => $validated['teacher_id_denominator'] ?? null,
-                'room_id_denominator'    => $validated['room_id_denominator'] ?? null,
+                'subject_id_denominator' => null,
+                'teacher_id_denominator' => null,
+                'room_id_denominator'    => null,
             ]);
         }
 
@@ -464,7 +461,6 @@ class FirstCourseSchedulePageController extends Controller
         $dayNames = collect($days)->mapWithKeys(fn($d) => [$d['key'] => $d['full']]);
 
         $existing = [];
-        $expandOnly = request()->boolean('expand_only');
         if ($selectedGroupId) {
             $existingRows = DB::table($tables['schedules'])
                 ->where('group_id', $selectedGroupId)
@@ -497,7 +493,6 @@ class FirstCourseSchedulePageController extends Controller
             'weekStart' => $weekStart->toDateString(),
             'weekMode' => $weekMode,
             'weekModeInput' => $weekModeInput,
-            'expandOnly' => $expandOnly,
             'course' => $course,
         ]);
     }
@@ -641,26 +636,26 @@ class FirstCourseSchedulePageController extends Controller
                 $hasDenominator = $subjectDenominator || $teacherDenominator || $roomDenominator
                     || $subjectDenominator2 || $teacherDenominator2 || $roomDenominator2;
 
-                $base = [
+                $baseCommon = [
                     'week_start'   => $weekStart->toDateString(),
                     'study_day'     => $dayMap[$dayKey],
                     'lesson_number' => (int) $lessonNumber,
                     'group_id'      => $groupId,
-                    'room_id'       => $roomId ?: null,
-                    'teacher_id'    => $teacherId ?: null,
-                    'subject_id_denominator' => $subjectDenominator ?: null,
-                    'teacher_id_denominator' => $teacherDenominator ?: null,
-                    'room_id_denominator'    => $roomDenominator ?: null,
-                    'subject_id_denominator_2' => $subjectDenominator2 ?: null,
-                    'teacher_id_denominator_2' => $teacherDenominator2 ?: null,
-                    'room_id_denominator_2'    => $roomDenominator2 ?: null,
                     'created_at'    => $now,
                     'updated_at'    => $now,
                 ];
 
-                $rows[] = array_merge($base, [
+                $rows[] = array_merge($baseCommon, [
+                    'room_id'       => $roomId ?: null,
+                    'teacher_id'    => $teacherId ?: null,
                     'subject_id' => $subjectId ?: null,
                     'subgroup'   => $hasSubgroups ? '1' : null,
+                    'subject_id_denominator' => $subjectDenominator ?: null,
+                    'teacher_id_denominator' => $teacherDenominator ?: null,
+                    'room_id_denominator'    => $roomDenominator ?: null,
+                    'subject_id_denominator_2' => null,
+                    'teacher_id_denominator_2' => null,
+                    'room_id_denominator_2'    => null,
                 ]);
 
                 $slots = [];
@@ -697,7 +692,7 @@ class FirstCourseSchedulePageController extends Controller
                 $hasDenominatorSecond = $subjectSecondDenominator || $teacherSecondDenominator || $roomSecondDenominator
                     || $subjectSecondDenominator2 || $teacherSecondDenominator2 || $roomSecondDenominator2;
                 if ($hasSubgroups && ($hasSecondNumerator || $hasDenominatorSecond)) {
-                    $rows[] = array_merge($base, [
+                    $rows[] = array_merge($baseCommon, [
                         'subject_id' => $subjectSecond ?: null,
                         'teacher_id' => $hasSecondNumerator ? ($teacherSecond ?: $teacherId ?: null) : null,
                         'room_id'    => $hasSecondNumerator ? ($roomSecond ?: $roomId ?: null) : null,
@@ -705,6 +700,9 @@ class FirstCourseSchedulePageController extends Controller
                         'subject_id_denominator_2' => $subjectSecondDenominator ?: $subjectSecondDenominator2 ?: null,
                         'teacher_id_denominator_2' => $teacherSecondDenominator ?: $teacherSecondDenominator2 ?: null,
                         'room_id_denominator_2'    => $roomSecondDenominator ?: $roomSecondDenominator2 ?: null,
+                        'subject_id_denominator' => null,
+                        'teacher_id_denominator' => null,
+                        'room_id_denominator'    => null,
                     ]);
 
                     $slotsSecond = [];

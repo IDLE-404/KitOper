@@ -109,13 +109,13 @@ class ScheduleToFormTwoSyncService
             ? ($row->teacher_id_2 ?? ($subgroupFlag === 2 ? ($row->teacher_id ?? null) : null))
             : ($row->teacher_id ?? null);
         $subjectDen = $isSub2
-            ? ($row->subject_id_denominator_2 ?? ($subgroupFlag === 2 ? ($row->subject_id_denominator ?? null) : null))
+            ? ($row->subject_id_denominator_2 ?? null)
             : ($row->subject_id_denominator ?? null);
         $teacherDen = $isSub2
-            ? ($row->teacher_id_denominator_2 ?? ($subgroupFlag === 2 ? ($row->teacher_id_denominator ?? null) : null))
+            ? ($row->teacher_id_denominator_2 ?? null)
             : ($row->teacher_id_denominator ?? null);
         $roomDen = $isSub2
-            ? ($row->room_id_denominator_2 ?? ($subgroupFlag === 2 ? ($row->room_id_denominator ?? null) : null))
+            ? ($row->room_id_denominator_2 ?? null)
             : ($row->room_id_denominator ?? null);
 
         $hasDenominator = $subjectDen || $teacherDen || $roomDen;

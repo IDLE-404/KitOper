@@ -267,7 +267,7 @@ class ScheduleToFormTwoSyncService
         // Текущая неделя
         $this->syncWeek($groupId, $weekStart, $baseMode, $weekStart, $rows, $course);
         // Чередующаяся неделя
-        $this->syncWeek($groupId, $weekStart, $otherMode, $otherWeekStart, $rows, $course);
+        $this->syncWeek($groupId, $otherWeekStart, $otherMode, $otherWeekStart, $rows, $course);
     }
 
     protected function fetchWeekRows(int $groupId, Carbon $weekStart, string $scheduleTable)

@@ -129,7 +129,10 @@
                                     <input type="hidden" class="row-teacher" value="{{ $row['teacher_id'] }}">
                                 </td>
                                 <td>
-                                    <div class="small text-muted">Всего: <strong>{{ $row['total_hours'] ?? 0 }}</strong></div>
+                                    <div class="small text-muted">
+                                        Остаток на начало:
+                                        <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
+                                    </div>
                                     <div class="small text-muted">По паре: {{ $row['hours_per_class'] ?? 2 }}</div>
                                     <div class="manual-input d-none mt-2">
                                         <label class="form-label text-muted small mb-1">Всего часов</label>

@@ -13,7 +13,15 @@ class FormTwoService
     {
         $tables = CourseContext::tables($course);
 
-        $daysCount = Carbon::create($year, $month, 1)->daysInMonth;
+        $monthStart = Carbon::create($year, $month, 1)->startOfMonth();
+        $monthEnd = $monthStart->copy()->endOfMonth();
+        // Учебный год начинается 1 сентября: всё, что раньше текущего месяца в рамках учебного года,
+        // считается "расходовано ранее" и должно уменьшать остаток на текущий месяц.
+        $studyYearStart = $monthStart->month >= 9
+            ? Carbon::create($monthStart->year, 9, 1)
+            : Carbon::create($monthStart->year - 1, 9, 1);
+
+        $daysCount = $monthStart->daysInMonth;
         $days = range(1, $daysCount);
 
         $subjectNames = DB::table($tables['subjects'])
@@ -22,14 +30,28 @@ class FormTwoService
 
         $normatives = DB::table($tables['form_two_normatives'])
             ->where('group_id', $groupId)
-            ->where('year', $year)
-            ->where('month', $month)
+            ->where(function ($q) use ($year, $month, $studyYearStart) {
+                $startYear = $studyYearStart->year;
+                $startMonth = $studyYearStart->month;
+                $q->where(function ($qStart) use ($startYear, $startMonth) {
+                    $qStart->where('year', '>', $startYear)
+                        ->orWhere(function ($q2) use ($startYear, $startMonth) {
+                            $q2->where('year', $startYear)->where('month', '>=', $startMonth);
+                        });
+                })->where(function ($qEnd) use ($year, $month) {
+                    $qEnd->where('year', '<', $year)
+                        ->orWhere(function ($q3) use ($year, $month) {
+                            $q3->where('year', $year)->where('month', '<=', $month);
+                        });
+                });
+            })
+            ->orderBy('year', 'desc')
+            ->orderBy('month', 'desc')
             ->get();
 
         $records = DB::table($tables['form_two_records'])
             ->where('group_id', $groupId)
-            ->where('year', $year)
-            ->where('month', $month)
+            ->whereBetween('class_date', [$studyYearStart->toDateString(), $monthEnd->toDateString()])
             ->get();
         $records = $this->expandReplacements($records);
 
@@ -47,6 +69,8 @@ class FormTwoService
         $replacementRows = [];
         $normMap = $this->buildNormativeLookup($normatives);
         $subjectsUsed = [];
+        $spentBefore = [];
+        $spentCurrent = [];
         foreach ($normatives as $norm) {
             $key = $this->rowKey($norm->subject_id, $norm->teacher_id);
             $rows[$key] = $this->emptyRow(
@@ -69,13 +93,10 @@ class FormTwoService
                 continue;
             }
 
-            $day = (int) ($rec->day ?? 0);
-            if ($day < 1 || $day > $daysCount) {
-                $day = (int) Carbon::parse($rec->class_date ?? now())->day;
-                if ($day < 1 || $day > $daysCount) {
-                    continue;
-                }
-            }
+            $recordDate = $rec->class_date
+                ? Carbon::parse($rec->class_date)
+                : Carbon::create((int) ($rec->year ?? $year), (int) ($rec->month ?? $month), (int) ($rec->day ?? 1));
+            $inCurrentMonth = $recordDate->between($monthStart, $monthEnd);
 
             $key = $this->rowKey($subjectId, $teacherId);
             if (!isset($rows[$key])) {
@@ -92,9 +113,31 @@ class FormTwoService
             }
             $subjectsUsed[$subjectId] = true;
 
+            $usedHoursValue = (int) ($rec->used_hours ?? 0);
+            $bonusHoursValue = (int) ($rec->bonus_hours ?? 0);
+            $spentDelta = $usedHoursValue - $bonusHoursValue;
+
+            if ($inCurrentMonth) {
+                $spentCurrent[$key] = ($spentCurrent[$key] ?? 0) + $spentDelta;
+            } else {
+                $spentBefore[$key] = ($spentBefore[$key] ?? 0) + $spentDelta;
+            }
+
+            if (!$inCurrentMonth) {
+                continue;
+            }
+
+            $day = (int) ($rec->day ?? 0);
+            if ($day < 1 || $day > $daysCount) {
+                $day = (int) $recordDate->day;
+                if ($day < 1 || $day > $daysCount) {
+                    continue;
+                }
+            }
+
             $dayData = $rows[$key]['days'][$day] ?? $this->emptyDay();
-            $dayData['used_hours'] += (int) ($rec->used_hours ?? 0);
-            $dayData['bonus_hours'] += (int) ($rec->bonus_hours ?? 0);
+            $dayData['used_hours'] += $usedHoursValue;
+            $dayData['bonus_hours'] += $bonusHoursValue;
             $dayData['status'] = $this->resolveStatus($dayData['status'], $rec);
             $dayData['mode'] = $rec->mode ?? $dayData['mode'];
             $dayData['lesson_number'] = $rec->lesson_number ?? $dayData['lesson_number'];
@@ -135,7 +178,13 @@ class FormTwoService
             }
             $row['used_hours_total'] = $used;
             $row['bonus_hours_total'] = $bonus;
-            $row['hours_left'] = max(0, (int) $row['total_hours'] - $used + $bonus);
+            $key = $this->rowKey($row['subject_id'], $row['teacher_id']);
+            $spentBeforeTotal = $spentBefore[$key] ?? 0;
+            $spentCurrentTotal = $spentCurrent[$key] ?? ($used - $bonus);
+            $startLeft = max(0, (int) $row['total_hours'] - $spentBeforeTotal);
+            $endLeft = max(0, $startLeft - $spentCurrentTotal);
+            $row['hours_left_start'] = $startLeft;
+            $row['hours_left'] = $endLeft;
         }
 
         // Добавляем пустые строки для предметов, по которым нет нормативов и записей
@@ -358,7 +407,12 @@ class FormTwoService
     {
         $map = [];
         foreach ($normatives as $norm) {
-            $map[$norm->subject_id][$norm->teacher_id ?? 0] = [
+            $teacherKey = $norm->teacher_id ?? 0;
+            // Нормативы отсортированы от новых к старым; заполняем только первый раз, чтобы брать свежие данные.
+            if (isset($map[$norm->subject_id][$teacherKey])) {
+                continue;
+            }
+            $map[$norm->subject_id][$teacherKey] = [
                 'total_hours' => (int) ($norm->total_hours ?? 0),
                 'hours_per_class' => (int) ($norm->hours_per_class ?? 2),
             ];
@@ -403,6 +457,7 @@ class FormTwoService
             'days' => $daysPayload,
             'used_hours_total' => 0,
             'bonus_hours_total' => 0,
+            'hours_left_start' => $totalHours,
             'hours_left' => $totalHours,
         ];
     }

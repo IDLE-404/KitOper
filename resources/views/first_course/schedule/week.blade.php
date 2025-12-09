@@ -5,6 +5,63 @@
 <link rel="stylesheet" href="{{ asset('css/week-schedule.css') }}">
 <style>
     body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    .semester-expand {
+        margin-top: 48px;
+        padding-top: 32px;
+        border-top: 1px solid #e2e8f0;
+    }
+    .semester-expand h2 {
+        font-size: 22px;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+    .semester-expand .subtitle {
+        color: #64748b;
+        margin-bottom: 24px;
+    }
+    .semester-expand .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+    }
+    .semester-expand .form-grid .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+    .semester-expand label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #475569;
+        margin-bottom: 6px;
+    }
+    .semester-expand .input-soft,
+    .semester-expand .select-soft {
+        width: 100%;
+    }
+    .semester-expand .options-row {
+        display: flex;
+        gap: 24px;
+        margin-top: 16px;
+        flex-wrap: wrap;
+    }
+    .semester-expand .options-row .form-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .btn-expand {
+        margin-top: 24px;
+        background: #2563eb;
+        color: #fff;
+        border: none;
+        border-radius: 12px;
+        padding: 12px 24px;
+        font-weight: 600;
+        transition: box-shadow 0.2s ease;
+    }
+    .btn-expand:hover {
+        box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35);
+    }
 </style>
 @endpush
 
@@ -220,6 +277,70 @@
                 <button class="btn-save" type="submit">Сохранить расписание</button>
             </div>
         </form>
+
+        <div class="semester-expand" id="semesterExpandSection">
+            <h2>Развернуть на семестр</h2>
+            <p class="subtitle">Скопируйте выбранную неделю вперёд на весь диапазон месяцев.</p>
+            <form action="{{ route('first.schedule.semester.expand') }}" method="POST" class="semester-expand-form">
+                @csrf
+                <input type="hidden" name="course" value="{{ $course ?? 1 }}">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="expandGroup">Группа</label>
+                        <select class="select-soft" id="expandGroup" name="group_id" required>
+                            @foreach($groups as $g)
+                                <option value="{{ $g->id }}" @selected(old('group_id', $selectedGroupId) == $g->id)>{{ $g->group_name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="templateWeek">Эталонная неделя</label>
+                        <input type="date"
+                               id="templateWeek"
+                               name="template_week_start"
+                               class="select-soft"
+                               value="{{ old('template_week_start', $weekStart ?? '') }}"
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <label for="semesterStart">Начало семестра</label>
+                        <input type="date"
+                               id="semesterStart"
+                               name="semester_start"
+                               class="select-soft"
+                               value="{{ old('semester_start', $weekStart ?? '') }}"
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <label for="semesterEnd">Окончание семестра</label>
+                        <input type="date"
+                               id="semesterEnd"
+                               name="semester_end"
+                               class="select-soft"
+                               value="{{ old('semester_end') }}"
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <label for="firstWeekMode">Первый режим недели</label>
+                        <select id="firstWeekMode" name="first_week_mode" class="select-soft">
+                            <option value="numerator" @selected(old('first_week_mode', ($weekMode ?? 'numerator')) === 'numerator')>Числитель</option>
+                            <option value="denominator" @selected(old('first_week_mode') === 'denominator')>Знаменатель</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="options-row">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="skipExisting" name="skip_existing" value="1" @checked(old('skip_existing'))>
+                        <label class="form-check-label" for="skipExisting">Пропускать недели, где уже есть расписание</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="syncFormTwo" name="sync_form_two" value="1" @checked(old('sync_form_two', true))>
+                        <label class="form-check-label" for="syncFormTwo">Синхронизировать Форму 2</label>
+                    </div>
+                </div>
+                <button type="submit" class="btn-expand">Развернуть расписание</button>
+            </form>
+        </div>
     </div>
 </div>
 @endsection

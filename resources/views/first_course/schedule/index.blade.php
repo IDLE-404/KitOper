@@ -8,6 +8,11 @@
 @php
     $days = ['Понедельник','Вторник','Среда','Четверг','Пятница'];
     $itemsByGroup = $schedule ?? [];
+    $firstGroupId = count($itemsByGroup) ? array_key_first($itemsByGroup) : null;
+    $expandLinkParams = ['course' => $course ?? 1];
+    if ($firstGroupId) {
+        $expandLinkParams['group_id'] = $firstGroupId;
+    }
 @endphp
 
 <div class="schedule-shell compact">
@@ -37,6 +42,7 @@
                 Переключить неделю
             </button>
             <a href="{{ route('first.schedule.week', ['course' => $course ?? 1]) }}" class="btn-pill primary">Редактор недели</a>
+            <a href="{{ route('first.schedule.week', $expandLinkParams) }}#semesterExpandSection" class="btn-pill ghost">Развернуть семестр</a>
             <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Форма 2</a>
         </div>
     </div>

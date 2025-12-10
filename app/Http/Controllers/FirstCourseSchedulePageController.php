@@ -38,14 +38,39 @@ class FirstCourseSchedulePageController extends Controller
         $isDenominatorWeek = $resolvedWeekMode === 'denominator';
 
         $subjects = DB::table($tables['subjects'])
-            ->select('id', DB::raw('COALESCE(name_ru, subject_name) as title'))
-            ->pluck('title', 'id');
+            ->select('id', 'subject_name', 'name_ru', 'name_kz')
+            ->get()
+            ->mapWithKeys(function ($row) {
+                $ru = $row->name_ru ?: $row->subject_name;
+                $kz = $row->name_kz ?: $ru;
+
+                return [
+                    $row->id => [
+                        'ru' => $ru,
+                        'kz' => $kz,
+                    ],
+                ];
+            })
+            ->all();
+
+        $subjectsForView = [];
+        foreach ($subjects as $id => $entry) {
+            $subjectsForView[$id] = $entry['ru'] ?? ($entry['kz'] ?? '—');
+        }
 
         $teachers = DB::table($tables['teachers'])
             ->pluck('teacher_name', 'id');
 
-        $groups = DB::table($tables['groups'])
-            ->pluck('group_name', 'id');
+        $groupRecords = DB::table($tables['groups'])
+            ->select('id', 'group_name')
+            ->get();
+
+        $groups = [];
+        $groupLocalePreference = [];
+        foreach ($groupRecords as $group) {
+            $groups[$group->id] = $group->group_name;
+            $groupLocalePreference[$group->id] = $this->isKazakhGroup($group->group_name);
+        }
 
         $raw = DB::table($tables['schedules'] . ' as s')
             ->whereDate('s.week_start', $weekStart->toDateString())
@@ -55,17 +80,20 @@ class FirstCourseSchedulePageController extends Controller
 
         $currentMode = $isDenominatorWeek ? 'denominator' : 'numerator';
         $roomConflicts = FirstCourseSchedule::detectRoomConflicts($raw);
+        $teacherConflicts = FirstCourseSchedule::detectTeacherConflicts($raw);
         $schedule = [];
 
         foreach ($raw as $row) {
             $groupId = $row->group_id;
             $groupName = $groups[$groupId] ?? 'Без группы';
+            $useKazakh = $groupLocalePreference[$groupId] ?? false;
             $day = $row->study_day;
             $lesson = $row->lesson_number;
 
             if (!isset($schedule[$groupId])) {
                 $schedule[$groupId] = [
                     'name' => $groupName,
+                    'use_kz' => $useKazakh,
                     'days' => [],
                 ];
             }
@@ -79,6 +107,8 @@ class FirstCourseSchedulePageController extends Controller
                     'has_denominator_subgroup2' => false,
                 ];
             }
+
+            $subjectResolver = fn (?int $subjectId) => $this->resolveSubjectTitle($subjects, $subjectId, $useKazakh);
 
             $subgroupFlag = $row->subgroup === '2' ? 2 : 1;
             $num1 = $subgroupFlag === 1 ? $row->subject_id : null;
@@ -107,6 +137,11 @@ class FirstCourseSchedulePageController extends Controller
             $confDen1 = $roomConflicts[$groupId][$day][$lesson]['denominator'][1] ?? false;
             $confDen2 = $roomConflicts[$groupId][$day][$lesson]['denominator'][2] ?? false;
 
+            $teacherConfNum1 = $teacherConflicts[$groupId][$day][$lesson]['numerator'][1] ?? null;
+            $teacherConfNum2 = $teacherConflicts[$groupId][$day][$lesson]['numerator'][2] ?? null;
+            $teacherConfDen1 = $teacherConflicts[$groupId][$day][$lesson]['denominator'][1] ?? null;
+            $teacherConfDen2 = $teacherConflicts[$groupId][$day][$lesson]['denominator'][2] ?? null;
+
             $schedule[$groupId]['days'][$day][$lesson]['has_denominator'] = $schedule[$groupId]['days'][$day][$lesson]['has_denominator']
                 || $den1 || $den2 || $teacherDen1 || $teacherDen2 || $roomDen1 || $roomDen2;
             $schedule[$groupId]['days'][$day][$lesson]['has_denominator_subgroup2'] = $schedule[$groupId]['days'][$day][$lesson]['has_denominator_subgroup2']
@@ -115,18 +150,20 @@ class FirstCourseSchedulePageController extends Controller
             $sub1Data = $schedule[$groupId]['days'][$day][$lesson]['sub1'] ?? [];
             if ($subgroupFlag === 1 || $num1 || $teacherNum1 || $roomNum1 || $den1 || $teacherDen1 || $roomDen1) {
                 $sub1Data = array_merge($sub1Data, [
-                    'subject_num' => $num1 ? ($subjects[$num1] ?? '—') : ($sub1Data['subject_num'] ?? null),
+                    'subject_num' => $num1 ? $subjectResolver($num1) : ($sub1Data['subject_num'] ?? null),
                     'subject_num_id' => $num1 ?? ($sub1Data['subject_num_id'] ?? null),
                     'teacher_num' => $teacherNum1 ? ($teachers[$teacherNum1] ?? '—') : ($sub1Data['teacher_num'] ?? null),
                     'teacher_num_id' => $teacherNum1 ?? ($sub1Data['teacher_num_id'] ?? null),
                     'room_num' => $roomNum1 ?? ($sub1Data['room_num'] ?? null),
-                    'subject_den' => $den1 ? ($subjects[$den1] ?? '—') : ($sub1Data['subject_den'] ?? null),
+                    'subject_den' => $den1 ? $subjectResolver($den1) : ($sub1Data['subject_den'] ?? null),
                     'subject_den_id' => $den1 ?? ($sub1Data['subject_den_id'] ?? null),
                     'teacher_den' => $teacherDen1 ? ($teachers[$teacherDen1] ?? '—') : ($sub1Data['teacher_den'] ?? null),
                     'teacher_den_id' => $teacherDen1 ?? ($sub1Data['teacher_den_id'] ?? null),
                     'room_den' => $roomDen1 ?? ($sub1Data['room_den'] ?? null),
                     'conflict_num' => $confNum1 ?? ($sub1Data['conflict_num'] ?? false),
                     'conflict_den' => $confDen1 ?? ($sub1Data['conflict_den'] ?? false),
+                    'teacher_conflict_num' => $teacherConfNum1 ?? ($sub1Data['teacher_conflict_num'] ?? null),
+                    'teacher_conflict_den' => $teacherConfDen1 ?? ($sub1Data['teacher_conflict_den'] ?? null),
                     'absent_num' => $row->is_absent_1_num ?? false,
                     'absent_den' => $row->is_absent_1_den ?? false,
                     'replacement_flag_num' => $row->is_replacement_1_num ?? false,
@@ -144,18 +181,20 @@ class FirstCourseSchedulePageController extends Controller
             $sub2Data = $schedule[$groupId]['days'][$day][$lesson]['sub2'] ?? [];
             if ($subgroupFlag === 2 || $num2 || $teacherNum2 || $roomNum2 || $den2 || $teacherDen2 || $roomDen2) {
                 $sub2Data = array_merge($sub2Data, [
-                    'subject_num' => $num2 ? ($subjects[$num2] ?? '—') : ($sub2Data['subject_num'] ?? null),
+                    'subject_num' => $num2 ? $subjectResolver($num2) : ($sub2Data['subject_num'] ?? null),
                     'subject_num_id' => $num2 ?? ($sub2Data['subject_num_id'] ?? null),
                     'teacher_num' => $teacherNum2 ? ($teachers[$teacherNum2] ?? '—') : ($sub2Data['teacher_num'] ?? null),
                     'teacher_num_id' => $teacherNum2 ?? ($sub2Data['teacher_num_id'] ?? null),
                     'room_num' => $roomNum2 ?? ($sub2Data['room_num'] ?? null),
-                    'subject_den' => $den2 ? ($subjects[$den2] ?? '—') : ($sub2Data['subject_den'] ?? null),
+                    'subject_den' => $den2 ? $subjectResolver($den2) : ($sub2Data['subject_den'] ?? null),
                     'subject_den_id' => $den2 ?? ($sub2Data['subject_den_id'] ?? null),
                     'teacher_den' => $teacherDen2 ? ($teachers[$teacherDen2] ?? '—') : ($sub2Data['teacher_den'] ?? null),
                     'teacher_den_id' => $teacherDen2 ?? ($sub2Data['teacher_den_id'] ?? null),
                     'room_den' => $roomDen2 ?? ($sub2Data['room_den'] ?? null),
                     'conflict_num' => $confNum2 ?? ($sub2Data['conflict_num'] ?? false),
                     'conflict_den' => $confDen2 ?? ($sub2Data['conflict_den'] ?? false),
+                    'teacher_conflict_num' => $teacherConfNum2 ?? ($sub2Data['teacher_conflict_num'] ?? null),
+                    'teacher_conflict_den' => $teacherConfDen2 ?? ($sub2Data['teacher_conflict_den'] ?? null),
                     'absent_num' => $row->is_absent_2_num ?? false,
                     'absent_den' => $row->is_absent_2_den ?? false,
                     'replacement_flag_num' => $row->is_replacement_2_num ?? false,
@@ -173,6 +212,8 @@ class FirstCourseSchedulePageController extends Controller
 
         // Проставляем активные значения по чётности недели
         foreach ($schedule as $groupId => $groupData) {
+            $useKazakh = $groupData['use_kz'] ?? false;
+            $subjectResolver = fn (?int $subjectId) => $this->resolveSubjectTitle($subjects, $subjectId, $useKazakh);
             foreach ($groupData['days'] as $day => $lessons) {
                 foreach ($lessons as $lesson => $pair) {
                     foreach ([1, 2] as $subIndex) {
@@ -202,7 +243,7 @@ class FirstCourseSchedulePageController extends Controller
                         $replacementFlag = $useDenominator ? ($pair[$key]['replacement_flag_den'] ?? false) : ($pair[$key]['replacement_flag_num'] ?? false);
                         $replacementTeacherId = $useDenominator ? ($pair[$key]['replacement_teacher_den'] ?? null) : ($pair[$key]['replacement_teacher_num'] ?? null);
                         $replacementSubjectId = $useDenominator ? ($pair[$key]['replacement_subject_den'] ?? null) : ($pair[$key]['replacement_subject_num'] ?? null);
-                        $replacementSubjectName = $replacementSubjectId ? ($subjects[$replacementSubjectId] ?? '—') : null;
+                        $replacementSubjectName = $replacementSubjectId ? $subjectResolver($replacementSubjectId) : null;
                         $replacementComment = $useDenominator ? ($pair[$key]['replacement_comment_den'] ?? null) : ($pair[$key]['replacement_comment_num'] ?? null);
                         $replacementTeacherName = $replacementTeacherId ? ($teachers[$replacementTeacherId] ?? '—') : null;
 
@@ -213,6 +254,19 @@ class FirstCourseSchedulePageController extends Controller
                             $activeTeacher = $replacementTeacherName;
                         } elseif ($absent && !$replacementFlag) {
                             $activeTeacher = $activeTeacher ?: 'Учитель отсутствует';
+                        }
+
+                        $teacherConflictRaw = $useDenominator
+                            ? ($pair[$key]['teacher_conflict_den'] ?? null)
+                            : ($pair[$key]['teacher_conflict_num'] ?? null);
+                        $teacherConflictGroups = [];
+                        if ($teacherConflictRaw && !empty($teacherConflictRaw['groups'])) {
+                            foreach ($teacherConflictRaw['groups'] as $conflictGroupId) {
+                                if ((int) $conflictGroupId === (int) $groupId) {
+                                    continue;
+                                }
+                                $teacherConflictGroups[] = $groups[$conflictGroupId] ?? ('Группа ' . $conflictGroupId);
+                            }
                         }
 
                         $pair[$key]['active_subject'] = $activeSubject;
@@ -231,6 +285,8 @@ class FirstCourseSchedulePageController extends Controller
                         $pair[$key]['replacement_comment'] = $replacementComment;
                         $pair[$key]['replacement_subject_id'] = $replacementSubjectId;
                         $pair[$key]['replacement_subject'] = $replacementSubjectName;
+                        $pair[$key]['teacher_conflict'] = !empty($teacherConflictGroups);
+                        $pair[$key]['teacher_conflict_groups'] = $teacherConflictGroups;
                     }
                     // Если в знаменателе указана пара на полную группу (sub1),
                     // подгруппы из числителя не должны подставляться.
@@ -263,12 +319,42 @@ class FirstCourseSchedulePageController extends Controller
 
         return view('first_course.schedule.index', [
             'schedule' => $schedule,
-            'subjects' => $subjects,
+            'subjects' => $subjectsForView,
             'teachers' => $teachers,
             'weekMode' => $isDenominatorWeek ? 'den' : 'num',
             'weekStart' => $weekStart->toDateString(),
             'course' => $course,
         ]);
+    }
+
+    protected function resolveSubjectTitle(array $subjects, ?int $subjectId, bool $useKazakh): ?string
+    {
+        if (!$subjectId) {
+            return null;
+        }
+
+        if (!isset($subjects[$subjectId])) {
+            return '—';
+        }
+
+        $entry = $subjects[$subjectId];
+        $ru = $entry['ru'] ?? null;
+        $kz = $entry['kz'] ?? null;
+
+        if ($useKazakh) {
+            return $kz ?: ($ru ?: '—');
+        }
+
+        return $ru ?: ($kz ?: '—');
+    }
+
+    protected function isKazakhGroup(?string $groupName): bool
+    {
+        if (!$groupName) {
+            return false;
+        }
+
+        return (bool) preg_match('/[ҚқӘәҢңӨөҰұҮүІіҺһҒғ]/u', $groupName);
     }
 
     /**
@@ -362,6 +448,7 @@ class FirstCourseSchedulePageController extends Controller
             ]);
         }
 
+        $tablesCourseOne = CourseContext::tables(1);
         try {
             $teacherSlotsAll = [];
             foreach ($rows as $rowToCheck) {
@@ -405,7 +492,8 @@ class FirstCourseSchedulePageController extends Controller
                     $slots,
                     null,
                     'first_course_schedules',
-                    1
+                    1,
+                    $tablesCourseOne['groups'] ?? null
                 );
             }
 
@@ -416,7 +504,7 @@ class FirstCourseSchedulePageController extends Controller
                 $teacherSlotsAll,
                 null,
                 'first_course_schedules',
-                CourseContext::tables(1)['teachers'] ?? null,
+                $tablesCourseOne['teachers'] ?? null,
                 1
             );
         } catch (ValidationException $e) {
@@ -696,7 +784,16 @@ class FirstCourseSchedulePageController extends Controller
                 $teacherSlotsAll = $teacherSlots;
 
                 try {
-                    $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slots, $weekStart, $tables['schedules'], $course);
+                    $this->validateRoomsOrFail(
+                        $groupId,
+                        $dayMap[$dayKey],
+                        (int) $lessonNumber,
+                        $slots,
+                        $weekStart,
+                        $tables['schedules'],
+                        $course,
+                        $tables['groups'] ?? null
+                    );
 
                     $slotsSecond = [];
                     $teacherSlotsSecond = [];
@@ -732,7 +829,16 @@ class FirstCourseSchedulePageController extends Controller
                             $teacherSlotsSecond[] = ['id' => $teacherSecondDenominator ?: $teacherSecondDenominator2, 'mode' => 'denominator'];
                         }
                         if ($slotsSecond) {
-                            $this->validateRoomsOrFail($groupId, $dayMap[$dayKey], (int) $lessonNumber, $slotsSecond, $weekStart, $tables['schedules'], $course);
+                            $this->validateRoomsOrFail(
+                                $groupId,
+                                $dayMap[$dayKey],
+                                (int) $lessonNumber,
+                                $slotsSecond,
+                                $weekStart,
+                                $tables['schedules'],
+                                $course,
+                                $tables['groups'] ?? null
+                            );
                         }
                         $teacherSlotsAll = array_merge($teacherSlotsAll, $teacherSlotsSecond);
                     }
@@ -882,7 +988,8 @@ class FirstCourseSchedulePageController extends Controller
 
             if ($conflict) {
                 $groupName = $this->groupNameById($conflict->group_id ?? null, $tables['groups'] ?? null) ?? 'другой группы';
-                return response()->json(['message' => 'Выбранный преподаватель занят в это время у группы ' . $groupName], 422);
+                $pairLabel = sprintf('%s, пара %d', $day, $lesson);
+                return response()->json(['message' => 'Выбранный преподаватель занят на ' . $pairLabel . ' у группы ' . $groupName], 422);
             }
         }
 
@@ -941,7 +1048,16 @@ class FirstCourseSchedulePageController extends Controller
         }
 
         try {
-            $this->validateRoomsOrFail($groupId, $day, $lesson, $roomSlots, $weekStart, $tables['schedules'], $course);
+            $this->validateRoomsOrFail(
+                $groupId,
+                $day,
+                $lesson,
+                $roomSlots,
+                $weekStart,
+                $tables['schedules'],
+                $course,
+                $tables['groups'] ?? null
+            );
             $this->validateTeachersOrFail(
                 $groupId,
                 $day,
@@ -1123,7 +1239,8 @@ class FirstCourseSchedulePageController extends Controller
         array $slots,
         ?Carbon $weekStart = null,
         ?string $table = null,
-        int $currentCourse = 1
+        int $currentCourse = 1,
+        ?string $groupTable = null
     ): void
     {
         foreach ($slots as $slot) {
@@ -1134,9 +1251,21 @@ class FirstCourseSchedulePageController extends Controller
                 continue;
             }
 
-            if ($this->roomBusyInTable($room, $mode, $studyDay, $lessonNumber, $weekStart, $table ?: 'first_course_schedules', $groupId)) {
+            $conflict = $this->roomBusyInTable(
+                $room,
+                $mode,
+                $studyDay,
+                $lessonNumber,
+                $weekStart,
+                $table ?: 'first_course_schedules',
+                $groupId,
+                $groupTable
+            );
+            if ($conflict) {
+                $groupName = $conflict['group_name'] ?? 'другой группы';
+                $pairLabel = sprintf('%s, пара %d', $conflict['study_day'], $conflict['lesson_number']);
                 throw ValidationException::withMessages([
-                    'room_id' => 'Кабинет занят другой группой',
+                    'room_id' => 'Кабинет занят у группы ' . $groupName . ' (' . $pairLabel . ')',
                 ]);
             }
 
@@ -1149,9 +1278,21 @@ class FirstCourseSchedulePageController extends Controller
                 if (!$scheduleTable || !Schema::hasTable($scheduleTable)) {
                     continue;
                 }
-                if ($this->roomBusyInTable($room, $mode, $studyDay, $lessonNumber, $weekStart, $scheduleTable, null)) {
+                $conflict = $this->roomBusyInTable(
+                    $room,
+                    $mode,
+                    $studyDay,
+                    $lessonNumber,
+                    $weekStart,
+                    $scheduleTable,
+                    null,
+                    $courseTables['groups'] ?? null
+                );
+                if ($conflict) {
+                    $groupName = $conflict['group_name'] ?? 'другой группы';
+                    $pairLabel = sprintf('%s, пара %d', $conflict['study_day'], $conflict['lesson_number']);
                     throw ValidationException::withMessages([
-                        'room_id' => 'Кабинет занят другой группой',
+                        'room_id' => 'Кабинет занят у группы ' . $groupName . ' (' . $pairLabel . ')',
                     ]);
                 }
             }
@@ -1174,10 +1315,11 @@ class FirstCourseSchedulePageController extends Controller
         int $lessonNumber,
         ?Carbon $weekStart,
         string $table,
-        ?int $excludeGroupId
-    ): bool {
+        ?int $excludeGroupId,
+        ?string $groupTable = null
+    ): ?array {
         if (!Schema::hasTable($table)) {
-            return false;
+            return null;
         }
 
         $rows = DB::table($table)
@@ -1217,12 +1359,19 @@ class FirstCourseSchedulePageController extends Controller
                     continue;
                 }
                 if ($rowRoom === $room && $rowSlot['mode'] === $mode) {
-                    return true;
+                    $groupId = (int) ($row->group_id ?? 0);
+                    return [
+                        'group_id' => $groupId,
+                        'group_name' => $this->groupNameById($groupId, $groupTable),
+                        'mode' => $mode,
+                        'study_day' => $studyDay,
+                        'lesson_number' => $lessonNumber,
+                    ];
                 }
             }
         }
 
-        return false;
+        return null;
     }
 
     /**
@@ -1246,6 +1395,7 @@ class FirstCourseSchedulePageController extends Controller
         }
 
         $occupiedByMode = [];
+        $pairLabel = sprintf('%s, пара %d', $studyDay, $lessonNumber);
         foreach ($slots as $slot) {
             $teacherId = $slot['id'] ?? null;
             if (!$teacherId) {
@@ -1257,7 +1407,7 @@ class FirstCourseSchedulePageController extends Controller
             }
             if (in_array($teacherId, $occupiedByMode[$mode], true)) {
                 throw ValidationException::withMessages([
-                    'teacher_id' => 'Преподаватель занят в это время у другой подгруппы',
+                    'teacher_id' => 'Преподаватель уже назначен на ' . $pairLabel . ' в другой подгруппе',
                 ]);
             }
             $occupiedByMode[$mode][] = $teacherId;
@@ -1290,7 +1440,7 @@ class FirstCourseSchedulePageController extends Controller
             if ($conflict) {
                 $groupName = $this->groupNameById($conflict->group_id ?? null, $groupTable) ?? 'другой группы';
                 throw ValidationException::withMessages([
-                    'teacher_id' => 'Преподаватель занят в это время у группы ' . $groupName,
+                    'teacher_id' => 'Преподаватель занят на ' . $pairLabel . ' у группы ' . $groupName,
                 ]);
             }
         }
@@ -1335,7 +1485,7 @@ class FirstCourseSchedulePageController extends Controller
             if ($conflict) {
                 $groupName = $this->groupNameById($conflict->group_id ?? null, $courseTables['groups'] ?? null) ?? 'другой группы';
                 throw ValidationException::withMessages([
-                    'teacher_id' => 'Преподаватель занят в это время на другом курсе (группа ' . $groupName . ')',
+                    'teacher_id' => 'Преподаватель занят на ' . $pairLabel . ' на другом курсе (группа ' . $groupName . ')',
                 ]);
             }
         }

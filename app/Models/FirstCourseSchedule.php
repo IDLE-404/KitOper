@@ -108,6 +108,45 @@ class FirstCourseSchedule extends Model
     }
 
     /**
+     * Определяем конфликты преподавателей по дням/парам/режимам недели.
+     *
+     * @return array<int, array<string, array<int, array<string, array<int, array<string,mixed>>>>>
+     */
+    public static function detectTeacherConflicts(Collection $rows): array
+    {
+        $slots = [];
+
+        foreach ($rows as $row) {
+            foreach (self::teacherSlotsForRow($row) as $slot) {
+                $key = implode('|', [$slot['teacher_id'], $slot['day'], $slot['lesson'], $slot['mode']]);
+                $slots[$key]['groups'][$slot['group_id']] = true;
+                $slots[$key]['items'][] = $slot;
+            }
+        }
+
+        $conflicts = [];
+        foreach ($slots as $slot) {
+            if (count($slot['groups'] ?? []) < 2) {
+                continue;
+            }
+
+            $groupIds = array_keys($slot['groups']);
+            foreach ($slot['items'] as $item) {
+                $conflicts[$item['group_id']]
+                    [$item['day']]
+                    [$item['lesson']]
+                    [$item['mode']]
+                    [$item['subgroup']] = [
+                        'teacher_id' => $item['teacher_id'],
+                        'groups' => $groupIds,
+                    ];
+            }
+        }
+
+        return $conflicts;
+    }
+
+    /**
      * Определяем набор режимов недели для поля room_id/room_id_2 (числитель или все недели).
      */
     protected static function numeratorModesForRow(object $row): array
@@ -167,6 +206,50 @@ class FirstCourseSchedule extends Model
         // Знаменатель — только для второй половины недели.
         $append($roomDen1, 'denominator', '1');
         $append($roomDen2, 'denominator', '2');
+
+        return $result;
+    }
+
+    /**
+     * Возвращает набор преподавателей по слотам (режим, подгруппа).
+     */
+    protected static function teacherSlotsForRow(object $row): array
+    {
+        $result = [];
+        $day = self::field($row, 'study_day');
+        $lesson = self::field($row, 'lesson_number');
+        $groupId = self::field($row, 'group_id');
+
+        if ($day === null || $lesson === null || $groupId === null) {
+            return $result;
+        }
+
+        $subgroupFlag = in_array(self::field($row, 'subgroup'), ['2', 'B'], true) ? '2' : '1';
+
+        $teacherNum1 = $subgroupFlag === '1' ? self::field($row, 'teacher_id') : null;
+        $teacherNum2 = self::field($row, 'teacher_id_2') ?: ($subgroupFlag === '2' ? self::field($row, 'teacher_id') : null);
+        $teacherDen1 = $subgroupFlag === '1' ? self::field($row, 'teacher_id_denominator') : null;
+        $teacherDen2 = self::field($row, 'teacher_id_denominator_2') ?: ($subgroupFlag === '2' ? self::field($row, 'teacher_id_denominator') : null);
+
+        $append = function ($teacherId, string $mode, string $subKey) use (&$result, $groupId, $day, $lesson) {
+            if (!$teacherId) {
+                return;
+            }
+
+            $result[] = [
+                'group_id' => $groupId,
+                'day' => $day,
+                'lesson' => $lesson,
+                'mode' => $mode,
+                'subgroup' => (int) $subKey,
+                'teacher_id' => (int) $teacherId,
+            ];
+        };
+
+        $append($teacherNum1, 'numerator', '1');
+        $append($teacherNum2, 'numerator', '2');
+        $append($teacherDen1, 'denominator', '1');
+        $append($teacherDen2, 'denominator', '2');
 
         return $result;
     }

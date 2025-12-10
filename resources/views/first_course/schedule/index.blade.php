@@ -124,6 +124,10 @@
                                     data-replacement-subject-den-2="{{ $pair['sub2']['replacement_subject_den'] ?? '' }}"
                                     data-replacement-comment-den-1="{{ $pair['sub1']['replacement_comment_den'] ?? '' }}"
                                     data-replacement-comment-den-2="{{ $pair['sub2']['replacement_comment_den'] ?? '' }}"
+                                    data-teacher-conflict1="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? '1' : '0' }}"
+                                    data-teacher-conflict1-groups="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub1']['teacher_conflict_groups'] ?? []) : '' }}"
+                                    data-teacher-conflict2="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? '1' : '0' }}"
+                                    data-teacher-conflict2-groups="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub2']['teacher_conflict_groups'] ?? []) : '' }}"
                                 >✏️</a>
                                 @php $main = $pair['sub1'] ?? []; @endphp
                                 <div class="cell-line main-line sub-line">
@@ -256,6 +260,8 @@
     const replacementToggle2Den = document.getElementById('modalReplacementToggle2Den');
     const replacementBlock1Den = document.getElementById('replacementBlock1Den');
     const replacementBlock2Den = document.getElementById('replacementBlock2Den');
+    const teacherConflictAlert1 = document.getElementById('teacherConflictAlert1');
+    const teacherConflictAlert2 = document.getElementById('teacherConflictAlert2');
 
     const hiddenGroup = document.getElementById('modalGroupId');
     const hiddenDay = document.getElementById('modalDay');
@@ -303,6 +309,15 @@
             replacementSubject2Den.value = '';
             replacementComment2Den.value = '';
         }
+    };
+
+    const setTeacherConflictAlert = (el, flag, groupsText, day, lesson) => {
+        if (!el) return;
+        const active = flag === '1' && groupsText;
+        el.classList.toggle('d-none', !active);
+        el.textContent = active
+            ? `Преподаватель занят у групп: ${groupsText} (${day}, пара ${lesson})`
+            : '';
     };
 
     const openModal = (data) => {
@@ -378,6 +393,20 @@
         syncReplacementFlag2();
         syncReplacementFlag1Den();
         syncReplacementFlag2Den();
+        setTeacherConflictAlert(
+            teacherConflictAlert1,
+            data.teacherConflict1 || '0',
+            data.teacherConflict1Groups || '',
+            data.day,
+            data.lesson
+        );
+        setTeacherConflictAlert(
+            teacherConflictAlert2,
+            data.teacherConflict2 || '0',
+            data.teacherConflict2Groups || '',
+            data.day,
+            data.lesson
+        );
 
         overlay.classList.add('show');
         modal.classList.add('show');
@@ -403,6 +432,7 @@
             syncReplacementFlag2(true);
             replacementToggle2Den.checked = false;
             syncReplacementFlag2Den(true);
+            setTeacherConflictAlert(teacherConflictAlert2, '0', '', '', '');
         }
     });
 
@@ -630,6 +660,16 @@
     border-radius: 8px;
     padding: 10px;
 }
+.alert-conflict {
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
 .form-grid.compact {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
@@ -716,6 +756,7 @@
             <div class="subcard-grid">
                 <div class="subcard">
                     <div class="subcard-head">Подгруппа 1</div>
+                    <div class="alert-conflict d-none" id="teacherConflictAlert1"></div>
                     <div class="subcard-grid-inner">
                         <div>
                             <label class="form-label">Предмет</label>
@@ -771,6 +812,7 @@
                 </div>
                 <div class="subcard sub2-card d-none" id="subgroup2CardNum">
                     <div class="subcard-head">Подгруппа 2</div>
+                    <div class="alert-conflict d-none" id="teacherConflictAlert2"></div>
                     <div class="subcard-grid-inner">
                         <div>
                             <label class="form-label">Предмет</label>

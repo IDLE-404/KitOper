@@ -102,24 +102,30 @@ class ScheduleToFormTwoSyncService
         $isSub2 = $subgroup === 2;
         $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? 2 : 1;
 
+        // ---------- БАЗОВЫЕ subject / teacher ----------
         $subjectNum = $isSub2
-            ? ($row->subject_id_2 ?? ($subgroupFlag === 2 ? ($row->subject_id ?? null) : null))
+            ? ($row->subject_id_2 ?? ($subgroupFlag === 2 ? $row->subject_id : null))
             : ($row->subject_id ?? null);
+
         $teacherNum = $isSub2
-            ? ($row->teacher_id_2 ?? ($subgroupFlag === 2 ? ($row->teacher_id ?? null) : null))
+            ? ($row->teacher_id_2 ?? ($subgroupFlag === 2 ? $row->teacher_id : null))
             : ($row->teacher_id ?? null);
+
         $subjectDen = $isSub2
             ? ($row->subject_id_denominator_2 ?? null)
             : ($row->subject_id_denominator ?? null);
+
         $teacherDen = $isSub2
             ? ($row->teacher_id_denominator_2 ?? null)
             : ($row->teacher_id_denominator ?? null);
+
         $roomDen = $isSub2
             ? ($row->room_id_denominator_2 ?? null)
             : ($row->room_id_denominator ?? null);
 
         $hasDenominator = $subjectDen || $teacherDen || $roomDen;
         $useDenominator = $hasDenominator && $weekMode === 'denominator';
+
         $activeSubject = $useDenominator ? ($subjectDen ?: $subjectNum) : $subjectNum;
         $activeTeacher = $useDenominator ? ($teacherDen ?: $teacherNum) : $teacherNum;
         $mode = $hasDenominator ? $weekMode : 'single';
@@ -128,17 +134,104 @@ class ScheduleToFormTwoSyncService
             return [];
         }
 
+        // ---------- СТАТУС И ЗАМЕНЫ ИЗ schedules ----------
         $statusMode = $useDenominator ? 'denominator' : 'numerator';
+
+        // При mode = 'single' замены всегда записываются в поля _1_num, независимо от subgroup
+        $replacementSubgroup = $mode === 'single' ? 1 : $subgroup;
+
         $isAbsent = $this->isAbsent($row, $subgroup, $statusMode);
-        $isReplacement = $this->isReplacement($row, $subgroup, $statusMode);
-        $replacementTeacherId = $this->replacementTeacherId($row, $subgroup, $statusMode);
-        $replacementSubjectId = $this->replacementSubjectId($row, $subgroup, $statusMode);
-        $replacementComment = $this->replacementComment($row, $subgroup, $statusMode);
+        $isReplacement = $this->isReplacement($row, $replacementSubgroup, $statusMode);
 
-        $hoursPerClass = $this->hoursPerClass($groupId, $activeSubject, $activeTeacher, $classDate, $course);
-        $totalHours = $this->totalHours($groupId, $activeSubject, $activeTeacher, $classDate, $course);
+        $replacementTeacherId = $this->replacementTeacherId($row, $replacementSubgroup, $statusMode);
+        $replacementSubjectId = $this->replacementSubjectId($row, $replacementSubgroup, $statusMode);
+        $replacementComment = $this->replacementComment($row, $replacementSubgroup, $statusMode);
 
-        $payload = [];
+        // ---------- ДЕТЕКЦИЯ ЗАМЕНЫ (КЛЮЧЕВОЕ МЕСТО) ----------
+        $isTeacherChanged = false;
+        $isSubjectChanged = false;
+
+        // Проверяем явные поля замены из schedules
+        if ($isReplacement && $replacementTeacherId) {
+            $isTeacherChanged = true;
+        }
+
+        if ($replacementSubjectId) {
+            $isSubjectChanged = true;
+        }
+
+        // ДОПОЛНИТЕЛЬНО: для подгруппы 2 сравниваем с подгруппой 1
+        // Если teacher_id_2 отличается от teacher_id - это тоже замена
+        if ($isSub2 && !$isTeacherChanged) {
+            $originalTeacherId = $useDenominator
+                ? ($row->teacher_id_denominator ?? $row->teacher_id ?? null)
+                : ($row->teacher_id ?? null);
+            
+            if ($activeTeacher && $originalTeacherId && $activeTeacher !== $originalTeacherId) {
+                $isTeacherChanged = true;
+                // Если replacement_teacher_id не установлен явно, используем активного учителя
+                if (!$replacementTeacherId) {
+                    $replacementTeacherId = $activeTeacher;
+                }
+            }
+        }
+
+        // Аналогично для предмета
+        if ($isSub2 && !$isSubjectChanged) {
+            $originalSubjectId = $useDenominator
+                ? ($row->subject_id_denominator ?? $row->subject_id ?? null)
+                : ($row->subject_id ?? null);
+            
+            if ($activeSubject && $originalSubjectId && $activeSubject !== $originalSubjectId) {
+                $isSubjectChanged = true;
+                // Если replacement_subject_id не установлен явно, используем активный предмет
+                if (!$replacementSubjectId) {
+                    $replacementSubjectId = $activeSubject;
+                }
+            }
+        }
+
+        $isChanged = $isTeacherChanged || $isSubjectChanged;
+
+        // ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ
+        \Log::info('FORM2 REPL DEBUG', [
+            'group_id' => $groupId,
+            'date' => $classDate->toDateString(),
+            'lesson' => $lessonNumber,
+            'subgroup' => $subgroup,
+            'isSub2' => $isSub2,
+            'mode' => $mode,
+            'statusMode' => $statusMode,
+            'useDenominator' => $useDenominator,
+            'activeTeacher' => $activeTeacher,
+            'activeSubject' => $activeSubject,
+            'replacementTeacherId' => $replacementTeacherId,
+            'replacementSubjectId' => $replacementSubjectId,
+            'isReplacement' => $isReplacement,
+            'isAbsent' => $isAbsent,
+            'isTeacherChanged' => $isTeacherChanged,
+            'isSubjectChanged' => $isSubjectChanged,
+            'isChanged' => $isChanged,
+            'teacher_id_1' => $useDenominator ? ($row->teacher_id_denominator ?? $row->teacher_id ?? null) : ($row->teacher_id ?? null),
+            'teacher_id_2' => $activeTeacher,
+            'subject_id_1' => $useDenominator ? ($row->subject_id_denominator ?? $row->subject_id ?? null) : ($row->subject_id ?? null),
+            'subject_id_2' => $activeSubject,
+            'repl_teacher_2_num' => $row->replacement_teacher_id_2_num ?? null,
+            'repl_teacher_2_den' => $row->replacement_teacher_id_2_den ?? null,
+            'repl_teacher_1_num' => $row->replacement_teacher_id_1_num ?? null,
+            'repl_teacher_1_den' => $row->replacement_teacher_id_1_den ?? null,
+            'is_repl_2_num' => $row->is_replacement_2_num ?? false,
+            'is_repl_2_den' => $row->is_replacement_2_den ?? false,
+            'is_repl_1_num' => $row->is_replacement_1_num ?? false,
+            'is_repl_1_den' => $row->is_replacement_1_den ?? false,
+        ]);
+
+        // ---------- РАСЧЁТ ЧАСОВ ----------
+        $teacherForHours = $activeTeacher;
+        $hoursPerClass = $this->hoursPerClass($groupId, $activeSubject, $teacherForHours, $classDate, $course);
+        $totalHours = $this->totalHours($groupId, $activeSubject, $teacherForHours, $classDate, $course);
+
+        // ---------- БАЗОВАЯ ЗАПИСЬ ----------
         $base = [
             'group_id' => $groupId,
             'subject_id' => $activeSubject,
@@ -157,17 +250,22 @@ class ScheduleToFormTwoSyncService
             'updated_at' => now(),
         ];
 
-        if ($isReplacement) {
-            // Пара используется как замена: добавляем нагрузку через bonus_hours.
+        $payload = [];
+
+        // ---------- ЛОГИКА ФОРМЫ 2 ----------
+        if ($isAbsent) {
             $payload[] = array_merge($base, [
-                'status' => 'replacement',
+                'status' => 'replaced',
                 'used_hours' => 0,
-                'bonus_hours' => 2,
+                'bonus_hours' => null,
                 'replacement_teacher_id' => $replacementTeacherId,
                 'replacement_subject_id' => $replacementSubjectId,
             ]);
-        } elseif ($isAbsent) {
-            // Пара снята/отменена: отмечаем как заменённую без часов.
+            return $payload;
+        }
+
+        if ($isChanged) {
+            // replaced — всегда
             $payload[] = array_merge($base, [
                 'status' => 'replaced',
                 'used_hours' => 0,
@@ -176,44 +274,48 @@ class ScheduleToFormTwoSyncService
                 'replacement_subject_id' => $replacementSubjectId,
             ]);
 
-            // Если указали, чем заменили (предмет/учитель), добавляем строку замещения.
-            if ($replacementSubjectId || $replacementTeacherId) {
-                $replacementHoursPerClass = $this->hoursPerClass(
+            // replacement — ТОЛЬКО если заменён предмет
+            if ($isSubjectChanged && $replacementSubjectId !== $activeSubject) {
+                $replacementHours = $this->hoursPerClass(
                     $groupId,
-                    $replacementSubjectId ?: $activeSubject,
-                    $replacementTeacherId ?: $activeTeacher,
+                    $replacementSubjectId,
+                    $replacementTeacherId,
                     $classDate,
                     $course
                 );
-                $replacementTotalHours = $this->totalHours(
+
+                $replacementTotal = $this->totalHours(
                     $groupId,
-                    $replacementSubjectId ?: $activeSubject,
-                    $replacementTeacherId ?: $activeTeacher,
+                    $replacementSubjectId,
+                    $replacementTeacherId,
                     $classDate,
                     $course
                 );
 
                 $payload[] = array_merge($base, [
-                    'subject_id' => $replacementSubjectId ?: $activeSubject,
-                    'teacher_id' => $replacementTeacherId ?: $activeTeacher,
-                    'hours_per_class' => $replacementHoursPerClass,
-                    'total_hours' => $replacementTotalHours,
+                    'subject_id' => $replacementSubjectId,
+                    'teacher_id' => $replacementTeacherId,
+                    'hours_per_class' => $replacementHours,
+                    'total_hours' => $replacementTotal,
                     'status' => 'replacement',
                     'used_hours' => 0,
-                    'bonus_hours' => $replacementHoursPerClass,
+                    'bonus_hours' => $replacementHours,
                     'replacement_teacher_id' => $replacementTeacherId,
                     'replacement_subject_id' => $replacementSubjectId,
                 ]);
             }
-        } else {
-            $payload[] = array_merge($base, [
-                'status' => 'normal',
-                'used_hours' => $hoursPerClass,
-                'bonus_hours' => null,
-                'replacement_teacher_id' => null,
-                'replacement_subject_id' => null,
-            ]);
+
+            return $payload;
         }
+
+        // ---------- ОБЫЧНАЯ ПАРА ----------
+        $payload[] = array_merge($base, [
+            'status' => 'normal',
+            'used_hours' => $hoursPerClass,
+            'bonus_hours' => null,
+            'replacement_teacher_id' => null,
+            'replacement_subject_id' => null,
+        ]);
 
         return $payload;
     }
@@ -227,10 +329,12 @@ class ScheduleToFormTwoSyncService
             $key = implode('|', [
                 $row['group_id'] ?? '',
                 $row['class_date'] ?? '',
+                $row['lesson_number'] ?? '', // 🔥 ОБЯЗАТЕЛЬНО
                 $row['year'] ?? '',
                 $row['month'] ?? '',
                 $row['day'] ?? '',
                 $row['subject_id'] ?? '',
+                $row['teacher_id'] ?? '', // 🔥 ВАЖНО: добавляем teacher_id для различения записей с разными учителями
                 $row['mode'] ?? '',
                 $row['subgroup'] ?? '',
             ]);
@@ -378,5 +482,91 @@ class ScheduleToFormTwoSyncService
             'total_hours' => $row->total_hours ?? 0,
             'hours_per_class' => $row->hours_per_class ?? 2,
         ];
+    }
+
+    /**
+     * Получает ID учителя из нормативов для данного предмета и группы
+     * Ищет в текущем месяце и предыдущих месяцах учебного года
+     */
+    protected function getNormativeTeacherId(int $groupId, ?int $subjectId, Carbon $date, int $course = 1): ?int
+    {
+        if (!$subjectId) {
+            return null;
+        }
+
+        $tables = \App\Support\CourseContext::tables($course);
+
+        // Учебный год начинается 1 сентября
+        $studyYearStart = $date->month >= 9
+            ? Carbon::create($date->year, 9, 1)
+            : Carbon::create($date->year - 1, 9, 1);
+
+        $row = \Illuminate\Support\Facades\DB::table($tables['form_two_normatives'])
+            ->where('group_id', $groupId)
+            ->where('subject_id', $subjectId)
+            ->whereNotNull('teacher_id')
+            ->where(function ($q) use ($date, $studyYearStart) {
+                $q->where(function ($qStart) use ($studyYearStart) {
+                    $qStart->where('year', '>', $studyYearStart->year)
+                        ->orWhere(function ($q2) use ($studyYearStart) {
+                            $q2->where('year', $studyYearStart->year)
+                                ->where('month', '>=', $studyYearStart->month);
+                        });
+                })->where(function ($qEnd) use ($date) {
+                    $qEnd->where('year', '<', $date->year)
+                        ->orWhere(function ($q3) use ($date) {
+                            $q3->where('year', $date->year)
+                                ->where('month', '<=', $date->month);
+                        });
+                });
+            })
+            ->orderBy('year', 'desc')
+            ->orderBy('month', 'desc')
+            ->first();
+
+        return $row->teacher_id ?? null;
+    }
+
+    /**
+     * Получает ID предмета из нормативов для данного учителя и группы
+     * Ищет в текущем месяце и предыдущих месяцах учебного года
+     */
+    protected function getNormativeSubjectId(int $groupId, ?int $teacherId, Carbon $date, int $course = 1): ?int
+    {
+        if (!$teacherId) {
+            return null;
+        }
+
+        $tables = \App\Support\CourseContext::tables($course);
+
+        // Учебный год начинается 1 сентября
+        $studyYearStart = $date->month >= 9
+            ? Carbon::create($date->year, 9, 1)
+            : Carbon::create($date->year - 1, 9, 1);
+
+        $row = \Illuminate\Support\Facades\DB::table($tables['form_two_normatives'])
+            ->where('group_id', $groupId)
+            ->where('teacher_id', $teacherId)
+            ->whereNotNull('subject_id')
+            ->where(function ($q) use ($date, $studyYearStart) {
+                $q->where(function ($qStart) use ($studyYearStart) {
+                    $qStart->where('year', '>', $studyYearStart->year)
+                        ->orWhere(function ($q2) use ($studyYearStart) {
+                            $q2->where('year', $studyYearStart->year)
+                                ->where('month', '>=', $studyYearStart->month);
+                        });
+                })->where(function ($qEnd) use ($date) {
+                    $qEnd->where('year', '<', $date->year)
+                        ->orWhere(function ($q3) use ($date) {
+                            $q3->where('year', $date->year)
+                                ->where('month', '<=', $date->month);
+                        });
+                });
+            })
+            ->orderBy('year', 'desc')
+            ->orderBy('month', 'desc')
+            ->first();
+
+        return $row->subject_id ?? null;
     }
 }

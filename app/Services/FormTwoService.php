@@ -138,19 +138,50 @@ class FormTwoService
             $dayData = $rows[$key]['days'][$day] ?? $this->emptyDay();
             $dayData['used_hours'] += $usedHoursValue;
             $dayData['bonus_hours'] += $bonusHoursValue;
-            $dayData['status'] = $this->resolveStatus($dayData['status'], $rec);
+            
+            // Определяем приоритет входящего статуса
+            $incomingStatus = $rec->status ?: (($rec->used_hours ?? 0) > 0 ? 'normal' : 'empty');
+            if ($incomingStatus === 'sick') {
+                $incomingStatus = 'replaced';
+            }
+            $statusPriority = [
+                'empty' => 0,
+                'normal' => 1,
+                'replaced' => 2,
+                'sick' => 2,
+                'replacement' => 3,
+            ];
+            $currentStatus = $dayData['status'] ?? 'empty';
+            $currentPriority = $statusPriority[$currentStatus] ?? 0;
+            $incomingPriority = $statusPriority[$incomingStatus] ?? 0;
+            
+            // Определяем итоговый статус (используем resolveStatus для совместимости)
+            $newStatus = $this->resolveStatus($currentStatus, $rec);
+            
+            // КРИТИЧЕСКИ ВАЖНО: Данные о замене должны браться из записи, которая "победила" по статусу
+            // Если новый статус основан на входящей записи (incomingPriority >= currentPriority),
+            // берём данные о замене из входящей записи
+            // Это гарантирует, что данные о замене не потеряются, если запись с replaced обрабатывается первой
+            if ($incomingPriority >= $currentPriority) {
+                // Входящий статус имеет более высокий или равный приоритет - он "победит"
+                // Обновляем данные о замене из входящей записи (даже если они null)
+                // Это важно, так как запись с replaced может идти первой в цикле
+                $dayData['replacement_teacher_id'] = $rec->replacement_teacher_id;
+                $dayData['replacement_teacher_name'] = $rec->replacement_teacher_id
+                    ? ($teachers[$rec->replacement_teacher_id] ?? '—')
+                    : null;
+                $dayData['replacement_subject_id'] = $rec->replacement_subject_id;
+                $dayData['replacement_subject_name'] = $rec->replacement_subject_id
+                    ? ($subjectNames[$rec->replacement_subject_id] ?? '—')
+                    : null;
+                $dayData['replacement_comment'] = $rec->replacement_comment;
+            }
+            // Если currentPriority > incomingPriority, существующие данные о замене сохраняются
+            
+            $dayData['status'] = $newStatus;
             $dayData['mode'] = $rec->mode ?? $dayData['mode'];
             $dayData['lesson_number'] = $rec->lesson_number ?? $dayData['lesson_number'];
             $dayData['subgroup'] = $rec->subgroup ?? $dayData['subgroup'];
-            $dayData['replacement_teacher_id'] = $rec->replacement_teacher_id ?: $dayData['replacement_teacher_id'];
-            $dayData['replacement_teacher_name'] = $rec->replacement_teacher_id
-                ? ($teachers[$rec->replacement_teacher_id] ?? '—')
-                : ($dayData['replacement_teacher_name'] ?? null);
-            $dayData['replacement_subject_id'] = $rec->replacement_subject_id ?: $dayData['replacement_subject_id'];
-            $dayData['replacement_subject_name'] = $rec->replacement_subject_id
-                ? ($subjectNames[$rec->replacement_subject_id] ?? '—')
-                : ($dayData['replacement_subject_name'] ?? null);
-            $dayData['replacement_comment'] = $rec->replacement_comment ?? $dayData['replacement_comment'];
             $dayData['details'][] = [
                 'status' => $rec->status,
                 'lesson_number' => $rec->lesson_number,

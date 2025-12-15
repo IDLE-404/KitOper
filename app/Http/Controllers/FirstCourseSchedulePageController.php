@@ -147,6 +147,10 @@ class FirstCourseSchedulePageController extends Controller
             $schedule[$groupId]['days'][$day][$lesson]['has_denominator_subgroup2'] = $schedule[$groupId]['days'][$day][$lesson]['has_denominator_subgroup2']
                 || $den2Group2Exists;
 
+            // Определяем режим: если есть знаменатель для любой подгруппы, то mode = numerator/denominator, иначе single
+            $hasDenominator = $den1 || $den2 || $teacherDen1 || $teacherDen2 || $roomDen1 || $roomDen2;
+            $mode = $hasDenominator ? ($isDenominatorWeek ? 'denominator' : 'numerator') : 'single';
+
             $sub1Data = $schedule[$groupId]['days'][$day][$lesson]['sub1'] ?? [];
             if ($subgroupFlag === 1 || $num1 || $teacherNum1 || $roomNum1 || $den1 || $teacherDen1 || $roomDen1) {
                 $sub1Data = array_merge($sub1Data, [
@@ -180,6 +184,10 @@ class FirstCourseSchedulePageController extends Controller
 
             $sub2Data = $schedule[$groupId]['days'][$day][$lesson]['sub2'] ?? [];
             if ($subgroupFlag === 2 || $num2 || $teacherNum2 || $roomNum2 || $den2 || $teacherDen2 || $roomDen2) {
+                // При mode = 'single' замены всегда записываются в поля _1_num, независимо от subgroup
+                $replacementSubgroup = $mode === 'single' ? 1 : 2;
+                $replacementSuffix = $replacementSubgroup === 2 ? '_2' : '_1';
+                
                 $sub2Data = array_merge($sub2Data, [
                     'subject_num' => $num2 ? $subjectResolver($num2) : ($sub2Data['subject_num'] ?? null),
                     'subject_num_id' => $num2 ?? ($sub2Data['subject_num_id'] ?? null),
@@ -197,14 +205,15 @@ class FirstCourseSchedulePageController extends Controller
                     'teacher_conflict_den' => $teacherConfDen2 ?? ($sub2Data['teacher_conflict_den'] ?? null),
                     'absent_num' => $row->is_absent_2_num ?? false,
                     'absent_den' => $row->is_absent_2_den ?? false,
-                    'replacement_flag_num' => $row->is_replacement_2_num ?? false,
-                    'replacement_teacher_num' => $row->replacement_teacher_id_2_num ?? null,
-                    'replacement_subject_num' => $row->replacement_subject_id_2_num ?? null,
-                    'replacement_comment_num' => $row->replacement_comment_2_num ?? null,
-                    'replacement_flag_den' => $row->is_replacement_2_den ?? false,
-                    'replacement_teacher_den' => $row->replacement_teacher_id_2_den ?? null,
-                    'replacement_subject_den' => $row->replacement_subject_id_2_den ?? null,
-                    'replacement_comment_den' => $row->replacement_comment_2_den ?? null,
+                    // Используем правильную подгруппу для чтения полей замены
+                    'replacement_flag_num' => (bool) ($row->{'is_replacement' . $replacementSuffix . '_num'} ?? false),
+                    'replacement_teacher_num' => $row->{'replacement_teacher_id' . $replacementSuffix . '_num'} ?? null,
+                    'replacement_subject_num' => $row->{'replacement_subject_id' . $replacementSuffix . '_num'} ?? null,
+                    'replacement_comment_num' => $row->{'replacement_comment' . $replacementSuffix . '_num'} ?? null,
+                    'replacement_flag_den' => (bool) ($row->{'is_replacement' . $replacementSuffix . '_den'} ?? false),
+                    'replacement_teacher_den' => $row->{'replacement_teacher_id' . $replacementSuffix . '_den'} ?? null,
+                    'replacement_subject_den' => $row->{'replacement_subject_id' . $replacementSuffix . '_den'} ?? null,
+                    'replacement_comment_den' => $row->{'replacement_comment' . $replacementSuffix . '_den'} ?? null,
                 ]);
             }
             $schedule[$groupId]['days'][$day][$lesson]['sub2'] = $sub2Data;

@@ -10,6 +10,18 @@
     $daysCount = count($days ?? []);
     $replacementRows = $replacementRows ?? [];
     $subjects = $subjects ?? collect();
+    
+    // Определяем выходные дни (суббота и воскресенье)
+    $weekendDays = [];
+    if (!empty($days) && isset($month) && isset($year)) {
+        foreach ($days as $day) {
+            $date = \Carbon\Carbon::create($year, $month, $day);
+            $dayOfWeek = $date->dayOfWeek; // 0 = воскресенье, 6 = суббота
+            if ($dayOfWeek == 0 || $dayOfWeek == 6) {
+                $weekendDays[$day] = true;
+            }
+        }
+    }
 @endphp
 
 <div class="container-fluid form-two-container py-3">
@@ -107,7 +119,7 @@
                             <th class="text-muted">Преподаватель</th>
                             <th class="text-muted">Норматив</th>
                             @foreach($days as $d)
-                                <th class="text-center text-muted day-head">{{ $d }}</th>
+                                <th class="text-center text-muted day-head {{ isset($weekendDays[$d]) ? 'weekend' : '' }}">{{ $d }}</th>
                             @endforeach
                             <th class="text-muted">Использовано</th>
                             <th class="text-muted">Бонус</th>
@@ -187,7 +199,7 @@
                                             return implode(', ', $parts);
                                         })->filter()->implode(' | ');
                                     @endphp
-                                    <td class="text-center day-cell">
+                                    <td class="text-center day-cell {{ isset($weekendDays[$d]) ? 'weekend' : '' }}">
                                         <div class="status-chip status-{{ $status }}" title="{{ $tooltip ?: 'Нет записи' }}">
                                             <span class="chip-value">{{ $value }}</span>
                                         </div>
@@ -247,9 +259,15 @@
     .form-two-table .day-head {
         min-width: 54px;
     }
+    .form-two-table .day-head.weekend {
+        background-color: #d1fae5 !important;
+    }
     .day-cell {
         min-width: 70px;
         vertical-align: middle;
+    }
+    .day-cell.weekend {
+        background-color: #d1fae5 !important;
     }
     .status-chip {
         display: inline-flex;

@@ -76,4 +76,34 @@ class FormTwoController extends Controller
 
         return response()->json(['status' => 'ok']);
     }
+
+    public function export(Request $request)
+    {
+        $course = CourseContext::normalize($request->integer('course') ?? 1);
+        $groupId = (int) $request->input('group_id');
+        $month = (int) ($request->input('month') ?? now()->month);
+        $year = (int) ($request->input('year') ?? now()->year);
+
+        if (!$groupId) {
+            return redirect()->back()->with('error', 'Не указана группа');
+        }
+
+        try {
+            $exportService = new \App\Services\FormTwoExportService();
+            $filename = $exportService->export($groupId, $year, $month, $course);
+
+            $months = [
+                1 => 'Январь', 2 => 'Февраль', 3 => 'Март', 4 => 'Апрель',
+                5 => 'Май', 6 => 'Июнь', 7 => 'Июль', 8 => 'Август',
+                9 => 'Сентябрь', 10 => 'Октябрь', 11 => 'Ноябрь', 12 => 'Декабрь',
+            ];
+            $downloadName = 'Форма_2_' . $months[$month] . '_' . $year . '.csv';
+
+            return response()->download($filename, $downloadName, [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+            ])->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Ошибка при экспорте: ' . $e->getMessage());
+        }
+    }
 }

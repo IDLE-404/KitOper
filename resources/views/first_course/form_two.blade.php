@@ -103,6 +103,10 @@
                     <div class="text-muted small">{{ $months[$month] ?? $month }} {{ $year }}</div>
                 </div>
                 <div class="d-flex align-items-center gap-3">
+                    <a href="{{ route('first.schedule.form_two.export', ['group_id' => $groupId, 'month' => $month, 'year' => $year, 'course' => $course]) }}"
+                       class="btn btn-primary btn-sm">
+                        📥 Экспорт в CSV
+                    </a>
                     <div class="form-check form-switch mb-0">
                         <input class="form-check-input" type="checkbox" id="manualToggle">
                         <label class="form-check-label small text-muted" for="manualToggle">Режим коррекции</label>

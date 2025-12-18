@@ -135,6 +135,16 @@ class FormTwoService
                 }
             }
 
+            if ($rec->status === 'replaced' && $rec->replacement_teacher_id) {
+                $replacementRows[] = $this->buildReplacementRow(
+                    $rec,
+                    $recordDate,
+                    $day,
+                    $subjectNames,
+                    $teachers
+                );
+            }
+
             $dayData = $rows[$key]['days'][$day] ?? $this->emptyDay();
             $dayData['used_hours'] += $usedHoursValue;
             $dayData['bonus_hours'] += $bonusHoursValue;
@@ -258,7 +268,7 @@ class FormTwoService
         return [
             'days' => $days,
             'rows' => $rows,
-            'replacement_rows' => [],
+            'replacement_rows' => $this->sortReplacementRows($replacementRows),
         ];
     }
 
@@ -514,6 +524,72 @@ class FormTwoService
     protected function rowKey(int $subjectId, ?int $teacherId): string
     {
         return $subjectId . ':' . ($teacherId ?? 0);
+    }
+
+    protected function buildReplacementRow(
+        object $rec,
+        Carbon $recordDate,
+        int $day,
+        Collection $subjectNames,
+        Collection $teachers
+    ): array {
+        $subjectName = $subjectNames[$rec->subject_id] ?? '—';
+        $teacherName = $rec->teacher_id ? ($teachers[$rec->teacher_id] ?? '—') : '—';
+        $replacementTeacherName = $rec->replacement_teacher_id ? ($teachers[$rec->replacement_teacher_id] ?? '—') : null;
+        $replacementSubjectName = null;
+
+        if (!empty($rec->replacement_subject_id) && $rec->replacement_subject_id !== $rec->subject_id) {
+            $replacementSubjectName = $subjectNames[$rec->replacement_subject_id] ?? '—';
+        }
+
+        return [
+            'class_date' => $recordDate->toDateString(),
+            'class_date_label' => $recordDate->format('d.m.Y'),
+            'day' => $day,
+            'lesson_number' => $rec->lesson_number,
+            'subgroup' => $rec->subgroup ?? 1,
+            'mode' => $rec->mode ?? 'single',
+            'subject_name' => $subjectName,
+            'teacher_name' => $teacherName,
+            'replacement_teacher_name' => $replacementTeacherName,
+            'replacement_teacher_id' => $rec->replacement_teacher_id,
+            'replacement_subject_id' => $rec->replacement_subject_id,
+            'replacement_subject_name' => $replacementSubjectName,
+            'comment' => (string) ($rec->replacement_comment ?? ''),
+            'total_hours' => (int) ($rec->total_hours ?? 0),
+            'hours_per_class' => (int) ($rec->hours_per_class ?? 2),
+            'used_hours_total' => 0,
+            'bonus_hours_total' => 0,
+            'hours_left' => 0,
+            'status' => 'replacement',
+        ];
+    }
+
+    protected function sortReplacementRows(array $rows): array
+    {
+        usort($rows, function (array $a, array $b) {
+            $dateA = $a['class_date'] ?? '';
+            $dateB = $b['class_date'] ?? '';
+            if ($dateA !== $dateB) {
+                return strcmp($dateA, $dateB);
+            }
+
+            $lessonA = (int) ($a['lesson_number'] ?? 0);
+            $lessonB = (int) ($b['lesson_number'] ?? 0);
+            if ($lessonA !== $lessonB) {
+                return $lessonA <=> $lessonB;
+            }
+
+            $subA = (int) ($a['subgroup'] ?? 1);
+            $subB = (int) ($b['subgroup'] ?? 1);
+            if ($subA !== $subB) {
+                return $subA <=> $subB;
+            }
+
+            return strcmp($a['subject_name'] ?? '', $b['subject_name'] ?? '');
+        });
+
+        return $rows;
     }
 
     protected function resolveStatus(string $current, object $rec): string

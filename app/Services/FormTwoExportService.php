@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Support\CourseContext;
+use Carbon\Carbon;
 
 class FormTwoExportService
 {
@@ -14,6 +15,7 @@ class FormTwoExportService
         $report = $formTwoService->buildMonthReport($groupId, $year, $month, $course);
         $rows = $report['rows'] ?? [];
         $days = $report['days'] ?? [];
+        $replacementRows = $report['replacement_rows'] ?? [];
         
         $tables = CourseContext::tables($course);
         $group = \Illuminate\Support\Facades\DB::table($tables['groups'])
@@ -36,7 +38,6 @@ class FormTwoExportService
         }
 
         $file = fopen($filename, 'w');
-        
         // BOM для корректного отображения кириллицы в Excel
         fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
@@ -90,6 +91,25 @@ class FormTwoExportService
             $data[] = $row['hours_left'] ?? 0;
 
             fputcsv($file, $data, ';');
+        }
+
+        if ($replacementRows) {
+            fputcsv($file, []);
+            fputcsv($file, ['Таблица замен (только учителя)'], ';');
+            fputcsv($file, ['Дата', 'Пара', 'Подгр.', 'Предмет', 'Преподаватель', 'Замещающий', 'Комментарий'], ';');
+            foreach ($replacementRows as $replacement) {
+                $formattedDate = $replacement['class_date_label']
+                    ?? ($replacement['class_date'] ? Carbon::parse($replacement['class_date'])->format('d.m.Y') : '');
+                fputcsv($file, [
+                    $formattedDate,
+                    $replacement['lesson_number'] ?? '',
+                    $replacement['subgroup'] ?? '',
+                    $replacement['subject_name'] ?? '—',
+                    $replacement['teacher_name'] ?? '—',
+                    $replacement['replacement_teacher_name'] ?? '—',
+                    $replacement['comment'] ?? '',
+                ], ';');
+            }
         }
 
         fclose($file);

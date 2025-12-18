@@ -242,6 +242,76 @@
         </div>
     </div>
 
+    <div class="card shadow-sm mt-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="fw-semibold">Таблица замен (только учителя)</div>
+                <span class="text-muted small">Выделены только строки с подменой преподавателя</span>
+            </div>
+            @if(count($replacementRows))
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle form-two-table replacement-table">
+                        <thead>
+                            <tr>
+                                <th class="text-muted">#</th>
+                                <th class="text-muted">Предмет</th>
+                                <th class="text-muted">Преподаватель</th>
+                                <th class="text-muted">Норматив</th>
+                                @foreach($days as $d)
+                                    <th class="text-center text-muted day-head {{ isset($weekendDays[$d]) ? 'weekend' : '' }}">{{ $d }}</th>
+                                @endforeach
+                                <th class="text-muted">Использовано</th>
+                                <th class="text-muted">Бонус</th>
+                                <th class="text-muted">Остаток</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($replacementRows as $idx => $replacement)
+                                <tr>
+                                    <td>{{ $idx + 1 }}</td>
+                                    <td>
+                                        <div class="fw-semibold">{{ $replacement['subject_name'] ?? '—' }}</div>
+                                    </td>
+                                    <td>
+                                        <div>{{ $replacement['teacher_name'] ?? '—' }}</div>
+                                        @if(!empty($replacement['replacement_teacher_name']))
+                                            <div class="replacement-detail mt-1">
+                                                замена: {{ $replacement['replacement_teacher_name'] }}
+                                            </div>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        {{ $replacement['total_hours'] ?? 0 }}
+                                        <div class="text-muted small">в часах</div>
+                                    </td>
+                                    @foreach($days as $d)
+                                        @php
+                                            $status = ((int) ($replacement['day'] ?? 0) === (int) $d) ? 'replacement' : 'empty';
+                                            $value = $status === 'replacement' ? '2' : '•';
+                                            $tooltip = $status === 'replacement'
+                                                ? ('Замена: ' . ($replacement['replacement_teacher_name'] ?? '—'))
+                                                : '—';
+                                        @endphp
+                                        <td class="text-center day-cell {{ isset($weekendDays[$d]) ? 'weekend' : '' }}">
+                                            <div class="status-chip status-{{ $status }}" title="{{ $tooltip }}">
+                                                <span class="chip-value">{{ $value }}</span>
+                                            </div>
+                                        </td>
+                                    @endforeach
+                                    <td class="fw-semibold used-cell">{{ $replacement['used_hours_total'] ?? 0 }}</td>
+                                    <td class="fw-semibold text-primary">{{ $replacement['bonus_hours_total'] ?? 0 }}</td>
+                                    <td class="fw-semibold text-success">{{ $replacement['hours_left'] ?? 0 }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <div class="text-muted small">Записей о заменах пока нет.</div>
+            @endif
+        </div>
+    </div>
+
 </div>
 </div>
 
@@ -323,6 +393,20 @@
     .replacement-detail {
         font-size: 12px;
         color: #475569;
+    }
+    .replacement-table th,
+    .replacement-table td {
+        font-size: 13px;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    .replacement-chip {
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
     }
 </style>
 @endpush

@@ -33,6 +33,19 @@ class FormTwoController extends Controller
         $rows = $report['rows'] ?? [];
         $replacementRows = $report['replacement_rows'] ?? [];
         $replacementTableRows = $report['replacement_table_rows'] ?? [];
+        $totals = $report['totals'] ?? ['day_totals' => [], 'column_totals' => []];
+        $dayTotals = $totals['day_totals'] ?? [];
+        $columnTotals = $totals['column_totals'] ?? [
+            'normative' => 0,
+            'used' => 0,
+            'bonus' => 0,
+            'left' => 0,
+        ];
+        foreach ($days as $day) {
+            if (!isset($dayTotals[$day])) {
+                $dayTotals[$day] = 0;
+            }
+        }
 
         $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get(['id', 'teacher_name']);
         $subjects = DB::table($tables['subjects'])
@@ -53,6 +66,8 @@ class FormTwoController extends Controller
             'subjects' => $subjects,
             'course' => $course,
             'holidayDays' => $holidayDays,
+            'dayTotals' => $dayTotals,
+            'columnTotals' => $columnTotals,
         ]);
     }
 

@@ -19,6 +19,14 @@ class FormTwoExportService
         $rows = $report['rows'] ?? [];
         $days = $report['days'] ?? [];
         $replacementRows = $report['replacement_rows'] ?? [];
+        $totals = $report['totals'] ?? $formTwoService->calculateTotals($rows, $days);
+        $dayTotals = $totals['day_totals'] ?? [];
+        $columnTotals = $totals['column_totals'] ?? [
+            'normative' => 0,
+            'used' => 0,
+            'bonus' => 0,
+            'left' => 0,
+        ];
         
         $tables = CourseContext::tables($course);
         $group = \Illuminate\Support\Facades\DB::table($tables['groups'])
@@ -95,6 +103,20 @@ class FormTwoExportService
 
             fputcsv($file, $data, ';');
         }
+
+        $totalsRow = [
+            '',
+            'Итого',
+            '',
+            $columnTotals['normative'] ?? 0,
+        ];
+        foreach ($days as $day) {
+            $totalsRow[] = $dayTotals[$day] ?? 0;
+        }
+        $totalsRow[] = $columnTotals['used'] ?? 0;
+        $totalsRow[] = $columnTotals['bonus'] ?? 0;
+        $totalsRow[] = $columnTotals['left'] ?? 0;
+        fputcsv($file, $totalsRow, ';');
 
         if ($replacementRows) {
             fputcsv($file, []);

@@ -264,12 +264,16 @@ class FormTwoService
 
         $sortedReplacements = $this->sortReplacementRows($replacementRows);
 
-        return [
+        $report = [
             'days' => $days,
             'rows' => $rows,
             'replacement_rows' => $sortedReplacements,
             'replacement_table_rows' => $this->buildReplacementTableRows($sortedReplacements, $days),
         ];
+
+        $report['totals'] = $this->calculateTotals($rows, $days);
+
+        return $report;
     }
 
     /**
@@ -654,6 +658,39 @@ class FormTwoService
         });
 
         return $result;
+    }
+
+    public function calculateTotals(array $rows, array $days): array
+    {
+        $dayTotals = [];
+        foreach ($days as $day) {
+            $dayTotals[$day] = 0;
+        }
+
+        $columnTotals = [
+            'normative' => 0,
+            'used' => 0,
+            'bonus' => 0,
+            'left' => 0,
+        ];
+
+        foreach ($rows as $row) {
+            $columnTotals['normative'] += (int) ($row['total_hours'] ?? 0);
+            $columnTotals['used'] += (int) ($row['used_hours_total'] ?? 0);
+            $columnTotals['bonus'] += (int) ($row['bonus_hours_total'] ?? 0);
+            $columnTotals['left'] += (int) ($row['hours_left'] ?? 0);
+
+            foreach ($row['days'] as $day => $cell) {
+                if (array_key_exists($day, $dayTotals)) {
+                    $dayTotals[$day] += (int) ($cell['used_hours'] ?? 0);
+                }
+            }
+        }
+
+        return [
+            'day_totals' => $dayTotals,
+            'column_totals' => $columnTotals,
+        ];
     }
 
     protected function normalizeHolidayDays(array $holidayDays): array

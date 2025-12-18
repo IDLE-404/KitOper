@@ -11,6 +11,8 @@
     $replacementRows = $replacementRows ?? [];
     $replacementTableRows = $replacementTableRows ?? [];
     $subjects = $subjects ?? collect();
+    $dayTotals = $dayTotals ?? [];
+    $columnTotals = $columnTotals ?? ['normative' => 0, 'used' => 0, 'bonus' => 0, 'left' => 0];
     $holidayDays = $holidayDays ?? [];
     
     // Определяем выходные дни (суббота и воскресенье)
@@ -250,6 +252,18 @@
                             <tr><td colspan="{{ 7 + $daysCount }}" class="text-center text-muted">Данных нет</td></tr>
                         @endforelse
                     </tbody>
+                    <tfoot>
+                        <tr class="column-totals-row">
+                            <td colspan="3" class="text-end text-muted small">Итого:</td>
+                            <td class="text-center totals-cell text-primary">{{ $columnTotals['normative'] ?? 0 }}</td>
+                            @foreach($days as $d)
+                                <td class="text-center totals-cell text-primary">{{ $dayTotals[$d] ?? 0 }}</td>
+                            @endforeach
+                            <td class="fw-semibold">{{ $columnTotals['used'] ?? 0 }}</td>
+                            <td class="fw-semibold text-primary">{{ $columnTotals['bonus'] ?? 0 }}</td>
+                            <td class="fw-semibold text-success">{{ $columnTotals['left'] ?? 0 }}</td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
@@ -401,6 +415,20 @@
     .day-cell.holiday .status-chip {
         border-color: #fcd34d;
         background: #fff8d5;
+    }
+    .totals-row {
+        background: #e0f2fe;
+        font-weight: 600;
+    }
+    .totals-cell {
+        border-top: 2px solid #bae6fd;
+    }
+    .column-totals-row {
+        background: #dcfce7;
+        font-weight: 600;
+    }
+    .column-totals-row .totals-cell {
+        border-top: 2px solid #86efac;
     }
     .status-chip {
         display: inline-flex;

@@ -9,9 +9,10 @@ use Illuminate\Support\Facades\DB;
 
 class FormTwoService
 {
-    public function buildMonthReport(int $groupId, int $year, int $month, int $course = 1): array
+    public function buildMonthReport(int $groupId, int $year, int $month, int $course = 1, array $holidayDays = []): array
     {
         $tables = CourseContext::tables($course);
+        $holidayFlags = $this->normalizeHolidayDays($holidayDays);
 
         $monthStart = Carbon::create($year, $month, 1)->startOfMonth();
         $monthEnd = $monthStart->copy()->endOfMonth();
@@ -96,6 +97,10 @@ class FormTwoService
             $recordDate = $rec->class_date
                 ? Carbon::parse($rec->class_date)
                 : Carbon::create((int) ($rec->year ?? $year), (int) ($rec->month ?? $month), (int) ($rec->day ?? 1));
+            $day = $this->resolveRecordDay($rec, $recordDate, $daysCount);
+            if ($day === null) {
+                continue;
+            }
             $inCurrentMonth = $recordDate->between($monthStart, $monthEnd);
 
             $key = $this->rowKey($subjectId, $teacherId);
@@ -118,21 +123,13 @@ class FormTwoService
             $spentDelta = $usedHoursValue - $bonusHoursValue;
 
             if ($inCurrentMonth) {
+                if (isset($holidayFlags[$day])) {
+                    continue;
+                }
                 $spentCurrent[$key] = ($spentCurrent[$key] ?? 0) + $spentDelta;
             } else {
                 $spentBefore[$key] = ($spentBefore[$key] ?? 0) + $spentDelta;
-            }
-
-            if (!$inCurrentMonth) {
                 continue;
-            }
-
-            $day = (int) ($rec->day ?? 0);
-            if ($day < 1 || $day > $daysCount) {
-                $day = (int) $recordDate->day;
-                if ($day < 1 || $day > $daysCount) {
-                    continue;
-                }
             }
 
             if ($rec->status === 'replaced' && $rec->replacement_teacher_id) {
@@ -265,22 +262,26 @@ class FormTwoService
 
         $rows = $this->sortRows($rows, $preferredOrder);
 
+        $sortedReplacements = $this->sortReplacementRows($replacementRows);
+
         return [
             'days' => $days,
             'rows' => $rows,
-            'replacement_rows' => $this->sortReplacementRows($replacementRows),
+            'replacement_rows' => $sortedReplacements,
+            'replacement_table_rows' => $this->buildReplacementTableRows($sortedReplacements, $days),
         ];
     }
 
     /**
      * Ручная коррекция (используется редко). Ограничиваемся изменением статуса/комментария.
      */
-    public function saveMonthRecords(int $groupId, int $year, int $month, array $rows, int $course = 1): void
+    public function saveMonthRecords(int $groupId, int $year, int $month, array $rows, int $course = 1, array $holidayDays = []): void
     {
         $tables = CourseContext::tables($course);
         $payload = [];
         $normativePayload = [];
         $now = now();
+        $holidayFlags = $this->normalizeHolidayDays($holidayDays);
 
         foreach ($rows as $row) {
             $subjectId = $row['subject_id'] ?? null;
@@ -308,6 +309,10 @@ class FormTwoService
             }
 
             foreach ($days as $day => $cell) {
+                $dayIndex = (int) $day;
+                if (isset($holidayFlags[$dayIndex])) {
+                    continue;
+                }
                 $status = $cell['status'] ?? 'normal';
                 if ($status === 'empty') {
                     continue; // не пишем пустые клетки в базу, чтобы не ловить enum-тринкат
@@ -542,6 +547,9 @@ class FormTwoService
             $replacementSubjectName = $subjectNames[$rec->replacement_subject_id] ?? '—';
         }
 
+        $hoursPerClass = (int) ($rec->hours_per_class ?? 2);
+        $replacementHours = (int) ($rec->bonus_hours ?? $hoursPerClass);
+
         return [
             'class_date' => $recordDate->toDateString(),
             'class_date_label' => $recordDate->format('d.m.Y'),
@@ -549,6 +557,8 @@ class FormTwoService
             'lesson_number' => $rec->lesson_number,
             'subgroup' => $rec->subgroup ?? 1,
             'mode' => $rec->mode ?? 'single',
+            'subject_id' => $rec->subject_id,
+            'teacher_id' => $rec->teacher_id,
             'subject_name' => $subjectName,
             'teacher_name' => $teacherName,
             'replacement_teacher_name' => $replacementTeacherName,
@@ -557,7 +567,8 @@ class FormTwoService
             'replacement_subject_name' => $replacementSubjectName,
             'comment' => (string) ($rec->replacement_comment ?? ''),
             'total_hours' => (int) ($rec->total_hours ?? 0),
-            'hours_per_class' => (int) ($rec->hours_per_class ?? 2),
+            'hours_per_class' => $hoursPerClass,
+            'replacement_hours' => $replacementHours,
             'used_hours_total' => 0,
             'bonus_hours_total' => 0,
             'hours_left' => 0,
@@ -590,6 +601,84 @@ class FormTwoService
         });
 
         return $rows;
+    }
+
+    protected function buildReplacementTableRows(array $replacementRows, array $days): array
+    {
+        $template = [];
+        foreach ($days as $day) {
+            $template[(int) $day] = [
+                'status' => 'empty',
+                'value' => '',
+                'replacement_teacher_name' => null,
+            ];
+        }
+
+        $rows = [];
+        foreach ($replacementRows as $replacement) {
+            $key = $this->rowKey($replacement['subject_id'] ?? 0, $replacement['teacher_id'] ?? 0);
+            if (!isset($rows[$key])) {
+                $rows[$key] = [
+                    'subject_id' => $replacement['subject_id'] ?? null,
+                    'teacher_id' => $replacement['teacher_id'] ?? null,
+                    'subject_name' => $replacement['subject_name'] ?? '—',
+                    'teacher_name' => $replacement['teacher_name'] ?? '—',
+                    'total_hours' => $replacement['total_hours'] ?? 0,
+                    'hours_per_class' => $replacement['hours_per_class'] ?? 0,
+                    'days' => $template,
+                    'used_hours_total' => 0,
+                    'bonus_hours_total' => 0,
+                    'hours_left' => 0,
+                    'hours_left_start' => $replacement['total_hours'] ?? 0,
+                ];
+            }
+
+            $day = (int) ($replacement['day'] ?? 0);
+            if (!$day || !isset($rows[$key]['days'][$day])) {
+                continue;
+            }
+
+            $value = $replacement['replacement_hours'] ? (string) $replacement['replacement_hours'] : 'З';
+            $rows[$key]['days'][$day] = [
+                'status' => 'replacement',
+                'value' => $value,
+                'replacement_teacher_name' => $replacement['replacement_teacher_name'],
+            ];
+
+            $rows[$key]['bonus_hours_total'] += $replacement['replacement_hours'] ?? 0;
+        }
+
+        $result = array_values($rows);
+        usort($result, function (array $a, array $b) {
+            return ($a['subject_name'] ?? '') <=> ($b['subject_name'] ?? '');
+        });
+
+        return $result;
+    }
+
+    protected function normalizeHolidayDays(array $holidayDays): array
+    {
+        $flags = [];
+        foreach ($holidayDays as $day => $meta) {
+            $dayIndex = (int) $day;
+            if ($dayIndex < 1 || $dayIndex > 31) {
+                continue;
+            }
+            $flags[$dayIndex] = true;
+        }
+        return $flags;
+    }
+
+    protected function resolveRecordDay(object $rec, Carbon $recordDate, int $daysCount): ?int
+    {
+        $day = (int) ($rec->day ?? 0);
+        if ($day < 1 || $day > $daysCount) {
+            $day = (int) $recordDate->day;
+        }
+        if ($day < 1 || $day > $daysCount) {
+            return null;
+        }
+        return $day;
     }
 
     protected function resolveStatus(string $current, object $rec): string

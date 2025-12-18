@@ -9,7 +9,9 @@
     ];
     $daysCount = count($days ?? []);
     $replacementRows = $replacementRows ?? [];
+    $replacementTableRows = $replacementTableRows ?? [];
     $subjects = $subjects ?? collect();
+    $holidayDays = $holidayDays ?? [];
     
     // Определяем выходные дни (суббота и воскресенье)
     $weekendDays = [];
@@ -89,6 +91,10 @@
                 <span class="status-chip status-empty">•</span>
                 <span class="text-muted ms-2 small">Нет занятия</span>
             </div>
+            <div class="legend-item">
+                <span class="status-chip holiday-chip">П</span>
+                <span class="text-muted ms-2 small">Национальный праздник</span>
+            </div>
             <div class="ms-auto text-muted small">
                 Статусы поступают из расписания. Ручная коррекция — только в исключительных случаях.
             </div>
@@ -123,7 +129,7 @@
                             <th class="text-muted">Преподаватель</th>
                             <th class="text-muted">Норматив</th>
                             @foreach($days as $d)
-                                <th class="text-center text-muted day-head {{ isset($weekendDays[$d]) ? 'weekend' : '' }}">{{ $d }}</th>
+                                <th class="text-center text-muted day-head {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
                             @endforeach
                             <th class="text-muted">Использовано</th>
                             <th class="text-muted">Бонус</th>
@@ -202,30 +208,37 @@
                                             }
                                             return implode(', ', $parts);
                                         })->filter()->implode(' | ');
+                                        $holidayMeta = $holidayDays[$d] ?? null;
+                                        $holidayNote = $holidayMeta ? ('Праздник: ' . $holidayMeta['name']) : null;
+                                        $titleParts = array_filter([$tooltip, $holidayNote]);
+                                        $cellTitle = $titleParts ? implode(' | ', $titleParts) : 'Нет записи';
                                     @endphp
-                                    <td class="text-center day-cell {{ isset($weekendDays[$d]) ? 'weekend' : '' }}">
-                                        <div class="status-chip status-{{ $status }}" title="{{ $tooltip ?: 'Нет записи' }}">
+                                    <td class="text-center day-cell {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">
+                                        <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
                                             <span class="chip-value">{{ $value }}</span>
                                         </div>
                                         <div class="manual-input d-none mt-1">
-                                            <select class="form-select form-select-sm cell-status" data-day="{{ $d }}">
+                                            <select class="form-select form-select-sm cell-status" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
                                                 <option value="empty" @selected($status === 'empty')>—</option>
                                                 <option value="normal" @selected($status === 'normal')>Норма</option>
                                                 <option value="replaced" @selected($status === 'replaced')>Замена (замещённая)</option>
                                                 <option value="replacement" @selected($status === 'replacement')>Замена (замещающая)</option>
                                             </select>
-                                            <select class="form-select form-select-sm cell-repl mt-1" data-day="{{ $d }}">
+                                            <select class="form-select form-select-sm cell-repl mt-1" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
                                                 <option value="">— заменяющий</option>
                                                 @foreach($teachers as $t)
                                                     <option value="{{ $t->id }}" @selected(($cell['replacement_teacher_id'] ?? null) == $t->id)>{{ $t->teacher_name }}</option>
                                                 @endforeach
                                             </select>
-                                            <select class="form-select form-select-sm cell-repl-subject mt-1" data-day="{{ $d }}">
+                                            <select class="form-select form-select-sm cell-repl-subject mt-1" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
                                                 <option value="">— замещающий предмет</option>
                                                 @foreach($subjects as $s)
                                                     <option value="{{ $s->id }}" @selected(($cell['replacement_subject_id'] ?? null) == $s->id)>{{ $s->title }}</option>
                                                 @endforeach
                                             </select>
+                                            @if(isset($holidayDays[$d]))
+                                                <div class="text-warning small mt-1">Редактирование отключено — {{ $holidayDays[$d]['name'] }}</div>
+                                            @endif
                                         </div>
                                     </td>
                                 @endforeach
@@ -244,71 +257,107 @@
 
     <div class="card shadow-sm mt-3">
         <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <div class="fw-semibold">Таблица замен (только учителя)</div>
-                <span class="text-muted small">Выделены только строки с подменой преподавателя</span>
-            </div>
-            @if(count($replacementRows))
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle form-two-table replacement-table">
-                        <thead>
-                            <tr>
-                                <th class="text-muted">#</th>
-                                <th class="text-muted">Предмет</th>
-                                <th class="text-muted">Преподаватель</th>
-                                <th class="text-muted">Норматив</th>
-                                @foreach($days as $d)
-                                    <th class="text-center text-muted day-head {{ isset($weekendDays[$d]) ? 'weekend' : '' }}">{{ $d }}</th>
-                                @endforeach
-                                <th class="text-muted">Использовано</th>
-                                <th class="text-muted">Бонус</th>
-                                <th class="text-muted">Остаток</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($replacementRows as $idx => $replacement)
-                                <tr>
-                                    <td>{{ $idx + 1 }}</td>
-                                    <td>
-                                        <div class="fw-semibold">{{ $replacement['subject_name'] ?? '—' }}</div>
-                                    </td>
-                                    <td>
-                                        <div>{{ $replacement['teacher_name'] ?? '—' }}</div>
-                                        @if(!empty($replacement['replacement_teacher_name']))
-                                            <div class="replacement-detail mt-1">
-                                                замена: {{ $replacement['replacement_teacher_name'] }}
-                                            </div>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        {{ $replacement['total_hours'] ?? 0 }}
-                                        <div class="text-muted small">в часах</div>
-                                    </td>
-                                    @foreach($days as $d)
-                                        @php
-                                            $status = ((int) ($replacement['day'] ?? 0) === (int) $d) ? 'replacement' : 'empty';
-                                            $value = $status === 'replacement' ? '2' : '•';
-                                            $tooltip = $status === 'replacement'
-                                                ? ('Замена: ' . ($replacement['replacement_teacher_name'] ?? '—'))
-                                                : '—';
-                                        @endphp
-                                        <td class="text-center day-cell {{ isset($weekendDays[$d]) ? 'weekend' : '' }}">
-                                            <div class="status-chip status-{{ $status }}" title="{{ $tooltip }}">
-                                                <span class="chip-value">{{ $value }}</span>
-                                            </div>
-                                        </td>
-                                    @endforeach
-                                    <td class="fw-semibold used-cell">{{ $replacement['used_hours_total'] ?? 0 }}</td>
-                                    <td class="fw-semibold text-primary">{{ $replacement['bonus_hours_total'] ?? 0 }}</td>
-                                    <td class="fw-semibold text-success">{{ $replacement['hours_left'] ?? 0 }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
+                <div>
+                    <div class="fw-semibold">Только замены преподавателей</div>
+                    <div class="text-muted small">повторяет форму 2, но показывает только фактические подмены</div>
                 </div>
-            @else
-                <div class="text-muted small">Записей о заменах пока нет.</div>
-            @endif
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle form-two-table replacement-table">
+                    <thead>
+                        <tr>
+                            <th class="text-muted">#</th>
+                            <th class="text-muted">Предмет</th>
+                            <th class="text-muted">Преподаватель</th>
+                            <th class="text-muted">Норматив</th>
+                            @foreach($days as $d)
+                                <th class="text-center text-muted day-head {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
+                            @endforeach
+                            <th class="text-muted">Использовано</th>
+                            <th class="text-muted">Бонус</th>
+                            <th class="text-muted">Остаток</th>
+                        </tr>
+                    </thead>
+                    <tbody id="replacementTableBody">
+                        @forelse($replacementTableRows as $idx => $row)
+                            <tr data-row="{{ $idx }}">
+                                <td>{{ $idx + 1 }}</td>
+                                <td>
+                                    <div class="fw-semibold">{{ $row['subject_name'] ?? '—' }}</div>
+                                    <input type="hidden" class="row-subject" value="{{ $row['subject_id'] }}">
+                                    <input type="hidden" class="row-hours-per-class" value="{{ $row['hours_per_class'] ?? 2 }}">
+                                    <input type="hidden" class="row-total-hours" value="{{ $row['total_hours'] ?? 0 }}">
+                                </td>
+                                <td>
+                                    <div>{{ $row['teacher_name'] ?? '—' }}</div>
+                                    <input type="hidden" class="row-teacher" value="{{ $row['teacher_id'] }}">
+                                </td>
+                                <td>
+                                    <div class="small text-muted">
+                                        Остаток на начало:
+                                        <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
+                                    </div>
+                                    <div class="small text-muted">По паре: {{ $row['hours_per_class'] ?? 2 }}</div>
+                                </td>
+                                @foreach($days as $d)
+                                    @php
+                                        $cell = $row['days'][$d] ?? [];
+                                        $status = $cell['status'] ?? 'empty';
+                                        $value = '';
+                                        if ($status === 'normal') {
+                                            $value = $cell['used_hours'] ?? $row['hours_per_class'] ?? '2';
+                                        } elseif ($status === 'replacement') {
+                                            $value = $cell['bonus_hours'] ?? $row['hours_per_class'] ?? '2';
+                                        } elseif ($status === 'replaced') {
+                                            $value = '■';
+                                        } elseif ($status === 'sick') {
+                                            $value = 'Б';
+                                        }
+                                        $tooltip = collect($cell['details'] ?? [])->map(function ($detail) {
+                                            $parts = [];
+                                            if (!empty($detail['lesson_number'])) {
+                                                $parts[] = 'Пара ' . $detail['lesson_number'];
+                                            }
+                                            if (!empty($detail['subgroup'])) {
+                                                $parts[] = 'подгр. ' . $detail['subgroup'];
+                                            }
+                                            if (!empty($detail['mode'])) {
+                                                $parts[] = 'режим: ' . $detail['mode'];
+                                            }
+                                            if (!empty($detail['status'])) {
+                                                $parts[] = 'статус: ' . $detail['status'];
+                                            }
+                                            if (!empty($detail['replacement_teacher_name'])) {
+                                                $parts[] = 'замена: ' . $detail['replacement_teacher_name'];
+                                            }
+                                            if (!empty($detail['replacement_subject_name'])) {
+                                                $parts[] = 'предмет: ' . $detail['replacement_subject_name'];
+                                            }
+                                            return implode(', ', $parts);
+                                        })->filter()->implode(' | ');
+                                        $holidayMeta = $holidayDays[$d] ?? null;
+                                        $holidayNote = $holidayMeta ? ('Праздник: ' . $holidayMeta['name']) : null;
+                                        $titleParts = array_filter([$tooltip, $holidayNote]);
+                                        $defaultTitle = $status === 'empty' ? '—' : 'Нет записи';
+                                        $cellTitle = $titleParts ? implode(' | ', $titleParts) : $defaultTitle;
+                                    @endphp
+                                    <td class="text-center day-cell {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">
+                                        <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
+                                            <span class="chip-value">{{ $status === 'empty' ? '' : $value }}</span>
+                                        </div>
+                                    </td>
+                                @endforeach
+                                <td class="fw-semibold used-cell">{{ $row['used_hours_total'] ?? 0 }}</td>
+                                <td class="fw-semibold text-primary">{{ $row['bonus_hours_total'] ?? 0 }}</td>
+                                <td class="fw-semibold text-success">{{ $row['hours_left'] ?? 0 }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="{{ 7 + $daysCount }}" class="text-center text-muted">Данных нет</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -336,12 +385,22 @@
     .form-two-table .day-head.weekend {
         background-color: #d1fae5 !important;
     }
+    .form-two-table .day-head.holiday {
+        background-color: #fff7d6 !important;
+    }
     .day-cell {
         min-width: 70px;
         vertical-align: middle;
     }
     .day-cell.weekend {
         background-color: #d1fae5 !important;
+    }
+    .day-cell.holiday {
+        background-color: #fff7d6 !important;
+    }
+    .day-cell.holiday .status-chip {
+        border-color: #fcd34d;
+        background: #fff8d5;
     }
     .status-chip {
         display: inline-flex;
@@ -375,6 +434,11 @@
         background: #f8fafc;
         color: #94a3b8;
     }
+    .status-chip.holiday-chip {
+        background: #fff8d5;
+        color: #92400e;
+        border-color: #fcd34d;
+    }
     .chip-value {
         display: inline-block;
         min-width: 14px;
@@ -407,6 +471,10 @@
         align-items: center;
         justify-content: center;
         font-size: 12px;
+    }
+    .replacement-empty-cell {
+        width: 50px;
+        height: 36px;
     }
 </style>
 @endpush

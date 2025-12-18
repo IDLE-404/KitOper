@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Services\KazakhstanHolidayService;
 use App\Support\CourseContext;
 use Carbon\Carbon;
 
@@ -12,7 +13,9 @@ class FormTwoExportService
     public function export(int $groupId, int $year, int $month, int $course = 1): string
     {
         $formTwoService = new FormTwoService();
-        $report = $formTwoService->buildMonthReport($groupId, $year, $month, $course);
+        $holidayService = new KazakhstanHolidayService();
+        $holidayDays = $holidayService->getMonthHolidays($year, $month);
+        $report = $formTwoService->buildMonthReport($groupId, $year, $month, $course, $holidayDays);
         $rows = $report['rows'] ?? [];
         $days = $report['days'] ?? [];
         $replacementRows = $report['replacement_rows'] ?? [];

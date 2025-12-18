@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\FormTwoService;
+use App\Services\KazakhstanHolidayService;
 use App\Support\CourseContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -10,8 +11,10 @@ use Illuminate\Support\Facades\DB;
 
 class FormTwoController extends Controller
 {
-    public function __construct(private readonly FormTwoService $service)
-    {
+    public function __construct(
+        private readonly FormTwoService $service,
+        private readonly KazakhstanHolidayService $holidayService
+    ) {
     }
 
     public function index(Request $request)
@@ -24,10 +27,12 @@ class FormTwoController extends Controller
         $month = (int) ($request->input('month') ?? now()->month);
         $year = (int) ($request->input('year') ?? now()->year);
 
-        $report = $groupId ? $this->service->buildMonthReport($groupId, $year, $month, $course) : ['rows' => [], 'days' => []];
+        $holidayDays = $this->holidayService->getMonthHolidays($year, $month);
+        $report = $groupId ? $this->service->buildMonthReport($groupId, $year, $month, $course, $holidayDays) : ['rows' => [], 'days' => []];
         $days = $report['days'] ?? range(1, Carbon::create($year, max(1, min(12, $month)), 1)->daysInMonth);
         $rows = $report['rows'] ?? [];
         $replacementRows = $report['replacement_rows'] ?? [];
+        $replacementTableRows = $report['replacement_table_rows'] ?? [];
 
         $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get(['id', 'teacher_name']);
         $subjects = DB::table($tables['subjects'])
@@ -44,8 +49,10 @@ class FormTwoController extends Controller
             'days' => $days,
             'teachers' => $teachers,
             'replacementRows' => $replacementRows,
+            'replacementTableRows' => $replacementTableRows,
             'subjects' => $subjects,
             'course' => $course,
+            'holidayDays' => $holidayDays,
         ]);
     }
 
@@ -66,12 +73,15 @@ class FormTwoController extends Controller
 
         $course = CourseContext::normalize($data['course'] ?? $request->integer('course') ?? 1);
 
+        $holidayDays = $this->holidayService->getMonthHolidays($data['year'], $data['month']);
+
         $this->service->saveMonthRecords(
             (int) $data['group_id'],
             (int) $data['year'],
             (int) $data['month'],
             $data['rows'],
-            $course
+            $course,
+            $holidayDays
         );
 
         return response()->json(['status' => 'ok']);

@@ -62,6 +62,60 @@
     .btn-expand:hover {
         box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35);
     }
+    .holiday-banner {
+        margin: 1rem 0;
+        padding: 0.8rem 1rem;
+        border-radius: 12px;
+        background: #fff7d6;
+        border: 1px solid #fcd34d;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        font-size: 0.85rem;
+    }
+    .holiday-banner__title {
+        font-weight: 600;
+        color: #92400e;
+    }
+    .holiday-pill {
+        background: #fff;
+        border-radius: 999px;
+        padding: 0.2rem 0.6rem;
+        border: 1px solid #fbbf24;
+        color: #92400e;
+        font-size: 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    .day-fieldset {
+        border: none;
+        padding: 0;
+        margin: 0;
+    }
+    .day-fieldset[disabled] {
+        opacity: 0.8;
+    }
+    .holiday-day-indicator {
+        font-size: 0.65rem;
+        color: #92400e;
+        border: 1px solid #fcd34d;
+        border-radius: 999px;
+        padding: 0 0.4rem;
+        margin-left: 0.4rem;
+    }
+    .holiday-row {
+        background-color: #fefce8;
+    }
+    .holiday-note-block {
+        margin-top: 0.6rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        background: #fef9c3;
+        font-size: 0.8rem;
+        color: #7c2d12;
+    }
 </style>
 @endpush
 
@@ -112,11 +166,28 @@
                 <a href="{{ route('first.schedule.index', ['course' => $course ?? 1]) }}" class="btn btn-outline-secondary">← Назад к списку расписания</a>
             </div>
 
+            @if(!empty($weeklyHolidays))
+                <div class="holiday-banner">
+                    <div class="holiday-banner__title">Праздники недели:</div>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach($weeklyHolidays as $holiday)
+                            <span class="holiday-pill" title="{{ $holiday['name'] ?? '' }}">
+                                <span>🎉</span>
+                                {{ $holiday['label'] ?? '' }} ({{ $holiday['day'] ?? 'день' }}) — {{ $holiday['name'] ?? 'праздник' }}
+                            </span>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
             <div class="day-tabs" id="dayTabs">
                 @foreach($days as $index => $day)
                     <button type="button" class="day-tab {{ $index === 0 ? 'active' : '' }}" data-target="{{ $day['key'] }}">
                         <span class="short">{{ $day['label'] }}</span>
                         <span class="full-name">{{ $day['full'] }}</span>
+                        @if(!empty($day['holiday']))
+                            <span class="holiday-day-indicator" title="Праздник — {{ $day['holiday']['name'] }}">🎉</span>
+                        @endif
                     </button>
                 @endforeach
             </div>
@@ -124,25 +195,27 @@
             @foreach($days as $index => $day)
                 @php
                     $dayKey = $day['key'];
+                    $isHoliday = !empty($day['holiday']);
                 @endphp
                 <div class="day-pane {{ $index === 0 ? 'active' : '' }}" id="pane-{{ $dayKey }}">
-                    <table class="schedule-table">
-                        <thead>
-                            <tr>
-                                <th style="width:80px;">№ пары</th>
-                                <th>Предмет (ч/з)</th>
-                                <th>Преподаватель (ч/з)</th>
-                                <th style="width:160px;">Аудитория (ч/з)</th>
-                                <th style="width:140px;">Подгруппа</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($pairs as $pair)
-                                @php
-                                    $rowA = $existing[$dayKey][$pair]['1'] ?? $existing[$dayKey][$pair]['A'] ?? $existing[$dayKey][$pair][''] ?? null;
-                                    $rowB = $existing[$dayKey][$pair]['2'] ?? $existing[$dayKey][$pair]['B'] ?? null;
-                                @endphp
+                    <fieldset class="day-fieldset" @disabled($isHoliday)>
+                        <table class="schedule-table">
+                            <thead>
                                 <tr>
+                                    <th style="width:80px;">№ пары</th>
+                                    <th>Предмет (ч/з)</th>
+                                    <th>Преподаватель (ч/з)</th>
+                                    <th style="width:160px;">Аудитория (ч/з)</th>
+                                    <th style="width:140px;">Подгруппа</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($pairs as $pair)
+                                    @php
+                                        $rowA = $existing[$dayKey][$pair]['1'] ?? $existing[$dayKey][$pair]['A'] ?? $existing[$dayKey][$pair][''] ?? null;
+                                        $rowB = $existing[$dayKey][$pair]['2'] ?? $existing[$dayKey][$pair]['B'] ?? null;
+                                    @endphp
+                                    <tr>
                                     <td><span class="pill-badge">{{ $pair }}</span></td>
                                     <td>
                                         <div class="mb-3">
@@ -266,10 +339,17 @@
                                         </div>
                                     </td>
                                     <td class="text-muted">Подгруппа 2</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </fieldset>
+                    @if($isHoliday)
+                        <div class="holiday-note-block">
+                            В {{ $day['full'] ?? 'день' }} ({{ $day['label'] ?? '' }}) — {{ $day['holiday']['name'] ?? 'праздник' }}.
+                            Записи сюда блокируются автоматически.
+                        </div>
+                    @endif
                 </div>
             @endforeach
 

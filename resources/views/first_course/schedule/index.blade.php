@@ -2,11 +2,83 @@
 @push('styles')
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="{{ asset('css/schedule-modern.css') }}">
+<style>
+    .holiday-banner {
+        margin: 1rem 0;
+        padding: 0.75rem 1rem;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        font-size: 0.9rem;
+    }
+    .holiday-banner__title {
+        font-weight: 600;
+        color: #92400e;
+        margin-right: 0.5rem;
+    }
+    .holiday-banner__list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+    .holiday-pill {
+        padding: 0.15rem 0.6rem;
+        border-radius: 999px;
+        background: #fff7d6;
+        border: 1px solid #fcd34d;
+        color: #92400e;
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
+    .holiday-row {
+        background-color: #fefce8;
+    }
+    .grid-cell.day-col.holiday-day {
+        background-color: #fffbeb;
+    }
+    .holiday-note {
+        font-size: 0.75rem;
+        color: #92400e;
+    }
+    .holiday-cell {
+        background-color: #fff9c2;
+    }
+    .holiday-lock {
+        font-size: 0.75rem;
+        color: #7c2d12;
+        padding: 0.1rem 0.3rem;
+        border-radius: 4px;
+        background: #fef3c7;
+        margin-bottom: 0.35rem;
+    }
+</style>
 @endpush
 
 @section('content')
 @php
-    $days = ['Понедельник','Вторник','Среда','Четверг','Пятница'];
+    $weekDays = $weekDays ?? [];
+    if (empty($weekDays)) {
+        $weekDayNames = ['Понедельник','Вторник','Среда','Четверг','Пятница'];
+        foreach ($weekDayNames as $name) {
+            $weekDays[] = [
+                'name' => $name,
+                'date' => null,
+                'label' => null,
+                'holiday' => null,
+            ];
+        }
+    }
+    $holidayWeekDates = $holidayWeekDates ?? [];
+    $weeklyHolidays = $weeklyHolidays ?? [];
+    $dayDetails = [];
+    foreach ($weekDays as $dayInfo) {
+        $dayDetails[$dayInfo['name']] = $dayInfo;
+    }
+    $days = array_keys($dayDetails);
     $itemsByGroup = $schedule ?? [];
     $firstGroupId = count($itemsByGroup) ? array_key_first($itemsByGroup) : null;
     $expandLinkParams = ['course' => $course ?? 1];
@@ -34,18 +106,30 @@
                 </span>
             </div>
         </div>
-        <div class="action-buttons">
-            <input type="search" id="groupSearch" class="search-input" placeholder="Поиск по группе или предмету">
-            <input type="date" id="weekStartInput" class="search-input" value="{{ $weekStart ?? '' }}" style="width:auto;">
-            <button type="button" class="btn-pill ghost" id="weekStartApply">Показать неделю</button>
-            <button type="button" class="btn-pill ghost" id="weekModeToggle" data-week="{{ $weekMode ?? 'num' }}">
-                Переключить неделю
-            </button>
-            <a href="{{ route('first.schedule.week', ['course' => $course ?? 1]) }}" class="btn-pill primary">Редактор недели</a>
-            <a href="{{ route('first.schedule.week', $expandLinkParams) }}#semesterExpandSection" class="btn-pill ghost">Развернуть семестр</a>
-            <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Форма 2</a>
-        </div>
+    <div class="action-buttons">
+        <input type="search" id="groupSearch" class="search-input" placeholder="Поиск по группе или предмету">
+        <input type="date" id="weekStartInput" class="search-input" value="{{ $weekStart ?? '' }}" style="width:auto;">
+        <button type="button" class="btn-pill ghost" id="weekStartApply">Показать неделю</button>
+        <button type="button" class="btn-pill ghost" id="weekModeToggle" data-week="{{ $weekMode ?? 'num' }}">
+            Переключить неделю
+        </button>
+        <a href="{{ route('first.schedule.week', ['course' => $course ?? 1]) }}" class="btn-pill primary">Редактор недели</a>
+        <a href="{{ route('first.schedule.week', $expandLinkParams) }}#semesterExpandSection" class="btn-pill ghost">Развернуть семестр</a>
+        <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Форма 2</a>
     </div>
+</div>
+    @if(!empty($weeklyHolidays))
+        <div class="holiday-banner">
+            <div class="holiday-banner__title">Праздники недели:</div>
+                    <div class="holiday-banner__list">
+                        @foreach($weeklyHolidays as $holiday)
+                            <span class="holiday-pill" title="Праздник — {{ data_get($holiday, 'name', '') }}">
+                                {{ data_get($holiday, 'label', '') }} ({{ data_get($holiday, 'day', 'день') }}) — {{ data_get($holiday, 'name', 'праздник') }}
+                            </span>
+                        @endforeach
+                    </div>
+        </div>
+    @endif
 
     <div class="groups-compact">
         @foreach($itemsByGroup as $groupId => $groupData)
@@ -63,8 +147,17 @@
                     @endfor
                 </div>
                 @foreach($days as $day)
-                    <div class="grid-row">
-                        <div class="grid-cell day-col">{{ $day }}</div>
+                    @php
+                        $dayInfo = $dayDetails[$day] ?? [];
+                        $holidayMeta = $dayInfo['holiday'] ?? null;
+                    @endphp
+                    <div class="grid-row{{ $holidayMeta ? ' holiday-row' : '' }}">
+                        <div class="grid-cell day-col{{ $holidayMeta ? ' holiday-day' : '' }}">
+                            {{ $day }}
+                            @if($holidayMeta)
+                                <div class="holiday-note">{{ $holidayMeta['name'] }}</div>
+                            @endif
+                        </div>
                         @for($i = 1; $i <= 5; $i++)
                             @php
                                 $pair = $groupItems[$day][$i] ?? ['sub1'=>[], 'sub2'=>[], 'has_denominator' => false];
@@ -79,49 +172,55 @@
                                     $pairStatus = 'pair-sick';
                                 }
                             @endphp
-                            <div class="grid-cell pair-cell {{ $hasLesson ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}">
-                                <a href="#"
-                                   class="cell-edit"
-                                   title="Редактировать"
-                                   data-group="{{ $groupId }}"
-                                   data-day="{{ $day }}"
-                                   data-lesson="{{ $i }}"
-                                    data-subject1="{{ $pair['sub1']['subject_num_id'] ?? '' }}"
-                                    data-teacher1="{{ $pair['sub1']['teacher_num_id'] ?? '' }}"
-                                    data-room1="{{ $pair['sub1']['room_num'] ?? '' }}"
-                                    data-den-subject1="{{ $pair['sub1']['subject_den_id'] ?? '' }}"
-                                    data-den-teacher1="{{ $pair['sub1']['teacher_den_id'] ?? '' }}"
-                                    data-den-room1="{{ $pair['sub1']['room_den'] ?? '' }}"
-                                    data-sub1="1"
-                                    data-has-sub2="{{ $hasSubgroupsAny ? '1' : '0' }}"
-                                    data-subject2="{{ $pair['sub2']['subject_num_id'] ?? '' }}"
-                                    data-teacher2="{{ $pair['sub2']['teacher_num_id'] ?? '' }}"
-                                    data-room2="{{ $pair['sub2']['room_num'] ?? '' }}"
-                                    data-den-subject2="{{ $pair['sub2']['subject_den_id'] ?? '' }}"
-                                    data-den-teacher2="{{ $pair['sub2']['teacher_den_id'] ?? '' }}"
-                                    data-den-room2="{{ $pair['sub2']['room_den'] ?? '' }}"
-                                    data-sub2="2"
-                                    data-subject1-title="{{ $pair['sub1']['subject_num'] ?? '' }}"
-                                    data-subject2-title="{{ $pair['sub2']['subject_num'] ?? '' }}"
-                                    data-week-mode="{{ ($weekMode ?? 'num') === 'den' ? 'denominator' : 'numerator' }}"
-                                    data-has-denominator="{{ $pair['has_denominator'] ? '1' : '0' }}"
-                                    data-week-start="{{ $weekStart ?? '' }}"
-                                    data-absent1="{{ ($pair['sub1']['is_absent'] ?? false) ? '1' : '0' }}"
-                                    data-absent2="{{ ($pair['sub2']['is_absent'] ?? false) ? '1' : '0' }}"
-                                    data-replacement1="{{ ($pair['sub1']['is_replacement'] ?? false) ? '1' : '0' }}"
-                                    data-replacement2="0"
-                                    data-replacement-teacher-1="{{ $pair['sub1']['replacement_teacher_id'] ?? '' }}"
-                                    data-replacement-subject-1="{{ $pair['sub1']['replacement_subject_id'] ?? '' }}"
-                                    data-replacement-comment-1="{{ $pair['sub1']['replacement_comment'] ?? '' }}"
-                                    data-replacement-den-1="{{ ($pair['sub1']['replacement_flag_den'] ?? false) ? '1' : '0' }}"
-                                    data-replacement-teacher-den-1="{{ $pair['sub1']['replacement_teacher_den'] ?? '' }}"
-                                    data-replacement-subject-den-1="{{ $pair['sub1']['replacement_subject_den'] ?? '' }}"
-                                    data-replacement-comment-den-1="{{ $pair['sub1']['replacement_comment_den'] ?? '' }}"
-                                    data-teacher-conflict1="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? '1' : '0' }}"
-                                    data-teacher-conflict1-groups="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub1']['teacher_conflict_groups'] ?? []) : '' }}"
-                                    data-teacher-conflict2="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? '1' : '0' }}"
-                                    data-teacher-conflict2-groups="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub2']['teacher_conflict_groups'] ?? []) : '' }}"
-                                >✏️</a>
+                            <div class="grid-cell pair-cell {{ $hasLesson ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}{{ $holidayMeta ? ' holiday-cell' : '' }}">
+                                @if(!$holidayMeta)
+                                    <a href="#"
+                                       class="cell-edit"
+                                       title="Редактировать"
+                                       data-group="{{ $groupId }}"
+                                       data-day="{{ $day }}"
+                                       data-lesson="{{ $i }}"
+                                        data-subject1="{{ $pair['sub1']['subject_num_id'] ?? '' }}"
+                                        data-teacher1="{{ $pair['sub1']['teacher_num_id'] ?? '' }}"
+                                        data-room1="{{ $pair['sub1']['room_num'] ?? '' }}"
+                                        data-den-subject1="{{ $pair['sub1']['subject_den_id'] ?? '' }}"
+                                        data-den-teacher1="{{ $pair['sub1']['teacher_den_id'] ?? '' }}"
+                                        data-den-room1="{{ $pair['sub1']['room_den'] ?? '' }}"
+                                        data-sub1="1"
+                                        data-has-sub2="{{ $hasSubgroupsAny ? '1' : '0' }}"
+                                        data-subject2="{{ $pair['sub2']['subject_num_id'] ?? '' }}"
+                                        data-teacher2="{{ $pair['sub2']['teacher_num_id'] ?? '' }}"
+                                        data-room2="{{ $pair['sub2']['room_num'] ?? '' }}"
+                                        data-den-subject2="{{ $pair['sub2']['subject_den_id'] ?? '' }}"
+                                        data-den-teacher2="{{ $pair['sub2']['teacher_den_id'] ?? '' }}"
+                                        data-den-room2="{{ $pair['sub2']['room_den'] ?? '' }}"
+                                        data-sub2="2"
+                                        data-subject1-title="{{ $pair['sub1']['subject_num'] ?? '' }}"
+                                        data-subject2-title="{{ $pair['sub2']['subject_num'] ?? '' }}"
+                                        data-week-mode="{{ ($weekMode ?? 'num') === 'den' ? 'denominator' : 'numerator' }}"
+                                        data-has-denominator="{{ $pair['has_denominator'] ? '1' : '0' }}"
+                                        data-week-start="{{ $weekStart ?? '' }}"
+                                        data-absent1="{{ ($pair['sub1']['is_absent'] ?? false) ? '1' : '0' }}"
+                                        data-absent2="{{ ($pair['sub2']['is_absent'] ?? false) ? '1' : '0' }}"
+                                        data-replacement1="{{ ($pair['sub1']['is_replacement'] ?? false) ? '1' : '0' }}"
+                                        data-replacement2="0"
+                                        data-replacement-teacher-1="{{ $pair['sub1']['replacement_teacher_id'] ?? '' }}"
+                                        data-replacement-subject-1="{{ $pair['sub1']['replacement_subject_id'] ?? '' }}"
+                                        data-replacement-comment-1="{{ $pair['sub1']['replacement_comment'] ?? '' }}"
+                                        data-replacement-den-1="{{ ($pair['sub1']['replacement_flag_den'] ?? false) ? '1' : '0' }}"
+                                        data-replacement-teacher-den-1="{{ $pair['sub1']['replacement_teacher_den'] ?? '' }}"
+                                        data-replacement-subject-den-1="{{ $pair['sub1']['replacement_subject_den'] ?? '' }}"
+                                        data-replacement-comment-den-1="{{ $pair['sub1']['replacement_comment_den'] ?? '' }}"
+                                        data-teacher-conflict1="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? '1' : '0' }}"
+                                        data-teacher-conflict1-groups="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub1']['teacher_conflict_groups'] ?? []) : '' }}"
+                                        data-teacher-conflict2="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? '1' : '0' }}"
+                                        data-teacher-conflict2-groups="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub2']['teacher_conflict_groups'] ?? []) : '' }}"
+                                    >✏️</a>
+                                @else
+                                    <div class="holiday-lock" title="Праздник — {{ $holidayMeta['name'] }} ({{ $holidayMeta['label'] }})">
+                                        🎉 {{ $holidayMeta['label'] }} ({{ $holidayMeta['day'] ?? '' }})
+                                    </div>
+                                @endif
                                 @if ($hasLesson)
                                     @php $main = $pair['sub1'] ?? []; @endphp
                                     <div class="cell-line main-line sub-line">

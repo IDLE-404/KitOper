@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\FirstCourseSchedule;
+use App\Services\KazakhstanHolidayService;
 use App\Services\ScheduleToFormTwoSyncService;
 use App\Services\FormTwoService;
 use App\Services\SemesterScheduleService;
@@ -36,6 +37,15 @@ class FirstCourseSchedulePageController extends Controller
         $weekModeRaw = request()->get('week_mode');
         $resolvedWeekMode = $syncService->resolveWeekMode($weekModeRaw, $weekStart);
         $isDenominatorWeek = $resolvedWeekMode === 'denominator';
+
+        $days = $this->buildWeekDays($weekStart);
+        $weeklyHolidays = collect($days)->pluck('holiday')->filter()->values()->all();
+        $holidayWeekDates = [];
+        foreach ($days as $day) {
+            if (!empty($day['holiday']) && !empty($day['date'])) {
+                $holidayWeekDates[$day['date']] = $day['holiday'];
+            }
+        }
 
         $subjects = DB::table($tables['subjects'])
             ->select('id', 'subject_name', 'name_ru', 'name_kz')
@@ -333,6 +343,9 @@ class FirstCourseSchedulePageController extends Controller
             'weekMode' => $isDenominatorWeek ? 'den' : 'num',
             'weekStart' => $weekStart->toDateString(),
             'course' => $course,
+            'weekDays' => $days,
+            'weeklyHolidays' => $weeklyHolidays,
+            'holidayWeekDates' => $holidayWeekDates ?? [],
         ]);
     }
 
@@ -555,13 +568,7 @@ class FirstCourseSchedulePageController extends Controller
         $weekMode = $syncService->resolveWeekMode($weekModeParam, $weekStart);
         $weekModeInput = $weekModeParam ?: 'auto';
 
-        $days = [
-            ['key' => 'mon', 'label' => 'Пн', 'full' => 'Понедельник'],
-            ['key' => 'tue', 'label' => 'Вт', 'full' => 'Вторник'],
-            ['key' => 'wed', 'label' => 'Ср', 'full' => 'Среда'],
-            ['key' => 'thu', 'label' => 'Чт', 'full' => 'Четверг'],
-            ['key' => 'fri', 'label' => 'Пт', 'full' => 'Пятница'],
-        ];
+        $days = $this->buildWeekDays($weekStart);
 
         $pairs = [1, 2, 3, 4, 5];
 
@@ -589,6 +596,8 @@ class FirstCourseSchedulePageController extends Controller
             }
         }
 
+        $holidayDaysOfWeek = collect($days)->filter(fn($day) => !empty($day['holiday']))->values()->all();
+
         return view('first_course.schedule.week', [
             'groups' => $groups,
             'subjects' => $subjects,
@@ -601,6 +610,7 @@ class FirstCourseSchedulePageController extends Controller
             'weekMode' => $weekMode,
             'weekModeInput' => $weekModeInput,
             'course' => $course,
+            'weeklyHolidays' => $holidayDaysOfWeek,
         ]);
     }
 
@@ -699,11 +709,20 @@ class FirstCourseSchedulePageController extends Controller
         $weekMode = $sync->resolveWeekMode($validated['week_mode'] ?? null, $weekStart);
         $schedule = $validated['schedule'] ?? [];
 
+        $dayDefinitions = $this->buildWeekDays($weekStart);
+        $holidayDayKeys = collect($dayDefinitions)
+            ->filter(fn($day) => !empty($day['holiday']))
+            ->pluck('key')
+            ->all();
+
         $rows = [];
         $now = now();
 
         foreach ($schedule as $dayKey => $lessons) {
             if (!isset($dayMap[$dayKey])) {
+                continue;
+            }
+            if (in_array($dayKey, $holidayDayKeys, true)) {
                 continue;
             }
             foreach ($lessons as $lessonNumber => $row) {
@@ -891,6 +910,44 @@ class FirstCourseSchedulePageController extends Controller
         return redirect()
             ->route('first.schedule.week', ['group_id' => $groupId, 'week_start' => $weekStart->toDateString(), 'course' => $course])
             ->with('success', 'Недельное расписание сохранено.');
+    }
+
+    protected function buildWeekDays(Carbon $weekStart): array
+    {
+        $holidayService = app(KazakhstanHolidayService::class);
+        $templates = [
+            ['key' => 'mon', 'label' => 'Пн', 'full' => 'Понедельник', 'offset' => 0],
+            ['key' => 'tue', 'label' => 'Вт', 'full' => 'Вторник', 'offset' => 1],
+            ['key' => 'wed', 'label' => 'Ср', 'full' => 'Среда', 'offset' => 2],
+            ['key' => 'thu', 'label' => 'Чт', 'full' => 'Четверг', 'offset' => 3],
+            ['key' => 'fri', 'label' => 'Пт', 'full' => 'Пятница', 'offset' => 4],
+        ];
+
+        $cache = [];
+        $days = [];
+        foreach ($templates as $template) {
+            $date = $weekStart->copy()->addDays($template['offset']);
+            $monthKey = $date->format('Y-m');
+            if (!isset($cache[$monthKey])) {
+                $cache[$monthKey] = $holidayService->getMonthHolidays($date->year, $date->month);
+            }
+            $holidayMeta = $cache[$monthKey][$date->day] ?? null;
+
+            $days[] = [
+                'key' => $template['key'],
+                'label' => $template['label'],
+                'full' => $template['full'],
+                'name' => $template['full'],
+                'date' => $date->toDateString(),
+                'holiday' => $holidayMeta ? [
+                    'name' => $holidayMeta['name'],
+                    'label' => $date->format('d.m.Y'),
+                    'day' => $template['full'],
+                ] : null,
+            ];
+        }
+
+        return $days;
     }
 
     /**

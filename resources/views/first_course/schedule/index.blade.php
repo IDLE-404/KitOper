@@ -239,9 +239,13 @@
                                         @if (!empty($main['active_teacher']))
                                             <span class="pill">
                                                 <span>👤</span>{{ $main['active_teacher'] }}
-                                                @if(($main['replacement_teacher'] ?? null) && ($main['is_replacement'] ?? false))
-                                                    <span class="text-danger ms-1">→ {{ $main['replacement_teacher'] }}</span>
-                                                @endif
+                                        @if(
+                                            ($main['replacement_teacher'] ?? null)
+                                            && ($main['is_replacement'] ?? false)
+                                            && ($main['replacement_teacher'] !== ($main['active_teacher'] ?? null))
+                                        )
+                                            <span class="text-warning ms-1">→ {{ $main['replacement_teacher'] }}</span>
+                                        @endif
                                             </span>
                                         @endif
                                         @if (!empty($main['active_room']))
@@ -274,9 +278,13 @@
                                             @if (!empty($sub2['active_teacher']))
                                                 <span class="pill">
                                                     <span>👤</span>{{ $sub2['active_teacher'] }}
-                                                    @if(($sub2['replacement_teacher'] ?? null) && ($sub2['is_replacement'] ?? false))
-                                                        <span class="text-danger ms-1">→ {{ $sub2['replacement_teacher'] }}</span>
-                                                    @endif
+                                            @if(
+                                                ($sub2['replacement_teacher'] ?? null)
+                                                && ($sub2['is_replacement'] ?? false)
+                                                && ($sub2['replacement_teacher'] !== ($sub2['active_teacher'] ?? null))
+                                            )
+                                                <span class="text-warning ms-1">→ {{ $sub2['replacement_teacher'] }}</span>
+                                            @endif
                                                 </span>
                                             @endif
                                             @if (!empty($sub2['active_room']))

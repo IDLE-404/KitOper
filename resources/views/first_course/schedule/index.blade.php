@@ -205,10 +205,18 @@
                                         data-replacement-teacher-1="{{ $pair['sub1']['replacement_teacher_id'] ?? '' }}"
                                         data-replacement-subject-1="{{ $pair['sub1']['replacement_subject_id'] ?? '' }}"
                                         data-replacement-comment-1="{{ $pair['sub1']['replacement_comment'] ?? '' }}"
+                                        data-replacement2="{{ ($pair['sub2']['is_replacement'] ?? false) ? '1' : '0' }}"
+                                        data-replacement-teacher-2="{{ $pair['sub2']['replacement_teacher_id'] ?? '' }}"
+                                        data-replacement-subject-2="{{ $pair['sub2']['replacement_subject_id'] ?? '' }}"
+                                        data-replacement-comment-2="{{ $pair['sub2']['replacement_comment'] ?? '' }}"
                                         data-replacement-den-1="{{ ($pair['sub1']['replacement_flag_den'] ?? false) ? '1' : '0' }}"
                                         data-replacement-teacher-den-1="{{ $pair['sub1']['replacement_teacher_den'] ?? '' }}"
                                         data-replacement-subject-den-1="{{ $pair['sub1']['replacement_subject_den'] ?? '' }}"
                                         data-replacement-comment-den-1="{{ $pair['sub1']['replacement_comment_den'] ?? '' }}"
+                                        data-replacement-den-2="{{ ($pair['sub2']['replacement_flag_den'] ?? false) ? '1' : '0' }}"
+                                        data-replacement-teacher-den-2="{{ $pair['sub2']['replacement_teacher_den'] ?? '' }}"
+                                        data-replacement-subject-den-2="{{ $pair['sub2']['replacement_subject_den'] ?? '' }}"
+                                        data-replacement-comment-den-2="{{ $pair['sub2']['replacement_comment_den'] ?? '' }}"
                                         data-teacher-conflict1="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? '1' : '0' }}"
                                         data-teacher-conflict1-groups="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub1']['teacher_conflict_groups'] ?? []) : '' }}"
                                         data-teacher-conflict2="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? '1' : '0' }}"
@@ -351,14 +359,26 @@
     const replacementSubject1 = document.getElementById('modalReplacementSubject1');
     const replacementComment1 = document.getElementById('modalReplacementComment1');
     const absent2Hidden = document.getElementById('modalAbsent2Hidden');
+    const replacement2Hidden = document.getElementById('modalReplacement2Hidden');
+    const replacementTeacher2 = document.getElementById('modalReplacementTeacher2');
+    const replacementSubject2 = document.getElementById('modalReplacementSubject2');
+    const replacementComment2 = document.getElementById('modalReplacementComment2');
     const replacementToggle1 = document.getElementById('modalReplacementToggle1');
     const replacementBlock1 = document.getElementById('replacementBlock1');
     const replacementDen1Hidden = document.getElementById('modalReplacement1DenHidden');
+    const replacementDen2Hidden = document.getElementById('modalReplacement2DenHidden');
     const replacementTeacher1Den = document.getElementById('modalReplacementTeacher1Den');
     const replacementSubject1Den = document.getElementById('modalReplacementSubject1Den');
     const replacementComment1Den = document.getElementById('modalReplacementComment1Den');
     const replacementToggle1Den = document.getElementById('modalReplacementToggle1Den');
     const replacementBlock1Den = document.getElementById('replacementBlock1Den');
+    const replacementToggle2 = document.getElementById('modalReplacementToggle2');
+    const replacementBlock2 = document.getElementById('replacementBlock2');
+    const replacementTeacher2Den = document.getElementById('modalReplacementTeacher2Den');
+    const replacementSubject2Den = document.getElementById('modalReplacementSubject2Den');
+    const replacementComment2Den = document.getElementById('modalReplacementComment2Den');
+    const replacementToggle2Den = document.getElementById('modalReplacementToggle2Den');
+    const replacementBlock2Den = document.getElementById('replacementBlock2Den');
     const teacherConflictAlert1 = document.getElementById('teacherConflictAlert1');
     const teacherConflictAlert2 = document.getElementById('teacherConflictAlert2');
 
@@ -385,6 +405,28 @@
             replacementTeacher1Den.value = '';
             replacementSubject1Den.value = '';
             replacementComment1Den.value = '';
+        }
+    };
+
+    const syncReplacementFlag2 = (resetFields = false) => {
+        const enabled = replacementToggle2.checked;
+        replacementBlock2.classList.toggle('d-none', !enabled);
+        replacement2Hidden.value = enabled ? '1' : '0';
+        if (!enabled && resetFields) {
+            replacementTeacher2.value = '';
+            replacementSubject2.value = '';
+            replacementComment2.value = '';
+        }
+    };
+
+    const syncReplacementFlag2Den = (resetFields = false) => {
+        const enabled = replacementToggle2Den.checked;
+        replacementBlock2Den.classList.toggle('d-none', !enabled);
+        replacementDen2Hidden.value = enabled ? '1' : '0';
+        if (!enabled && resetFields) {
+            replacementTeacher2Den.value = '';
+            replacementSubject2Den.value = '';
+            replacementComment2Den.value = '';
         }
     };
 
@@ -457,22 +499,42 @@
         replacementTeacher1.value = data.replacementTeacher1 || '';
         replacementSubject1.value = data.replacementSubject1 || '';
         replacementComment1.value = data.replacementComment1 || '';
+        replacement2Hidden.value = data.replacement2 === '1' ? '1' : '0';
+        replacementTeacher2.value = data.replacementTeacher2 || '';
+        replacementSubject2.value = data.replacementSubject2 || '';
+        replacementComment2.value = data.replacementComment2 || '';
         replacementDen1Hidden.value = data.replacementDen1 === '1' ? '1' : '0';
         replacementTeacher1Den.value = data.replacementTeacher1Den || '';
         replacementSubject1Den.value = data.replacementSubject1Den || '';
         replacementComment1Den.value = data.replacementComment1Den || '';
+        replacementDen2Hidden.value = data.replacementDen2 === '1' ? '1' : '0';
+        replacementTeacher2Den.value = data.replacementTeacher2Den || '';
+        replacementSubject2Den.value = data.replacementSubject2Den || '';
+        replacementComment2Den.value = data.replacementComment2Den || '';
         const hasReplacement1 = data.replacement1 === '1'
             || data.replacementTeacher1
             || data.replacementSubject1
             || (data.replacementComment1 || '').trim();
         replacementToggle1.checked = !!hasReplacement1;
+        const hasReplacement2 = data.replacement2 === '1'
+            || data.replacementTeacher2
+            || data.replacementSubject2
+            || (data.replacementComment2 || '').trim();
+        replacementToggle2.checked = !!hasReplacement2;
         const hasReplacement1Den = data.replacementDen1 === '1'
             || data.replacementTeacher1Den
             || data.replacementSubject1Den
             || (data.replacementComment1Den || '').trim();
         replacementToggle1Den.checked = !!hasReplacement1Den;
+        const hasReplacement2Den = data.replacementDen2 === '1'
+            || data.replacementTeacher2Den
+            || data.replacementSubject2Den
+            || (data.replacementComment2Den || '').trim();
+        replacementToggle2Den.checked = !!hasReplacement2Den;
         syncReplacementFlag1();
         syncReplacementFlag1Den();
+        syncReplacementFlag2();
+        syncReplacementFlag2Den();
         setTeacherConflictAlert(
             teacherConflictAlert1,
             data.teacherConflict1 || '0',
@@ -510,8 +572,12 @@
                 teacher2.value = '';
                 room2.value = '';
                 absent2Hidden.value = '0';
+                replacementToggle2.checked = false;
+                syncReplacementFlag2(true);
                 setTeacherConflictAlert(teacherConflictAlert2, '0', '', '', '');
             }
+            replacementToggle2Den.checked = false;
+            syncReplacementFlag2Den(true);
         }
     });
 
@@ -520,11 +586,21 @@
     });
     replacementComment1.addEventListener('input', () => syncReplacementFlag1());
     replacementToggle1.addEventListener('change', () => syncReplacementFlag1(true));
+    [replacementTeacher2, replacementSubject2].forEach((el) => {
+        el.addEventListener('change', () => syncReplacementFlag2());
+    });
+    replacementComment2.addEventListener('input', () => syncReplacementFlag2());
+    replacementToggle2.addEventListener('change', () => syncReplacementFlag2(true));
     [replacementTeacher1Den, replacementSubject1Den].forEach((el) => {
         el.addEventListener('change', () => syncReplacementFlag1Den());
     });
     replacementComment1Den.addEventListener('input', () => syncReplacementFlag1Den());
     replacementToggle1Den.addEventListener('change', () => syncReplacementFlag1Den(true));
+    [replacementTeacher2Den, replacementSubject2Den].forEach((el) => {
+        el.addEventListener('change', () => syncReplacementFlag2Den());
+    });
+    replacementComment2Den.addEventListener('input', () => syncReplacementFlag2Den());
+    replacementToggle2Den.addEventListener('change', () => syncReplacementFlag2Den(true));
 
     hasDenToggle.addEventListener('change', () => {
         if (!allowDenEdit) return;
@@ -541,6 +617,8 @@
             room2Den.value = '';
             replacementToggle1Den.checked = false;
             syncReplacementFlag1Den(true);
+            replacementToggle2Den.checked = false;
+            syncReplacementFlag2Den(true);
         }
     });
 
@@ -834,6 +912,7 @@
         <input type="hidden" name="week_start" id="modalWeekStart" value="{{ $weekStart ?? '' }}">
         <input type="hidden" name="course" value="{{ $course ?? 1 }}">
         <input type="hidden" name="den_is_replacement_1" id="modalReplacement1DenHidden" value="0">
+        <input type="hidden" name="den_is_replacement_2" id="modalReplacement2DenHidden" value="0">
 
         <div class="modal-topline">
             <div class="form-check">
@@ -937,6 +1016,29 @@
                         </div>
                     </div>
                     <input type="hidden" name="is_absent_2" id="modalAbsent2Hidden" value="0">
+                    <input type="hidden" name="is_replacement_2" id="modalReplacement2Hidden" value="0">
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="modalReplacementToggle2">
+                        <label class="form-check-label" for="modalReplacementToggle2">Включить замену</label>
+                    </div>
+                    <div id="replacementBlock2" class="replacement-card flex-grow-1 d-none">
+                        <label class="form-label">Заменяющий (подгр. 2)</label>
+                        <input type="search" class="form-control mb-2 search-field" placeholder="Поиск заменяющего преподавателя" data-target="modalReplacementTeacher2">
+                        <select class="form-select mb-2" name="replacement_teacher_id_2" id="modalReplacementTeacher2">
+                            <option value="">— преподаватель</option>
+                            @foreach($teachers as $id => $title)
+                                <option value="{{ $id }}">{{ $title }}</option>
+                            @endforeach
+                        </select>
+                        <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета замены" data-target="modalReplacementSubject2">
+                        <select class="form-select mb-2" name="replacement_subject_id_2" id="modalReplacementSubject2">
+                            <option value="">— предмет</option>
+                            @foreach($subjects as $id => $title)
+                                <option value="{{ $id }}">{{ $title }}</option>
+                            @endforeach
+                        </select>
+                        <input type="text" class="form-control" name="replacement_comment_2" id="modalReplacementComment2" placeholder="Комментарий">
+                    </div>
                 </div>
             </div>
         </div>
@@ -1028,6 +1130,28 @@
                         </div>
                     </div>
                     <div class="mt-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="modalReplacementToggle2Den">
+                            <label class="form-check-label" for="modalReplacementToggle2Den">Замена (знаменатель, подгр. 2)</label>
+                        </div>
+                        <div id="replacementBlock2Den" class="replacement-card flex-grow-1 d-none">
+                            <label class="form-label">Заменяющий (подгр. 2, знаменатель)</label>
+                            <input type="search" class="form-control mb-2 search-field" placeholder="Поиск заменяющего преподавателя" data-target="modalReplacementTeacher2Den">
+                            <select class="form-select mb-2" name="replacement_teacher_id_2_den" id="modalReplacementTeacher2Den">
+                                <option value="">— преподаватель</option>
+                                @foreach($teachers as $id => $title)
+                                    <option value="{{ $id }}">{{ $title }}</option>
+                                @endforeach
+                            </select>
+                            <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета замены" data-target="modalReplacementSubject2Den">
+                            <select class="form-select mb-2" name="replacement_subject_id_2_den" id="modalReplacementSubject2Den">
+                                <option value="">— предмет</option>
+                                @foreach($subjects as $id => $title)
+                                    <option value="{{ $id }}">{{ $title }}</option>
+                                @endforeach
+                            </select>
+                            <input type="text" class="form-control" name="replacement_comment_2_den" id="modalReplacementComment2Den" placeholder="Комментарий">
+                        </div>
                     </div>
                 </div>
             </div>

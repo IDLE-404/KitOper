@@ -159,37 +159,6 @@ class ScheduleToFormTwoSyncService
             $isSubjectChanged = true;
         }
 
-        // ДОПОЛНИТЕЛЬНО: для подгруппы 2 сравниваем с подгруппой 1
-        // Если teacher_id_2 отличается от teacher_id - это тоже замена
-        if ($isSub2 && !$isTeacherChanged) {
-            $originalTeacherId = $useDenominator
-                ? ($row->teacher_id_denominator ?? $row->teacher_id ?? null)
-                : ($row->teacher_id ?? null);
-            
-            if ($activeTeacher && $originalTeacherId && $activeTeacher !== $originalTeacherId) {
-                $isTeacherChanged = true;
-                // Если replacement_teacher_id не установлен явно, используем активного учителя
-                if (!$replacementTeacherId) {
-                    $replacementTeacherId = $activeTeacher;
-                }
-            }
-        }
-
-        // Аналогично для предмета
-        if ($isSub2 && !$isSubjectChanged) {
-            $originalSubjectId = $useDenominator
-                ? ($row->subject_id_denominator ?? $row->subject_id ?? null)
-                : ($row->subject_id ?? null);
-            
-            if ($activeSubject && $originalSubjectId && $activeSubject !== $originalSubjectId) {
-                $isSubjectChanged = true;
-                // Если replacement_subject_id не установлен явно, используем активный предмет
-                if (!$replacementSubjectId) {
-                    $replacementSubjectId = $activeSubject;
-                }
-            }
-        }
-
         $isChanged = $isTeacherChanged || $isSubjectChanged;
 
         // ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ

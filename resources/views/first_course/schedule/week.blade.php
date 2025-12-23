@@ -152,14 +152,10 @@
                 <div class="group-select">
                     <label class="form-label mb-1 text-muted">Начало недели</label>
                     <input type="date" class="select-soft" name="week_start" id="weekStartInput" value="{{ $weekStart ?? '' }}">
-                </div>
-                <div class="group-select">
-                    <label class="form-label mb-1 text-muted">Режим</label>
-                    <select class="select-soft" name="week_mode" id="weekModeSelect">
-                        <option value="auto" @selected(($weekModeInput ?? 'auto') === 'auto')>Авто (по чётности недели)</option>
-                        <option value="numerator" @selected(($weekModeInput ?? $weekMode ?? 'numerator') === 'numerator')>Числитель</option>
-                        <option value="denominator" @selected(($weekModeInput ?? '') === 'denominator')>Знаменатель</option>
-                    </select>
+                    <div class="d-flex gap-2 mt-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="weekPrev">Предыдущая неделя</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="weekNext">Следующая неделя</button>
+                    </div>
                 </div>
             </div>
             <div class="mb-3">
@@ -400,13 +396,6 @@
                                value="{{ old('semester_end') }}"
                                required>
                     </div>
-                    <div class="form-group">
-                        <label for="firstWeekMode">Первый режим недели</label>
-                        <select id="firstWeekMode" name="first_week_mode" class="select-soft">
-                            <option value="numerator" @selected(old('first_week_mode', ($weekMode ?? 'numerator')) === 'numerator')>Числитель</option>
-                            <option value="denominator" @selected(old('first_week_mode') === 'denominator')>Знаменатель</option>
-                        </select>
-                    </div>
                 </div>
                 <div class="options-row">
                     <div class="form-check">
@@ -489,6 +478,58 @@
             const params = new URLSearchParams(window.location.search);
             params.set('group_id', groupSelect.value);
             window.location.search = params.toString();
+        });
+    }
+
+    const weekStartInput = document.getElementById('weekStartInput');
+    const weekNext = document.getElementById('weekNext');
+    const weekPrev = document.getElementById('weekPrev');
+    const applyWeekStart = (value) => {
+        const params = new URLSearchParams(window.location.search);
+        if (groupSelect) {
+            params.set('group_id', groupSelect.value);
+        }
+        if (value) {
+            params.set('week_start', value);
+        } else {
+            params.delete('week_start');
+        }
+        window.location.search = params.toString();
+    };
+
+    if (weekNext && weekStartInput) {
+        weekNext.addEventListener('click', () => {
+            let baseDate = new Date();
+            if (weekStartInput.value) {
+                const [year, month, day] = weekStartInput.value.split('-').map(Number);
+                baseDate = new Date(year, (month || 1) - 1, day || 1);
+            }
+            if (Number.isNaN(baseDate.getTime())) return;
+            baseDate.setDate(baseDate.getDate() + 7);
+            const y = baseDate.getFullYear();
+            const m = String(baseDate.getMonth() + 1).padStart(2, '0');
+            const d = String(baseDate.getDate()).padStart(2, '0');
+            const isoDate = `${y}-${m}-${d}`;
+            weekStartInput.value = isoDate;
+            applyWeekStart(isoDate);
+        });
+    }
+
+    if (weekPrev && weekStartInput) {
+        weekPrev.addEventListener('click', () => {
+            let baseDate = new Date();
+            if (weekStartInput.value) {
+                const [year, month, day] = weekStartInput.value.split('-').map(Number);
+                baseDate = new Date(year, (month || 1) - 1, day || 1);
+            }
+            if (Number.isNaN(baseDate.getTime())) return;
+            baseDate.setDate(baseDate.getDate() - 7);
+            const y = baseDate.getFullYear();
+            const m = String(baseDate.getMonth() + 1).padStart(2, '0');
+            const d = String(baseDate.getDate()).padStart(2, '0');
+            const isoDate = `${y}-${m}-${d}`;
+            weekStartInput.value = isoDate;
+            applyWeekStart(isoDate);
         });
     }
 </script>

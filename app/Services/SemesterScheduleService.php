@@ -23,7 +23,6 @@ class SemesterScheduleService
         Carbon $templateWeekStart,
         Carbon $semesterStart,
         Carbon $semesterEnd,
-        string $firstWeekMode = 'numerator',
         bool $skipExistingWeeks = false,
         bool $syncFormTwo = true,
         int $course = 1
@@ -46,7 +45,6 @@ class SemesterScheduleService
         $insertedWeeks = 0;
         $insertedRows = 0;
         $skippedWeeks = [];
-        $weekIndex = 0;
 
         $nextId = (int) DB::table($tables['schedules'])->max('id') + 1;
 
@@ -82,13 +80,11 @@ class SemesterScheduleService
                 $insertedRows += count($rowsToInsert);
 
                 if ($syncFormTwo) {
-                    $mode = $this->modeForIndex($firstWeekMode, $weekIndex);
-                    $this->syncService->syncWeek($groupId, $weekPointer->copy(), $mode, null, null, $course);
+                    $this->syncService->syncWeek($groupId, $weekPointer->copy(), null, null, $course);
                 }
             }
 
             $weekPointer->addWeek();
-            $weekIndex++;
         }
 
         return [
@@ -110,16 +106,6 @@ class SemesterScheduleService
         }
 
         return $row;
-    }
-
-    protected function modeForIndex(string $firstWeekMode, int $weekIndex): string
-    {
-        $firstWeekMode = in_array($firstWeekMode, ['numerator', 'denominator'], true) ? $firstWeekMode : 'numerator';
-        if ($weekIndex % 2 === 0) {
-            return $firstWeekMode;
-        }
-
-        return $firstWeekMode === 'numerator' ? 'denominator' : 'numerator';
     }
 
     /**

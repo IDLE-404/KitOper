@@ -110,9 +110,8 @@
         <input type="search" id="groupSearch" class="search-input" placeholder="Поиск по группе или предмету">
         <input type="date" id="weekStartInput" class="search-input" value="{{ $weekStart ?? '' }}" style="width:auto;">
         <button type="button" class="btn-pill ghost" id="weekStartApply">Показать неделю</button>
-        <button type="button" class="btn-pill ghost" id="weekModeToggle" data-week="{{ $weekMode ?? 'num' }}">
-            Переключить неделю
-        </button>
+        <button type="button" class="btn-pill ghost" id="weekNext">Следующая неделя</button>
+        <button type="button" class="btn-pill ghost" id="weekPrev">Предыдущая неделя</button>
         <a href="{{ route('first.schedule.week', ['course' => $course ?? 1]) }}" class="btn-pill primary">Редактор недели</a>
         <a href="{{ route('first.schedule.week', $expandLinkParams) }}#semesterExpandSection" class="btn-pill ghost">Развернуть семестр</a>
         <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Форма 2</a>
@@ -197,7 +196,6 @@
                                         data-sub2="2"
                                         data-subject1-title="{{ $pair['sub1']['subject_num'] ?? '' }}"
                                         data-subject2-title="{{ $pair['sub2']['subject_num'] ?? '' }}"
-                                        data-week-mode="{{ ($weekMode ?? 'num') === 'den' ? 'denominator' : 'numerator' }}"
                                         data-has-denominator="{{ $pair['has_denominator'] ? '1' : '0' }}"
                                         data-week-start="{{ $weekStart ?? '' }}"
                                         data-absent1="{{ ($pair['sub1']['is_absent'] ?? false) ? '1' : '0' }}"
@@ -324,7 +322,6 @@
     const modal = document.getElementById('pairModal');
     const overlay = document.getElementById('modalOverlay');
     const form = document.getElementById('pairForm');
-    const weekToggle = document.getElementById('weekModeToggle');
     const weekStartPicker = document.getElementById('weekStartInput');
     const weekStartApply = document.getElementById('weekStartApply');
 
@@ -334,7 +331,6 @@
     const subject1Den = document.getElementById('modalSubject1Den');
     const teacher1Den = document.getElementById('modalTeacher1Den');
     const room1Den = document.getElementById('modalRoom1Den');
-    const weekModeInput = document.getElementById('modalWeekMode');
     const weekStartHidden = document.getElementById('modalWeekStart');
 
     const toggleSub2 = document.getElementById('modalHasSub2');
@@ -404,9 +400,6 @@
         hiddenGroup.value = data.group;
         hiddenDay.value = data.day;
         hiddenLesson.value = data.lesson;
-        if (data.weekMode) {
-            weekModeInput.value = data.weekMode;
-        }
         weekStartHidden.value = data.weekStart || (document.getElementById('weekStartInput')?.value || '');
 
         subject1.value = data.subject1 || '';
@@ -580,29 +573,57 @@
         }
     });
 
+    const weekNext = document.getElementById('weekNext');
+    const weekPrev = document.getElementById('weekPrev');
+    const applyWeekStart = (value) => {
+        const params = new URLSearchParams(window.location.search);
+        if (value) {
+            params.set('week_start', value);
+        } else {
+            params.delete('week_start');
+        }
+        window.location.search = params.toString();
+    };
+
     if (weekStartApply && weekStartPicker) {
         weekStartApply.addEventListener('click', () => {
-            const params = new URLSearchParams(window.location.search);
-            if (weekStartPicker.value) {
-                params.set('week_start', weekStartPicker.value);
-            } else {
-                params.delete('week_start');
-            }
-            window.location.search = params.toString();
+            applyWeekStart(weekStartPicker.value);
         });
     }
 
-    // Переключение недели (числитель/знаменатель) через URL-параметр week_mode
-    if (weekToggle) {
-        weekToggle.addEventListener('click', () => {
-            const current = weekToggle.dataset.week === 'den' || weekToggle.dataset.week === 'denominator' ? 'den' : 'num';
-            const next = current === 'den' ? 'num' : 'den';
-            const params = new URLSearchParams(window.location.search);
-            params.set('week_mode', next);
-            if (weekStartPicker && weekStartPicker.value) {
-                params.set('week_start', weekStartPicker.value);
+    if (weekNext && weekStartPicker) {
+        weekNext.addEventListener('click', () => {
+            let baseDate = new Date();
+            if (weekStartPicker.value) {
+                const [year, month, day] = weekStartPicker.value.split('-').map(Number);
+                baseDate = new Date(year, (month || 1) - 1, day || 1);
             }
-            window.location.search = params.toString();
+            if (Number.isNaN(baseDate.getTime())) return;
+            baseDate.setDate(baseDate.getDate() + 7);
+            const y = baseDate.getFullYear();
+            const m = String(baseDate.getMonth() + 1).padStart(2, '0');
+            const d = String(baseDate.getDate()).padStart(2, '0');
+            const isoDate = `${y}-${m}-${d}`;
+            weekStartPicker.value = isoDate;
+            applyWeekStart(isoDate);
+        });
+    }
+
+    if (weekPrev && weekStartPicker) {
+        weekPrev.addEventListener('click', () => {
+            let baseDate = new Date();
+            if (weekStartPicker.value) {
+                const [year, month, day] = weekStartPicker.value.split('-').map(Number);
+                baseDate = new Date(year, (month || 1) - 1, day || 1);
+            }
+            if (Number.isNaN(baseDate.getTime())) return;
+            baseDate.setDate(baseDate.getDate() - 7);
+            const y = baseDate.getFullYear();
+            const m = String(baseDate.getMonth() + 1).padStart(2, '0');
+            const d = String(baseDate.getDate()).padStart(2, '0');
+            const isoDate = `${y}-${m}-${d}`;
+            weekStartPicker.value = isoDate;
+            applyWeekStart(isoDate);
         });
     }
 
@@ -776,7 +797,6 @@
         <input type="hidden" name="group_id" id="modalGroupId">
         <input type="hidden" name="study_day" id="modalDay">
         <input type="hidden" name="lesson_number" id="modalLesson">
-        <input type="hidden" name="week_mode" id="modalWeekMode" value="{{ ($weekMode ?? 'num') === 'den' ? 'denominator' : 'numerator' }}">
         <input type="hidden" name="week_start" id="modalWeekStart" value="{{ $weekStart ?? '' }}">
         <input type="hidden" name="course" value="{{ $course ?? 1 }}">
         <input type="hidden" name="den_is_replacement_1" id="modalReplacement1DenHidden" value="0">

@@ -13,16 +13,15 @@ class ScheduleToFormTwoSyncService
     public function syncWeek(
         int $groupId,
         Carbon $weekStart,
-        string $weekMode = 'numerator',
         ?Carbon $classWeekStart = null,
         ?\Illuminate\Support\Collection $rows = null,
         int $course = 1
     ): void
     {
         $tables = \App\Support\CourseContext::tables($course);
-        $weekMode = $this->resolveWeekMode($weekMode, $weekStart);
         $classWeekStart = ($classWeekStart ?? $weekStart)->copy()->startOfDay();
         $weekStart = $weekStart->copy()->startOfDay();
+        $weekMode = $this->resolveWeekMode($classWeekStart, $course);
         $weekEnd = $classWeekStart->copy()->addDays(6);
 
         $dayOffset = [
@@ -352,12 +351,11 @@ class ScheduleToFormTwoSyncService
 
     /**
      * Синхронизирует текущую неделю и соседнюю (чередование ч/з) в Форму 2.
-     * Неделя weekStart идёт со своим режимом (по чётности), соседняя — противоположным режимом.
+     * Режим недели определяется от даты начала семестра.
      */
     public function syncWeekWithAlternation(int $groupId, Carbon $weekStart, int $course = 1): void
     {
-        $baseMode = $this->resolveWeekMode(null, $weekStart);
-        $otherMode = $baseMode === 'denominator' ? 'numerator' : 'denominator';
+        $baseMode = $this->resolveWeekMode($weekStart, $course);
         $otherWeekStart = $baseMode === 'denominator'
             ? $weekStart->copy()->subWeek()
             : $weekStart->copy()->addWeek();
@@ -369,9 +367,9 @@ class ScheduleToFormTwoSyncService
         }
 
         // Текущая неделя
-        $this->syncWeek($groupId, $weekStart, $baseMode, $weekStart, $rows, $course);
+        $this->syncWeek($groupId, $weekStart, $weekStart, $rows, $course);
         // Чередующаяся неделя
-        $this->syncWeek($groupId, $otherWeekStart, $otherMode, $otherWeekStart, $rows, $course);
+        $this->syncWeek($groupId, $otherWeekStart, $otherWeekStart, $rows, $course);
     }
 
     protected function fetchWeekRows(int $groupId, Carbon $weekStart, string $scheduleTable)
@@ -383,28 +381,15 @@ class ScheduleToFormTwoSyncService
     }
 
     /**
-     * Определяем режим недели. Если явно не передан numerator/denominator, берём чётность ISO-недели:
-     * нечётная — числитель, чётная — знаменатель.
+     * Определяем режим недели по дате начала семестра.
+     * Неделя семестра считается числителем.
      */
-    public function resolveWeekMode(?string $weekMode, ?Carbon $weekStart): string
+    public function resolveWeekMode(Carbon $weekStart, int $course = 1): string
     {
-        $normalized = match ($weekMode) {
-            'den', 'denominator' => 'denominator',
-            'num', 'numerator' => 'numerator',
-            'single' => 'numerator', // single трактуем как обычную неделю
-            default => null,
-        };
-
-        if ($normalized) {
-            return $normalized;
-        }
-
-        if (!$weekStart) {
-            return 'numerator';
-        }
-
-        $isoWeek = $weekStart->copy()->startOfWeek(Carbon::MONDAY)->isoWeek();
-        return $isoWeek % 2 === 0 ? 'denominator' : 'numerator';
+        $weekStart = $weekStart->copy()->startOfWeek(Carbon::MONDAY);
+        $semesterStart = \App\Support\CourseContext::semesterStart($course, $weekStart);
+        $weekIndex = $semesterStart->diffInWeeks($weekStart);
+        return $weekIndex % 2 === 0 ? 'numerator' : 'denominator';
     }
 
     protected function isAbsent(object $row, int $subgroup, string $weekMode): bool

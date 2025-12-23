@@ -34,8 +34,7 @@ class FirstCourseSchedulePageController extends Controller
 
         /** @var ScheduleToFormTwoSyncService $syncService */
         $syncService = app(ScheduleToFormTwoSyncService::class);
-        $weekModeRaw = request()->get('week_mode');
-        $resolvedWeekMode = $syncService->resolveWeekMode($weekModeRaw, $weekStart);
+        $resolvedWeekMode = $syncService->resolveWeekMode($weekStart, $course);
         $isDenominatorWeek = $resolvedWeekMode === 'denominator';
 
         $days = $this->buildWeekDays($weekStart);
@@ -562,11 +561,6 @@ class FirstCourseSchedulePageController extends Controller
         $selectedGroupId = request()->integer('group_id') ?: ($groups->first()->id ?? null);
         $weekStartInput = request()->get('week_start');
         $weekStart = $weekStartInput ? Carbon::parse($weekStartInput)->startOfWeek(Carbon::MONDAY) : Carbon::now()->startOfWeek(Carbon::MONDAY);
-        /** @var ScheduleToFormTwoSyncService $syncService */
-        $syncService = app(ScheduleToFormTwoSyncService::class);
-        $weekModeParam = request()->get('week_mode');
-        $weekMode = $syncService->resolveWeekMode($weekModeParam, $weekStart);
-        $weekModeInput = $weekModeParam ?: 'auto';
 
         $days = $this->buildWeekDays($weekStart);
 
@@ -607,8 +601,6 @@ class FirstCourseSchedulePageController extends Controller
             'selectedGroupId' => $selectedGroupId,
             'existing' => $existing,
             'weekStart' => $weekStart->toDateString(),
-            'weekMode' => $weekMode,
-            'weekModeInput' => $weekModeInput,
             'course' => $course,
             'weeklyHolidays' => $holidayDaysOfWeek,
         ]);
@@ -624,7 +616,6 @@ class FirstCourseSchedulePageController extends Controller
             'template_week_start' => 'required|date',
             'semester_start' => 'required|date',
             'semester_end' => 'required|date',
-            'first_week_mode' => 'nullable|string|in:numerator,denominator',
             'skip_existing' => 'sometimes|boolean',
             'sync_form_two' => 'sometimes|boolean',
             'course' => 'nullable|integer|min:1|max:4',
@@ -640,7 +631,6 @@ class FirstCourseSchedulePageController extends Controller
             return back()->withErrors(['semester_end' => 'Дата окончания семестра не может быть раньше начала'])->withInput();
         }
 
-        $firstWeekMode = $data['first_week_mode'] ?? 'numerator';
         $skipExisting = $request->boolean('skip_existing');
         $syncFormTwo = $request->boolean('sync_form_two', true);
 
@@ -649,7 +639,6 @@ class FirstCourseSchedulePageController extends Controller
             $templateWeek,
             $semesterStart,
             $semesterEnd,
-            $firstWeekMode,
             $skipExisting,
             $syncFormTwo,
             $course
@@ -672,7 +661,6 @@ class FirstCourseSchedulePageController extends Controller
             ->route('first.schedule.week', [
                 'group_id' => $groupId,
                 'week_start' => $templateWeek->toDateString(),
-                'week_mode' => $firstWeekMode === 'denominator' ? 'den' : 'num',
                 'course' => $course,
             ])
             ->with('success', $message);
@@ -694,7 +682,6 @@ class FirstCourseSchedulePageController extends Controller
         $validated = $request->validate([
             'group_id' => 'required|integer',
             'week_start' => 'required|date',
-            'week_mode' => 'nullable|string|in:numerator,denominator,auto',
             'schedule' => 'array',
             'course' => 'nullable|integer|min:1|max:4',
         ]);
@@ -706,7 +693,7 @@ class FirstCourseSchedulePageController extends Controller
         $weekStart = Carbon::parse($validated['week_start'])->startOfWeek(Carbon::MONDAY);
         /** @var ScheduleToFormTwoSyncService $sync */
         $sync = app(ScheduleToFormTwoSyncService::class);
-        $weekMode = $sync->resolveWeekMode($validated['week_mode'] ?? null, $weekStart);
+        $weekMode = $sync->resolveWeekMode($weekStart, $course);
         $schedule = $validated['schedule'] ?? [];
 
         $dayDefinitions = $this->buildWeekDays($weekStart);
@@ -905,6 +892,37 @@ class FirstCourseSchedulePageController extends Controller
             }
         });
 
+        $hasDenominatorData = collect($rows)->contains(function (array $row): bool {
+            return !empty($row['subject_id_denominator'])
+                || !empty($row['teacher_id_denominator'])
+                || !empty($row['room_id_denominator'])
+                || !empty($row['subject_id_denominator_2'])
+                || !empty($row['teacher_id_denominator_2'])
+                || !empty($row['room_id_denominator_2']);
+        });
+
+        if ($hasDenominatorData) {
+            $nextWeekStart = $weekStart->copy()->addWeek();
+            $nextWeekExists = DB::table($tables['schedules'])
+                ->where('group_id', $groupId)
+                ->whereDate('week_start', $nextWeekStart->toDateString())
+                ->exists();
+
+            if (!$nextWeekExists && $rows) {
+                $nextId = (int) DB::table($tables['schedules'])->max('id') + 1;
+                $rowsForNextWeek = [];
+                foreach ($rows as $row) {
+                    $rowsForNextWeek[] = array_merge($row, [
+                        'id' => $nextId++,
+                        'week_start' => $nextWeekStart->toDateString(),
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                }
+                DB::table($tables['schedules'])->insert($rowsForNextWeek);
+            }
+        }
+
         $sync->syncWeekWithAlternation($groupId, $weekStart, $course);
 
         return redirect()
@@ -982,7 +1000,6 @@ class FirstCourseSchedulePageController extends Controller
             'den_subject_id_2' => 'nullable|integer',
             'den_teacher_id_2' => 'nullable|integer',
             'den_room_id_2'    => 'nullable|string|max:50',
-            'week_mode' => 'nullable|string|in:numerator,denominator,single,auto',
             'is_absent_1' => 'sometimes|boolean',
             'is_absent_2' => 'sometimes|boolean',
             'is_replacement_1' => 'sometimes|boolean',
@@ -1010,7 +1027,7 @@ class FirstCourseSchedulePageController extends Controller
         $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
         /** @var ScheduleToFormTwoSyncService $sync */
         $sync = app(ScheduleToFormTwoSyncService::class);
-        $weekMode = $sync->resolveWeekMode($data['week_mode'] ?? null, $weekStart);
+        $weekMode = $sync->resolveWeekMode($weekStart, $course);
 
         $existingRows = DB::table($tables['schedules'])
             ->where('group_id', $groupId)

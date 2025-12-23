@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Хост: db
--- Время создания: Дек 08 2025 г., 09:07
+-- Время создания: Дек 23 2025 г., 09:44
 -- Версия сервера: 8.0.43
 -- Версия PHP: 8.3.26
 
@@ -161,34 +161,8 @@ CREATE TABLE `first_course_schedules` (
 --
 
 INSERT INTO `first_course_schedules` (`id`, `replaces_schedule_id`, `week_start`, `study_day`, `lesson_number`, `group_id`, `subject_id`, `subject_id_denominator`, `subject_id_denominator_2`, `subject_id_2`, `teacher_id`, `teacher_id_denominator`, `teacher_id_denominator_2`, `teacher_id_2`, `room_id`, `is_absent_1_num`, `is_replacement_1_num`, `replacement_teacher_id_1_num`, `replacement_comment_1_num`, `is_subject_replacement_1_num`, `replacement_subject_id_1_num`, `room_id_denominator`, `is_absent_1_den`, `is_replacement_1_den`, `replacement_teacher_id_1_den`, `replacement_comment_1_den`, `is_subject_replacement_1_den`, `replacement_subject_id_1_den`, `room_id_denominator_2`, `is_absent_2_den`, `is_replacement_2_den`, `replacement_teacher_id_2_den`, `replacement_comment_2_den`, `is_subject_replacement_2_den`, `replacement_subject_id_2_den`, `room_id_2`, `is_absent_2_num`, `is_replacement_2_num`, `replacement_teacher_id_2_num`, `replacement_comment_2_num`, `is_subject_replacement_2_num`, `replacement_subject_id_2_num`, `subgroup`, `is_replacement`, `created_at`, `updated_at`) VALUES
-(1, NULL, '2025-12-01', 'Понедельник', 1, 12, 12, NULL, NULL, NULL, 10, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(2, NULL, '2025-12-01', 'Понедельник', 2, 12, 14, 8, NULL, NULL, 33, 37, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '1', 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(3, NULL, '2025-12-01', 'Понедельник', 2, 12, NULL, 8, 8, NULL, NULL, 37, 5, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '2', 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(4, NULL, '2025-12-01', 'Понедельник', 3, 12, 5, NULL, NULL, NULL, 27, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(5, NULL, '2025-12-01', 'Понедельник', 4, 12, 6, NULL, NULL, NULL, 33, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '1', 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(6, NULL, '2025-12-01', 'Понедельник', 4, 12, 6, NULL, NULL, NULL, 25, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '2', 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(7, NULL, '2025-12-01', 'Вторник', 1, 12, 3, NULL, NULL, NULL, 46, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '1', 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(8, NULL, '2025-12-01', 'Вторник', 1, 12, 3, NULL, NULL, NULL, 34, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '2', 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(9, NULL, '2025-12-01', 'Вторник', 2, 12, 1, NULL, NULL, NULL, 7, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(10, NULL, '2025-12-01', 'Вторник', 3, 12, 10, NULL, NULL, NULL, 1, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(11, NULL, '2025-12-01', 'Среда', 1, 12, 8, NULL, NULL, NULL, 37, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '1', 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(12, NULL, '2025-12-01', 'Среда', 1, 12, 8, NULL, NULL, NULL, 5, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '2', 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(13, NULL, '2025-12-01', 'Среда', 2, 12, 9, 11, NULL, NULL, 24, 45, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(14, NULL, '2025-12-01', 'Среда', 3, 12, 7, NULL, NULL, NULL, 41, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(15, NULL, '2025-12-01', 'Четверг', 1, 12, 3, 1, NULL, NULL, 32, 7, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '1', 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(16, NULL, '2025-12-01', 'Четверг', 1, 12, 3, 1, NULL, NULL, 34, 7, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '2', 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(17, NULL, '2025-12-01', 'Четверг', 2, 12, 5, NULL, NULL, NULL, 27, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(18, NULL, '2025-12-01', 'Четверг', 3, 12, 15, NULL, NULL, NULL, 41, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(19, NULL, '2025-12-01', 'Четверг', 4, 12, 11, NULL, NULL, NULL, 45, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(20, NULL, '2025-12-01', 'Пятница', 1, 12, 2, NULL, NULL, NULL, 7, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(21, NULL, '2025-12-01', 'Пятница', 2, 12, 13, NULL, NULL, NULL, 23, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(22, NULL, '2025-12-01', 'Пятница', 3, 12, 4, NULL, NULL, NULL, 12, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '1', 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(23, NULL, '2025-12-01', 'Пятница', 3, 12, 4, NULL, NULL, NULL, 19, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '2', 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(24, NULL, '2025-12-01', 'Пятница', 4, 12, 26, NULL, NULL, NULL, 24, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, '2025-12-05 08:09:27', '2025-12-05 08:09:27'),
-(25, NULL, '2025-12-08', 'Понедельник', 1, 12, 3, 1, NULL, NULL, 2, 11, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '1', 0, '2025-12-08 08:59:55', '2025-12-08 08:59:55'),
-(26, NULL, '2025-12-08', 'Понедельник', 1, 12, 3, NULL, 1, NULL, 1, NULL, 11, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '2', 0, '2025-12-08 08:59:55', '2025-12-08 08:59:55'),
-(27, NULL, '2025-12-08', 'Понедельник', 3, 12, 3, 6, NULL, NULL, 1, 18, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '1', 0, '2025-12-08 08:59:55', '2025-12-08 08:59:55'),
-(28, NULL, '2025-12-08', 'Понедельник', 3, 12, 3, NULL, NULL, NULL, 2, NULL, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '2', 0, '2025-12-08 08:59:55', '2025-12-08 08:59:55');
+(3, NULL, '2025-12-22', 'Понедельник', 1, 12, 2, 10, NULL, NULL, 24, 27, NULL, NULL, NULL, 0, 1, 20, NULL, 0, 11, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '1', 0, '2025-12-23 09:42:25', '2025-12-23 09:42:25'),
+(4, NULL, '2025-12-29', 'Понедельник', 1, 12, 2, 10, NULL, NULL, 24, 27, NULL, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 1, 7, NULL, 0, 26, NULL, 0, 0, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, 0, NULL, '1', 0, '2025-12-23 09:43:01', '2025-12-23 09:43:01');
 
 -- --------------------------------------------------------
 
@@ -285,13 +259,9 @@ CREATE TABLE `form_two_records` (
 --
 
 INSERT INTO `form_two_records` (`id`, `group_id`, `month`, `year`, `class_date`, `lesson_number`, `day`, `subject_id`, `teacher_id`, `subgroup`, `total_hours`, `hours_per_class`, `status`, `replacement_teacher_id`, `replacement_subject_id`, `bonus_hours`, `used_hours`, `absent_reason`, `replacement_comment`, `mode`, `created_at`, `updated_at`) VALUES
-(1494, 12, 12, 2025, '2025-12-08', 1, 8, 1, 11, 1, 0, 2, 'normal', NULL, NULL, NULL, 2, NULL, NULL, 'denominator', '2025-12-08 08:59:55', '2025-12-08 08:59:55'),
-(1495, 12, 12, 2025, '2025-12-08', 1, 8, 1, 11, 2, 0, 2, 'normal', NULL, NULL, NULL, 2, NULL, NULL, 'denominator', '2025-12-08 08:59:55', '2025-12-08 08:59:55'),
-(1496, 12, 12, 2025, '2025-12-08', 3, 8, 6, 18, 1, 0, 2, 'normal', NULL, NULL, NULL, 2, NULL, NULL, 'denominator', '2025-12-08 08:59:55', '2025-12-08 08:59:55'),
-(1497, 12, 12, 2025, '2025-12-08', 3, 8, 3, 2, 2, 0, 2, 'normal', NULL, NULL, NULL, 2, NULL, NULL, 'single', '2025-12-08 08:59:55', '2025-12-08 08:59:55'),
-(1498, 12, 12, 2025, '2025-12-01', 1, 1, 3, 2, 1, 0, 2, 'normal', NULL, NULL, NULL, 2, NULL, NULL, 'numerator', '2025-12-08 08:59:55', '2025-12-08 08:59:55'),
-(1499, 12, 12, 2025, '2025-12-01', 1, 1, 3, 1, 2, 0, 2, 'normal', NULL, NULL, NULL, 2, NULL, NULL, 'numerator', '2025-12-08 08:59:55', '2025-12-08 08:59:55'),
-(1500, 12, 12, 2025, '2025-12-01', 3, 1, 3, 2, 2, 0, 2, 'normal', NULL, NULL, NULL, 2, NULL, NULL, 'single', '2025-12-08 08:59:55', '2025-12-08 08:59:55');
+(5, 12, 12, 2025, '2025-12-29', 1, 29, 10, 27, 1, 0, 2, 'replaced', 7, 26, NULL, 0, NULL, NULL, 'denominator', '2025-12-23 09:43:01', '2025-12-23 09:43:01'),
+(6, 12, 12, 2025, '2025-12-29', 1, 29, 26, 7, 1, 0, 2, 'replacement', 7, 26, 2, 0, NULL, NULL, 'denominator', '2025-12-23 09:43:01', '2025-12-23 09:43:01'),
+(7, 12, 12, 2025, '2025-12-22', 1, 22, 2, 24, 1, 0, 2, 'normal', NULL, NULL, NULL, 2, NULL, NULL, 'numerator', '2025-12-23 09:43:01', '2025-12-23 09:43:01');
 
 -- --------------------------------------------------------
 
@@ -588,7 +558,9 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
 (15, '2025_11_27_080013_refactor_replacements_logic', 9),
 (16, '2026_11_28_000000_add_subject_replacement_columns_to_first_course_schedules', 10),
 (17, '2026_11_30_000300_add_replacement_subjects', 11),
-(18, '2027_01_01_000000_add_multi_course_tables', 12);
+(18, '2027_01_01_000000_add_multi_course_tables', 12),
+(19, '2025_12_15_050928_fix_form_two_records_mode', 13),
+(20, '2027_01_02_000100_update_form_two_records_unique_index', 14);
 
 -- --------------------------------------------------------
 
@@ -808,7 +780,7 @@ CREATE TABLE `sessions` (
 --
 
 INSERT INTO `sessions` (`id`, `user_id`, `ip_address`, `user_agent`, `payload`, `last_activity`) VALUES
-('B3E1nEgKbeLJemio9o8NHTT5uyg7pF7qcueYA2zl', NULL, '172.32.0.1', 'Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0', 'YTozOntzOjY6Il90b2tlbiI7czo0MDoiNXFRbXZhSExsSVV2cFN0M1ZDU1JHbnhRWTJYQzNDTXkwaERBa0hDZCI7czo5OiJfcHJldmlvdXMiO2E6Mjp7czozOiJ1cmwiO3M6NTI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODAwMC9maXJzdC1jb3Vyc2Uvc2NoZWR1bGU/Y291cnNlPTEiO3M6NToicm91dGUiO3M6MjA6ImZpcnN0LnNjaGVkdWxlLmluZGV4Ijt9czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319fQ==', 1765184419);
+('4bWcStcM4dZbf8IEDx9IvT5W0eLJs6ThgthNicRg', NULL, '172.31.0.1', 'Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0', 'YTozOntzOjY6Il90b2tlbiI7czo0MDoicjVnNG5pRWtETjZIVEtyOUpIaURYdVhBZGlLZmR1YVBUN24zWWs2UCI7czo5OiJfcHJldmlvdXMiO2E6Mjp7czozOiJ1cmwiO3M6NTI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODAwMC9maXJzdC1jb3Vyc2UvZm9ybS10d28/Y291cnNlPTEiO3M6NToicm91dGUiO3M6MjM6ImZpcnN0LnNjaGVkdWxlLmZvcm1fdHdvIjt9czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319fQ==', 1766482982);
 
 -- --------------------------------------------------------
 
@@ -1033,7 +1005,7 @@ ALTER TABLE `form_two_normatives`
 --
 ALTER TABLE `form_two_records`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `unique_record_full` (`group_id`,`year`,`month`,`day`,`subject_id`,`mode`,`subgroup`),
+  ADD UNIQUE KEY `unique_record_full` (`group_id`,`year`,`month`,`day`,`lesson_number`,`subject_id`,`mode`,`subgroup`),
   ADD KEY `idx_group` (`group_id`),
   ADD KEY `idx_subject` (`subject_id`),
   ADD KEY `idx_teacher` (`teacher_id`),
@@ -1314,7 +1286,7 @@ ALTER TABLE `first_course_group`
 -- AUTO_INCREMENT для таблицы `first_course_schedules`
 --
 ALTER TABLE `first_course_schedules`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=121;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT для таблицы `first_course_subjects`
@@ -1326,13 +1298,13 @@ ALTER TABLE `first_course_subjects`
 -- AUTO_INCREMENT для таблицы `form_two_normatives`
 --
 ALTER TABLE `form_two_normatives`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=56;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT для таблицы `form_two_records`
 --
 ALTER TABLE `form_two_records`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1501;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT для таблицы `fourth_course_group`
@@ -1380,7 +1352,7 @@ ALTER TABLE `jobs`
 -- AUTO_INCREMENT для таблицы `migrations`
 --
 ALTER TABLE `migrations`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT для таблицы `schedule_lessons`

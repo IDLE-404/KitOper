@@ -342,6 +342,7 @@
     const room2Den = document.getElementById('modalRoom2Den');
     const sub2CardNum = document.getElementById('subgroup2CardNum');
     const sub2CardDen = document.getElementById('subgroup2CardDen');
+    const numeratorBlock = document.getElementById('numeratorBlock');
     const hasDenToggle = document.getElementById('modalHasDen');
     const denBlock = document.getElementById('denominatorBlock');
     const absent1Hidden = document.getElementById('modalAbsent1Hidden');
@@ -396,6 +397,31 @@
             : '';
     };
 
+    const weekMode = "{{ $weekMode ?? 'num' }}";
+    const allowDenEdit = weekMode === 'den';
+
+    const setBlockEnabled = (block, enabled) => {
+        if (!block) return;
+        block.classList.toggle('d-none', !enabled);
+        block.querySelectorAll('input, select, textarea').forEach(el => {
+            el.disabled = !enabled;
+        });
+    };
+
+    const syncDenominatorVisibility = (hasDen) => {
+        if (!allowDenEdit) {
+            hasDenToggle.checked = !!hasDen;
+            hasDenToggle.disabled = true;
+            setBlockEnabled(denBlock, false);
+            return;
+        }
+        hasDenToggle.disabled = false;
+        denBlock.classList.toggle('d-none', !hasDenToggle.checked);
+        denBlock.querySelectorAll('input, select, textarea').forEach(el => {
+            el.disabled = !hasDenToggle.checked;
+        });
+    };
+
     const openModal = (data) => {
         hiddenGroup.value = data.group;
         hiddenDay.value = data.day;
@@ -420,9 +446,10 @@
         sub2CardNum.classList.toggle('d-none', !toggleSub2.checked);
         sub2CardDen.classList.toggle('d-none', !toggleSub2.checked);
 
+        setBlockEnabled(numeratorBlock, !allowDenEdit);
         const hasDen = data.hasDenominator === '1' || data.denSubject1 || data.denSubject2 || data.denTeacher1 || data.denTeacher2 || data.denRoom1 || data.denRoom2;
         hasDenToggle.checked = !!hasDen;
-        denBlock.classList.toggle('d-none', !hasDenToggle.checked);
+        syncDenominatorVisibility(hasDen);
 
         absent1Hidden.value = data.absent1 === '1' ? '1' : '0';
         absent2Hidden.value = data.absent2 === '1' ? '1' : '0';
@@ -474,14 +501,17 @@
         sub2CardNum.classList.toggle('d-none', !toggleSub2.checked);
         sub2CardDen.classList.toggle('d-none', !toggleSub2.checked);
         if (!toggleSub2.checked) {
-            subject2.value = '';
-            teacher2.value = '';
-            room2.value = '';
-            subject2Den.value = '';
-            teacher2Den.value = '';
-            room2Den.value = '';
-            absent2Hidden.value = '0';
-            setTeacherConflictAlert(teacherConflictAlert2, '0', '', '', '');
+            if (allowDenEdit) {
+                subject2Den.value = '';
+                teacher2Den.value = '';
+                room2Den.value = '';
+            } else {
+                subject2.value = '';
+                teacher2.value = '';
+                room2.value = '';
+                absent2Hidden.value = '0';
+                setTeacherConflictAlert(teacherConflictAlert2, '0', '', '', '');
+            }
         }
     });
 
@@ -497,7 +527,11 @@
     replacementToggle1Den.addEventListener('change', () => syncReplacementFlag1Den(true));
 
     hasDenToggle.addEventListener('change', () => {
+        if (!allowDenEdit) return;
         denBlock.classList.toggle('d-none', !hasDenToggle.checked);
+        denBlock.querySelectorAll('input, select, textarea').forEach(el => {
+            el.disabled = !hasDenToggle.checked;
+        });
         if (!hasDenToggle.checked) {
             subject1Den.value = '';
             teacher1Den.value = '';
@@ -812,7 +846,7 @@
             </div>
         </div>
 
-        <div class="section-block">
+        <div class="section-block" id="numeratorBlock">
             <div class="section-head">
                 <h5>Числитель (текущая неделя)</h5>
             </div>
@@ -909,7 +943,7 @@
 
         <div class="section-block d-none" id="denominatorBlock">
             <div class="section-head">
-                <h5>Знаменатель (следующая неделя)</h5>
+                <h5>{{ ($weekMode ?? 'num') === 'den' ? 'Знаменатель (текущая неделя)' : 'Знаменатель (следующая неделя)' }}</h5>
             </div>
             <div class="subcard-grid">
                 <div class="subcard">

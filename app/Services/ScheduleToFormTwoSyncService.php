@@ -136,8 +136,8 @@ class ScheduleToFormTwoSyncService
         // ---------- СТАТУС И ЗАМЕНЫ ИЗ schedules ----------
         $statusMode = $useDenominator ? 'denominator' : 'numerator';
 
-        // При mode = 'single' замены всегда записываются в поля _1_num, независимо от subgroup
-        $replacementSubgroup = $mode === 'single' ? 1 : $subgroup;
+        // Замены читаем по фактической подгруппе, даже если mode = single.
+        $replacementSubgroup = $subgroup;
 
         $isAbsent = $this->isAbsent($row, $subgroup, $statusMode);
         $isReplacement = $this->isReplacement($row, $replacementSubgroup, $statusMode);

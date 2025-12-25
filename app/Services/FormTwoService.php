@@ -132,7 +132,11 @@ class FormTwoService
                 continue;
             }
 
-            if ($rec->status === 'replaced' && $rec->replacement_teacher_id) {
+            if (
+                $rec->status === 'replaced'
+                && $rec->replacement_teacher_id
+                && (!$rec->replacement_subject_id || $rec->replacement_subject_id === $rec->subject_id)
+            ) {
                 $replacementRows[] = $this->buildReplacementRow(
                     $rec,
                     $recordDate,
@@ -620,13 +624,14 @@ class FormTwoService
 
         $rows = [];
         foreach ($replacementRows as $replacement) {
-            $key = $this->rowKey($replacement['subject_id'] ?? 0, $replacement['teacher_id'] ?? 0);
+            $replacementTeacherId = $replacement['replacement_teacher_id'] ?? null;
+            $key = $this->rowKey($replacement['subject_id'] ?? 0, $replacementTeacherId);
             if (!isset($rows[$key])) {
                 $rows[$key] = [
                     'subject_id' => $replacement['subject_id'] ?? null,
-                    'teacher_id' => $replacement['teacher_id'] ?? null,
+                    'teacher_id' => $replacementTeacherId,
                     'subject_name' => $replacement['subject_name'] ?? '—',
-                    'teacher_name' => $replacement['teacher_name'] ?? '—',
+                    'teacher_name' => $replacement['replacement_teacher_name'] ?? '—',
                     'total_hours' => $replacement['total_hours'] ?? 0,
                     'hours_per_class' => $replacement['hours_per_class'] ?? 0,
                     'days' => $template,

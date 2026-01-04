@@ -43,7 +43,7 @@ class FirstCourseSchedulePageController extends Controller
         $isFallbackWeek = false;
 
         $subjects = DB::table($tables['subjects'])
-            ->select('id', 'subject_name', 'name_ru', 'name_kz')
+            ->select('id', 'subject_name', 'name_ru', 'name_kz', 'module_title')
             ->get()
             ->mapWithKeys(function ($row) {
                 $ru = $row->name_ru ?: $row->subject_name;
@@ -53,6 +53,7 @@ class FirstCourseSchedulePageController extends Controller
                     $row->id => [
                         'ru' => $ru,
                         'kz' => $kz,
+                        'module' => $row->module_title,
                     ],
                 ];
             })
@@ -60,7 +61,7 @@ class FirstCourseSchedulePageController extends Controller
 
         $subjectsForView = [];
         foreach ($subjects as $id => $entry) {
-            $subjectsForView[$id] = $entry['ru'] ?? ($entry['kz'] ?? '—');
+            $subjectsForView[$id] = $this->formatSubjectTitle($entry, false);
         }
 
         $teachers = DB::table($tables['teachers'])
@@ -136,7 +137,7 @@ class FirstCourseSchedulePageController extends Controller
                 ];
             }
 
-            $subjectResolver = fn (?int $subjectId) => $this->resolveSubjectTitle($subjects, $subjectId, $useKazakh);
+        $subjectResolver = fn (?int $subjectId) => $this->resolveSubjectTitle($subjects, $subjectId, $useKazakh);
 
             $subgroupFlag = $row->subgroup === '2' ? 2 : 1;
             $num1 = $subgroupFlag === 1 ? $row->subject_id : null;
@@ -377,15 +378,21 @@ class FirstCourseSchedulePageController extends Controller
             return '—';
         }
 
-        $entry = $subjects[$subjectId];
+        return $this->formatSubjectTitle($subjects[$subjectId], $useKazakh);
+    }
+
+    protected function formatSubjectTitle(array $entry, bool $useKazakh): string
+    {
         $ru = $entry['ru'] ?? null;
         $kz = $entry['kz'] ?? null;
+        $name = $useKazakh ? ($kz ?: $ru) : ($ru ?: $kz);
+        $module = trim((string) ($entry['module'] ?? ''));
 
-        if ($useKazakh) {
-            return $kz ?: ($ru ?: '—');
+        if ($module !== '') {
+            return trim($module . ' ' . ($name ?: ''));
         }
 
-        return $ru ?: ($kz ?: '—');
+        return $name ?: '—';
     }
 
     protected function isKazakhGroup(?string $groupName): bool
@@ -574,7 +581,15 @@ class FirstCourseSchedulePageController extends Controller
         $tables = CourseContext::tables($course);
 
         $groups = DB::table($tables['groups'])->orderBy('group_name')->get();
-        $subjects = DB::table($tables['subjects'])->orderBy('name_ru')->get();
+        $subjects = DB::table($tables['subjects'])
+            ->orderBy('name_ru')
+            ->get()
+            ->map(function ($row) {
+                $name = $row->name_ru ?: $row->subject_name;
+                $module = trim((string) ($row->module_title ?? ''));
+                $row->title = $module !== '' ? trim($module . ' ' . $name) : $name;
+                return $row;
+            });
         $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get();
 
         $selectedGroupId = request()->integer('group_id') ?: ($groups->first()->id ?? null);

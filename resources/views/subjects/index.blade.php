@@ -63,8 +63,8 @@
 <div class="schedule-shell compact">
     <div class="header-row">
         <div>
-            <h1 class="page-title">Преподаватели — {{ $course ?? 1 }} курс</h1>
-            <p class="page-subtitle">Управление списком преподавателей для расписания и формы 2</p>
+            <h1 class="page-title">Предметы — {{ $course ?? 1 }} курс</h1>
+            <p class="page-subtitle">Справочник предметов для расписания и формы 2</p>
             <div class="mt-2 d-flex align-items-center gap-2">
                 <label class="text-muted small mb-0">Курс:</label>
                 <select id="courseSelect" class="search-input" style="width:auto;">
@@ -91,14 +91,20 @@
     @endif
 
     <div class="panel-card mb-4">
-        <div class="panel-title">Добавить преподавателя</div>
-        <form method="POST" action="{{ route('teachers.store') }}">
+        <div class="panel-title">Добавить предмет</div>
+        <form method="POST" action="{{ route('subjects.store') }}">
             @csrf
             <input type="hidden" name="course" value="{{ $course ?? 1 }}">
             <div class="form-row">
+                @if($hasModules)
+                    <div class="form-field">
+                        <label for="moduleTitle">Модуль (например, ОММ или ПМ)</label>
+                        <input id="moduleTitle" name="module_title" class="search-input w-100" value="{{ old('module_title') }}" placeholder="ОММ">
+                    </div>
+                @endif
                 <div class="form-field">
-                    <label for="teacherName">ФИО преподавателя</label>
-                    <input id="teacherName" name="teacher_name" class="search-input w-100" required value="{{ old('teacher_name') }}" placeholder="Например: Иванова И.Н.">
+                    <label for="subjectName">Название предмета</label>
+                    <input id="subjectName" name="subject_name" class="search-input w-100" required value="{{ old('subject_name') }}" placeholder="{{ $hasModules ? 'РО 1.1 Укреплять здоровье и соблюдать принципы здорового образа жизни' : 'Например: Математика' }}">
                 </div>
                 <div class="form-field form-field--actions">
                     <button type="submit" class="btn-pill primary">Добавить</button>
@@ -106,28 +112,37 @@
             </div>
         </form>
         <div class="mt-3">
-            <input type="search" id="teacherSearch" class="search-input w-100" placeholder="Поиск по преподавателю">
+            <input type="search" id="subjectSearch" class="search-input w-100" placeholder="Поиск по предмету или модулю">
         </div>
     </div>
 
     <div class="panel-card">
-        <div class="panel-title">Список преподавателей</div>
+        <div class="panel-title">Список предметов</div>
         <div class="table-responsive">
-            <table class="table table-hover align-middle" id="teachersTable">
+            <table class="table table-hover align-middle" id="subjectsTable">
                 <thead>
                     <tr>
-                        <th>ФИО</th>
+                        @if($hasModules)
+                            <th>Модуль</th>
+                        @endif
+                        <th>Название предмета</th>
                         <th class="text-end">Действия</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($teachers as $teacher)
-                        <tr data-name="{{ mb_strtolower($teacher->teacher_name ?? '') }}">
-                            <td>{{ $teacher->teacher_name ?? '—' }}</td>
+                    @forelse($subjects as $subject)
+                        @php
+                            $searchKey = trim(($subject->module_title ?? '') . ' ' . ($subject->subject_name ?? ''));
+                        @endphp
+                        <tr data-name="{{ mb_strtolower($searchKey) }}">
+                            @if($hasModules)
+                                <td>{{ $subject->module_title ?? '—' }}</td>
+                            @endif
+                            <td>{{ $subject->subject_name ?? '—' }}</td>
                             <td class="text-end">
                                 <div class="table-actions">
-                                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editTeacher{{ $teacher->id }}">Редактировать</button>
-                                    <form method="POST" action="{{ route('teachers.destroy', $teacher->id) }}" onsubmit="return confirm('Удалить преподавателя?');" class="d-inline">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editSubject{{ $subject->id }}">Редактировать</button>
+                                    <form method="POST" action="{{ route('subjects.destroy', $subject->id) }}" onsubmit="return confirm('Удалить предмет?');" class="d-inline">
                                         @csrf
                                         @method('DELETE')
                                         <input type="hidden" name="course" value="{{ $course ?? 1 }}">
@@ -138,7 +153,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="2" class="empty-note">Пока нет преподавателей для этого курса.</td>
+                            <td colspan="{{ $hasModules ? 3 : 2 }}" class="empty-note">Пока нет предметов для этого курса.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -147,22 +162,28 @@
     </div>
 </div>
 
-@foreach($teachers as $teacher)
-    <div class="modal fade" id="editTeacher{{ $teacher->id }}" tabindex="-1" aria-labelledby="editTeacherLabel{{ $teacher->id }}" aria-hidden="true">
+@foreach($subjects as $subject)
+    <div class="modal fade" id="editSubject{{ $subject->id }}" tabindex="-1" aria-labelledby="editSubjectLabel{{ $subject->id }}" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <form method="POST" action="{{ route('teachers.update', $teacher->id) }}">
+                <form method="POST" action="{{ route('subjects.update', $subject->id) }}">
                     @csrf
                     @method('PUT')
                     <input type="hidden" name="course" value="{{ $course ?? 1 }}">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="editTeacherLabel{{ $teacher->id }}">Редактировать преподавателя</h5>
+                        <h5 class="modal-title" id="editSubjectLabel{{ $subject->id }}">Редактировать предмет</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                     </div>
                     <div class="modal-body">
+                        @if($hasModules)
+                            <div class="mb-3">
+                                <label class="form-label">Модуль</label>
+                                <input name="module_title" class="form-control" value="{{ old('module_title', $subject->module_title) }}">
+                            </div>
+                        @endif
                         <div class="mb-3">
-                            <label class="form-label">ФИО преподавателя</label>
-                            <input name="teacher_name" class="form-control" required value="{{ old('teacher_name', $teacher->teacher_name) }}">
+                            <label class="form-label">Название предмета</label>
+                            <input name="subject_name" class="form-control" required value="{{ old('subject_name', $subject->subject_name) }}">
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -185,13 +206,13 @@
         window.location.search = params.toString();
     });
 
-    const teacherSearch = document.getElementById('teacherSearch');
-    const teacherRows = Array.from(document.querySelectorAll('#teachersTable tbody tr'))
+    const subjectSearch = document.getElementById('subjectSearch');
+    const subjectRows = Array.from(document.querySelectorAll('#subjectsTable tbody tr'))
         .filter(row => row.dataset.name !== undefined);
 
-    teacherSearch?.addEventListener('input', () => {
-        const query = teacherSearch.value.trim().toLowerCase();
-        teacherRows.forEach(row => {
+    subjectSearch?.addEventListener('input', () => {
+        const query = subjectSearch.value.trim().toLowerCase();
+        subjectRows.forEach(row => {
             const name = row.dataset.name || '';
             row.style.display = name.includes(query) ? '' : 'none';
         });

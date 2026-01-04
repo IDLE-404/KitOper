@@ -220,7 +220,7 @@
                                             <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id]">
                                                 <option value="">Выберите предмет</option>
                                                 @foreach($subjects as $s)
-                                                    <option value="{{ $s->id }}" @selected($rowA && $rowA->subject_id == $s->id)>{{ $s->name_ru ?? $s->subject_name }}</option>
+                                                    <option value="{{ $s->id }}" @selected($rowA && $rowA->subject_id == $s->id)>{{ $s->title ?? ($s->name_ru ?? $s->subject_name) }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
@@ -230,7 +230,7 @@
                                             <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-a-den" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_denominator]">
                                                 <option value="">Если предмет чередуется</option>
                                                 @foreach($subjects as $s)
-                                                    <option value="{{ $s->id }}" @selected($rowA && ($rowA->subject_id_denominator ?? null) == $s->id)>{{ $s->name_ru ?? $s->subject_name }}</option>
+                                                    <option value="{{ $s->id }}" @selected($rowA && ($rowA->subject_id_denominator ?? null) == $s->id)>{{ $s->title ?? ($s->name_ru ?? $s->subject_name) }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
@@ -287,7 +287,7 @@
                                             <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_second]">
                                                 <option value="">Предмет подгруппы 2</option>
                                                 @foreach($subjects as $s)
-                                                    <option value="{{ $s->id }}" @selected($rowB && $rowB->subject_id == $s->id)>{{ $s->name_ru ?? $s->subject_name }}</option>
+                                                    <option value="{{ $s->id }}" @selected($rowB && $rowB->subject_id == $s->id)>{{ $s->title ?? ($s->name_ru ?? $s->subject_name) }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
@@ -297,7 +297,7 @@
                                             <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-b-den" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_second_denominator]">
                                                 <option value="">Если предмет чередуется</option>
                                                 @foreach($subjects as $s)
-                                                    <option value="{{ $s->id }}" @selected($rowB && ($rowB->subject_id_denominator ?? null) == $s->id)>{{ $s->name_ru ?? $s->subject_name }}</option>
+                                                    <option value="{{ $s->id }}" @selected($rowB && ($rowB->subject_id_denominator ?? null) == $s->id)>{{ $s->title ?? ($s->name_ru ?? $s->subject_name) }}</option>
                                                 @endforeach
                                             </select>
                                         </div>

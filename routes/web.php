@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\FirstCourseSchedulePageController;
 use App\Http\Controllers\TeacherController;
+use App\Http\Controllers\SubjectController;
 
 Route::get('/', [FirstCourseSchedulePageController::class, 'index'])->name('home');
 
@@ -19,4 +20,8 @@ Route::prefix('first-course')->group(function () {
     Route::post('/teachers', [TeacherController::class, 'store'])->name('teachers.store');
     Route::put('/teachers/{id}', [TeacherController::class, 'update'])->name('teachers.update');
     Route::delete('/teachers/{id}', [TeacherController::class, 'destroy'])->name('teachers.destroy');
+    Route::get('/subjects', [SubjectController::class, 'index'])->name('subjects.index');
+    Route::post('/subjects', [SubjectController::class, 'store'])->name('subjects.store');
+    Route::put('/subjects/{id}', [SubjectController::class, 'update'])->name('subjects.update');
+    Route::delete('/subjects/{id}', [SubjectController::class, 'destroy'])->name('subjects.destroy');
 });

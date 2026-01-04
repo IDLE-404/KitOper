@@ -33,6 +33,8 @@ class FormTwoController extends Controller
         $rows = $report['rows'] ?? [];
         $replacementRows = $report['replacement_rows'] ?? [];
         $replacementTableRows = $report['replacement_table_rows'] ?? [];
+        $subgroupTwoRows = $report['subgroup_two_rows'] ?? [];
+        $subgroupTwoTotals = $report['subgroup_two_totals'] ?? ['day_totals' => [], 'column_totals' => []];
         $totals = $report['totals'] ?? ['day_totals' => [], 'column_totals' => []];
         $dayTotals = $totals['day_totals'] ?? [];
         $columnTotals = $totals['column_totals'] ?? [
@@ -44,6 +46,18 @@ class FormTwoController extends Controller
         foreach ($days as $day) {
             if (!isset($dayTotals[$day])) {
                 $dayTotals[$day] = 0;
+            }
+        }
+        $subgroupTwoDayTotals = $subgroupTwoTotals['day_totals'] ?? [];
+        $subgroupTwoColumnTotals = $subgroupTwoTotals['column_totals'] ?? [
+            'normative' => 0,
+            'used' => 0,
+            'bonus' => 0,
+            'left' => 0,
+        ];
+        foreach ($days as $day) {
+            if (!isset($subgroupTwoDayTotals[$day])) {
+                $subgroupTwoDayTotals[$day] = 0;
             }
         }
 
@@ -63,6 +77,9 @@ class FormTwoController extends Controller
             'teachers' => $teachers,
             'replacementRows' => $replacementRows,
             'replacementTableRows' => $replacementTableRows,
+            'subgroupTwoRows' => $subgroupTwoRows,
+            'subgroupTwoDayTotals' => $subgroupTwoDayTotals,
+            'subgroupTwoColumnTotals' => $subgroupTwoColumnTotals,
             'subjects' => $subjects,
             'course' => $course,
             'holidayDays' => $holidayDays,

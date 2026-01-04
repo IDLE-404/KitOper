@@ -19,9 +19,18 @@ class FormTwoExportService
         $rows = $report['rows'] ?? [];
         $days = $report['days'] ?? [];
         $replacementRows = $report['replacement_rows'] ?? [];
+        $subgroupTwoRows = $report['subgroup_two_rows'] ?? [];
         $totals = $report['totals'] ?? $formTwoService->calculateTotals($rows, $days);
         $dayTotals = $totals['day_totals'] ?? [];
         $columnTotals = $totals['column_totals'] ?? [
+            'normative' => 0,
+            'used' => 0,
+            'bonus' => 0,
+            'left' => 0,
+        ];
+        $subgroupTwoTotals = $report['subgroup_two_totals'] ?? $formTwoService->calculateTotals($subgroupTwoRows, $days);
+        $subgroupTwoDayTotals = $subgroupTwoTotals['day_totals'] ?? [];
+        $subgroupTwoColumnTotals = $subgroupTwoTotals['column_totals'] ?? [
             'normative' => 0,
             'used' => 0,
             'bonus' => 0,
@@ -135,6 +144,62 @@ class FormTwoExportService
                     $replacement['comment'] ?? '',
                 ], ';');
             }
+        }
+
+        if ($subgroupTwoRows) {
+            fputcsv($file, []);
+            fputcsv($file, ['Подвоение (подгруппа 2)'], ';');
+            fputcsv($file, []); // Пустая строка
+
+            fputcsv($file, $headers, ';');
+
+            $idx = 1;
+            foreach ($subgroupTwoRows as $row) {
+                $data = [
+                    $idx++,
+                    $row['subject_name'] ?? '—',
+                    $row['teacher_name'] ?? '—',
+                    $row['total_hours'] ?? 0,
+                ];
+
+                foreach ($days as $day) {
+                    $cell = $row['days'][$day] ?? [];
+                    $status = $cell['status'] ?? 'empty';
+                    $value = '';
+
+                    if ($status === 'normal') {
+                        $value = $cell['used_hours'] ?? $row['hours_per_class'] ?? '2';
+                    } elseif ($status === 'replacement') {
+                        $value = $cell['bonus_hours'] ?? $row['hours_per_class'] ?? '2';
+                    } elseif ($status === 'replaced') {
+                        $value = '■';
+                    } else {
+                        $value = '•';
+                    }
+
+                    $data[] = $value;
+                }
+
+                $data[] = $row['used_hours_total'] ?? 0;
+                $data[] = $row['bonus_hours_total'] ?? 0;
+                $data[] = $row['hours_left'] ?? 0;
+
+                fputcsv($file, $data, ';');
+            }
+
+            $totalsRow = [
+                '',
+                'Итого',
+                '',
+                $subgroupTwoColumnTotals['normative'] ?? 0,
+            ];
+            foreach ($days as $day) {
+                $totalsRow[] = $subgroupTwoDayTotals[$day] ?? 0;
+            }
+            $totalsRow[] = $subgroupTwoColumnTotals['used'] ?? 0;
+            $totalsRow[] = $subgroupTwoColumnTotals['bonus'] ?? 0;
+            $totalsRow[] = $subgroupTwoColumnTotals['left'] ?? 0;
+            fputcsv($file, $totalsRow, ';');
         }
 
         fclose($file);

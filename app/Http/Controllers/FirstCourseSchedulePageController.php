@@ -30,21 +30,17 @@ class FirstCourseSchedulePageController extends Controller
         $tables = CourseContext::tables($course);
 
         $weekStartInput = request()->get('week_start');
-        $weekStart = $weekStartInput ? Carbon::parse($weekStartInput)->startOfWeek(Carbon::MONDAY) : Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $requestedWeekStart = $weekStartInput
+            ? Carbon::parse($weekStartInput)->startOfWeek(Carbon::MONDAY)
+            : Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $weekStart = $requestedWeekStart->copy();
 
         /** @var ScheduleToFormTwoSyncService $syncService */
         $syncService = app(ScheduleToFormTwoSyncService::class);
         $resolvedWeekMode = $syncService->resolveWeekMode($weekStart, $course);
         $isDenominatorWeek = $resolvedWeekMode === 'denominator';
 
-        $days = $this->buildWeekDays($weekStart);
-        $weeklyHolidays = collect($days)->pluck('holiday')->filter()->values()->all();
-        $holidayWeekDates = [];
-        foreach ($days as $day) {
-            if (!empty($day['holiday']) && !empty($day['date'])) {
-                $holidayWeekDates[$day['date']] = $day['holiday'];
-            }
-        }
+        $isFallbackWeek = false;
 
         $subjects = DB::table($tables['subjects'])
             ->select('id', 'subject_name', 'name_ru', 'name_kz')
@@ -86,6 +82,29 @@ class FirstCourseSchedulePageController extends Controller
             ->orderBy('s.study_day')
             ->orderBy('s.lesson_number')
             ->get();
+        if ($raw->isEmpty() && $isDenominatorWeek) {
+            $fallbackWeekStart = $weekStart->copy()->subWeek();
+            $fallbackRaw = DB::table($tables['schedules'] . ' as s')
+                ->whereDate('s.week_start', $fallbackWeekStart->toDateString())
+                ->orderBy('s.study_day')
+                ->orderBy('s.lesson_number')
+                ->get();
+            if ($fallbackRaw->isNotEmpty()) {
+                $weekStart = $fallbackWeekStart;
+                $raw = $fallbackRaw;
+                $isDenominatorWeek = false;
+                $isFallbackWeek = true;
+            }
+        }
+
+        $days = $this->buildWeekDays($weekStart);
+        $weeklyHolidays = collect($days)->pluck('holiday')->filter()->values()->all();
+        $holidayWeekDates = [];
+        foreach ($days as $day) {
+            if (!empty($day['holiday']) && !empty($day['date'])) {
+                $holidayWeekDates[$day['date']] = $day['holiday'];
+            }
+        }
 
         $currentMode = $isDenominatorWeek ? 'denominator' : 'numerator';
         $roomConflicts = FirstCourseSchedule::detectRoomConflicts($raw);
@@ -339,6 +358,8 @@ class FirstCourseSchedulePageController extends Controller
             'teachers' => $teachers,
             'weekMode' => $isDenominatorWeek ? 'den' : 'num',
             'weekStart' => $weekStart->toDateString(),
+            'requestedWeekStart' => $requestedWeekStart->toDateString(),
+            'isFallbackWeek' => $isFallbackWeek,
             'course' => $course,
             'weekDays' => $days,
             'weeklyHolidays' => $weeklyHolidays,

@@ -82,6 +82,8 @@
     $itemsByGroup = $schedule ?? [];
     $firstGroupId = count($itemsByGroup) ? array_key_first($itemsByGroup) : null;
     $expandLinkParams = ['course' => $course ?? 1];
+    $requestedWeekStart = $requestedWeekStart ?? ($weekStart ?? null);
+    $isFallbackWeek = $isFallbackWeek ?? false;
     if ($firstGroupId) {
         $expandLinkParams['group_id'] = $firstGroupId;
     }
@@ -104,11 +106,16 @@
                 <span class="pill {{ ($weekMode ?? 'num') === 'den' ? 'primary' : 'soft' }}">
                     Сейчас показывается: {{ ($weekMode ?? 'num') === 'den' ? 'неделя B (знаменатель)' : 'неделя A (числитель)' }} (неделя от {{ $weekStart ?? '—' }})
                 </span>
+                @if($isFallbackWeek)
+                    <div class="text-muted small mt-1">
+                        Для выбранной недели знаменателя нет расписания — показан числитель за {{ $weekStart ?? '—' }}.
+                    </div>
+                @endif
             </div>
         </div>
     <div class="action-buttons">
         <input type="search" id="groupSearch" class="search-input" placeholder="Поиск по группе или предмету">
-        <input type="date" id="weekStartInput" class="search-input" value="{{ $weekStart ?? '' }}" style="width:auto;">
+        <input type="date" id="weekStartInput" class="search-input" value="{{ $requestedWeekStart ?? '' }}" style="width:auto;">
         <button type="button" class="btn-pill ghost" id="weekStartApply">Показать неделю</button>
         <button type="button" class="btn-pill ghost" id="weekNext">Следующая неделя</button>
         <button type="button" class="btn-pill ghost" id="weekPrev">Предыдущая неделя</button>

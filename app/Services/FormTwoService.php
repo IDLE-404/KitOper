@@ -55,6 +55,12 @@ class FormTwoService
             ->whereBetween('class_date', [$studyYearStart->toDateString(), $monthEnd->toDateString()])
             ->get();
         $records = $this->expandReplacements($records);
+        $recordsMain = $records->filter(function ($rec) {
+            return $this->subgroupValue($rec) !== 2;
+        })->values();
+        $recordsSubgroupTwo = $records->filter(function ($rec) {
+            return $this->subgroupValue($rec) === 2;
+        })->values();
 
         $teacherIds = $normatives->pluck('teacher_id')
             ->merge($records->pluck('teacher_id'))
@@ -66,24 +72,114 @@ class FormTwoService
             ->whereIn('id', $teacherIds)
             ->pluck('teacher_name', 'id');
 
+        $preferredOrder = [
+            'Русский язык',
+            'Русская литература',
+            'Казахский язык и литература',
+            'Иностранный язык',
+            'Математика',
+            '2',
+            'История Казахстана',
+            'Физическая культура',
+            'Начальная военная и технологическая подготовка',
+            'Физика',
+            'Химия',
+            'Биология',
+            'География',
+            'Графика и проектирование',
+            'Всемирная история',
+        ];
+
+        $mainReport = $this->buildReportData(
+            $recordsMain,
+            $normatives,
+            $subjectNames,
+            $teachers,
+            $days,
+            $holidayFlags,
+            $monthStart,
+            $monthEnd,
+            $studyYearStart,
+            $year,
+            $month,
+            $daysCount,
+            $preferredOrder,
+            true
+        );
+        $sortedReplacements = $this->sortReplacementRows($mainReport['replacement_rows']);
+        $report = [
+            'days' => $days,
+            'rows' => $mainReport['rows'],
+            'replacement_rows' => $sortedReplacements,
+            'replacement_table_rows' => $this->buildReplacementTableRows($sortedReplacements, $days),
+        ];
+
+        $report['totals'] = $mainReport['totals'];
+
+        $subgroupTwoReport = $this->buildReportData(
+            $recordsSubgroupTwo,
+            $normatives,
+            $subjectNames,
+            $teachers,
+            $days,
+            $holidayFlags,
+            $monthStart,
+            $monthEnd,
+            $studyYearStart,
+            $year,
+            $month,
+            $daysCount,
+            $preferredOrder,
+            false
+        );
+        $report['subgroup_two_rows'] = $subgroupTwoReport['rows'];
+        $report['subgroup_two_totals'] = $subgroupTwoReport['totals'];
+
+        return $report;
+    }
+
+    protected function subgroupValue(object $rec): int
+    {
+        $value = (int) ($rec->subgroup ?? 1);
+        return $value ?: 1;
+    }
+
+    protected function buildReportData(
+        Collection $records,
+        Collection $normatives,
+        Collection $subjectNames,
+        Collection $teachers,
+        array $days,
+        array $holidayFlags,
+        Carbon $monthStart,
+        Carbon $monthEnd,
+        Carbon $studyYearStart,
+        int $year,
+        int $month,
+        int $daysCount,
+        array $preferredOrder,
+        bool $includeEmptySubjects
+    ): array {
         $rows = [];
         $replacementRows = [];
         $normMap = $this->buildNormativeLookup($normatives);
         $subjectsUsed = [];
         $spentBefore = [];
         $spentCurrent = [];
-        foreach ($normatives as $norm) {
-            $key = $this->rowKey($norm->subject_id, $norm->teacher_id);
-            $rows[$key] = $this->emptyRow(
-                $norm->subject_id,
-                $norm->teacher_id,
-                (int) ($norm->total_hours ?? 0),
-                (int) ($norm->hours_per_class ?? 2),
-                $days,
-                $subjectNames,
-                $teachers
-            );
-            $subjectsUsed[$norm->subject_id] = true;
+        if ($includeEmptySubjects) {
+            foreach ($normatives as $norm) {
+                $key = $this->rowKey($norm->subject_id, $norm->teacher_id);
+                $rows[$key] = $this->emptyRow(
+                    $norm->subject_id,
+                    $norm->teacher_id,
+                    (int) ($norm->total_hours ?? 0),
+                    (int) ($norm->hours_per_class ?? 2),
+                    $days,
+                    $subjectNames,
+                    $teachers
+                );
+                $subjectsUsed[$norm->subject_id] = true;
+            }
         }
 
         /** @var object $rec */
@@ -149,7 +245,7 @@ class FormTwoService
             $dayData = $rows[$key]['days'][$day] ?? $this->emptyDay();
             $dayData['used_hours'] += $usedHoursValue;
             $dayData['bonus_hours'] += $bonusHoursValue;
-            
+
             // Определяем приоритет входящего статуса
             $incomingStatus = $rec->status ?: (($rec->used_hours ?? 0) > 0 ? 'normal' : 'empty');
             if ($incomingStatus === 'sick') {
@@ -165,10 +261,10 @@ class FormTwoService
             $currentStatus = $dayData['status'] ?? 'empty';
             $currentPriority = $statusPriority[$currentStatus] ?? 0;
             $incomingPriority = $statusPriority[$incomingStatus] ?? 0;
-            
+
             // Определяем итоговый статус (используем resolveStatus для совместимости)
             $newStatus = $this->resolveStatus($currentStatus, $rec);
-            
+
             // КРИТИЧЕСКИ ВАЖНО: Данные о замене должны браться из записи, которая "победила" по статусу
             // Если новый статус основан на входящей записи (incomingPriority >= currentPriority),
             // берём данные о замене из входящей записи
@@ -188,7 +284,7 @@ class FormTwoService
                 $dayData['replacement_comment'] = $rec->replacement_comment;
             }
             // Если currentPriority > incomingPriority, существующие данные о замене сохраняются
-            
+
             $dayData['status'] = $newStatus;
             $dayData['mode'] = $rec->mode ?? $dayData['mode'];
             $dayData['lesson_number'] = $rec->lesson_number ?? $dayData['lesson_number'];
@@ -230,54 +326,32 @@ class FormTwoService
         }
 
         // Добавляем пустые строки для предметов, по которым нет нормативов и записей
-        foreach ($subjectNames as $subjectId => $subjectName) {
-            if (isset($subjectsUsed[$subjectId])) {
-                continue;
+        if ($includeEmptySubjects) {
+            foreach ($subjectNames as $subjectId => $subjectName) {
+                if (isset($subjectsUsed[$subjectId])) {
+                    continue;
+                }
+                $key = $this->rowKey($subjectId, null);
+                $rows[$key] = $this->emptyRow(
+                    $subjectId,
+                    null,
+                    0,
+                    2,
+                    $days,
+                    $subjectNames,
+                    $teachers
+                );
             }
-            $key = $this->rowKey($subjectId, null);
-            $rows[$key] = $this->emptyRow(
-                $subjectId,
-                null,
-                0,
-                2,
-                $days,
-                $subjectNames,
-                $teachers
-            );
         }
 
-        $preferredOrder = [
-            'Русский язык',
-            'Русская литература',
-            'Казахский язык и литература',
-            'Иностранный язык',
-            'Математика',
-            '2',
-            'История Казахстана',
-            'Физическая культура',
-            'Начальная военная и технологическая подготовка',
-            'Физика',
-            'Химия',
-            'Биология',
-            'География',
-            'Графика и проектирование',
-            'Всемирная история',
-        ];
-
         $rows = $this->sortRows($rows, $preferredOrder);
+        $totals = $this->calculateTotals($rows, $days);
 
-        $sortedReplacements = $this->sortReplacementRows($replacementRows);
-
-        $report = [
-            'days' => $days,
+        return [
             'rows' => $rows,
-            'replacement_rows' => $sortedReplacements,
-            'replacement_table_rows' => $this->buildReplacementTableRows($sortedReplacements, $days),
+            'replacement_rows' => $replacementRows,
+            'totals' => $totals,
         ];
-
-        $report['totals'] = $this->calculateTotals($rows, $days);
-
-        return $report;
     }
 
     /**

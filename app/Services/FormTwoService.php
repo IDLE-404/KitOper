@@ -693,6 +693,7 @@ class FormTwoService
                 'status' => 'empty',
                 'value' => '',
                 'replacement_teacher_name' => null,
+                'bonus_hours' => 0,
             ];
         }
 
@@ -726,6 +727,7 @@ class FormTwoService
                 'status' => 'replacement',
                 'value' => $value,
                 'replacement_teacher_name' => $replacement['replacement_teacher_name'],
+                'bonus_hours' => (int) ($replacement['replacement_hours'] ?? 0),
             ];
 
             $rows[$key]['bonus_hours_total'] += $replacement['replacement_hours'] ?? 0;
@@ -737,6 +739,39 @@ class FormTwoService
         });
 
         return $result;
+    }
+
+    public function calculateReplacementTotals(array $rows, array $days): array
+    {
+        $dayTotals = [];
+        foreach ($days as $day) {
+            $dayTotals[$day] = 0;
+        }
+
+        $columnTotals = [
+            'normative' => 0,
+            'used' => 0,
+            'bonus' => 0,
+            'left' => 0,
+        ];
+
+        foreach ($rows as $row) {
+            $columnTotals['normative'] += (int) ($row['total_hours'] ?? 0);
+            $columnTotals['used'] += (int) ($row['used_hours_total'] ?? 0);
+            $columnTotals['bonus'] += (int) ($row['bonus_hours_total'] ?? 0);
+            $columnTotals['left'] += (int) ($row['hours_left'] ?? 0);
+
+            foreach ($row['days'] as $day => $cell) {
+                if (array_key_exists($day, $dayTotals)) {
+                    $dayTotals[$day] += (int) ($cell['bonus_hours'] ?? 0);
+                }
+            }
+        }
+
+        return [
+            'day_totals' => $dayTotals,
+            'column_totals' => $columnTotals,
+        ];
     }
 
     public function calculateTotals(array $rows, array $days): array

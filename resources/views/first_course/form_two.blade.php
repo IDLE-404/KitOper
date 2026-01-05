@@ -10,6 +10,8 @@
     $daysCount = count($days ?? []);
     $replacementRows = $replacementRows ?? [];
     $replacementTableRows = $replacementTableRows ?? [];
+    $replacementDayTotals = $replacementDayTotals ?? [];
+    $replacementColumnTotals = $replacementColumnTotals ?? ['normative' => 0, 'used' => 0, 'bonus' => 0, 'left' => 0];
     $subgroupTwoRows = $subgroupTwoRows ?? [];
     $subgroupTwoDayTotals = $subgroupTwoDayTotals ?? [];
     $subgroupTwoColumnTotals = $subgroupTwoColumnTotals ?? ['normative' => 0, 'used' => 0, 'bonus' => 0, 'left' => 0];
@@ -129,33 +131,33 @@
                 <table class="table table-sm align-middle form-two-table">
                     <thead>
                         <tr>
-                            <th class="text-muted">#</th>
-                            <th class="text-muted">Предмет</th>
-                            <th class="text-muted">Преподаватель</th>
-                            <th class="text-muted">Норматив</th>
+                            <th class="text-muted col-index">#</th>
+                            <th class="text-muted col-subject">Предмет</th>
+                            <th class="text-muted col-teacher">Преподаватель</th>
+                            <th class="text-muted col-norm">Норматив</th>
                             @foreach($days as $d)
-                                <th class="text-center text-muted day-head {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
+                                <th class="text-center text-muted day-head col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
                             @endforeach
-                            <th class="text-muted">Использовано</th>
-                            <th class="text-muted">Бонус</th>
-                            <th class="text-muted">Остаток</th>
+                            <th class="text-muted col-used">Использовано</th>
+                            <th class="text-muted col-bonus">Бонус</th>
+                            <th class="text-muted col-left">Остаток</th>
                         </tr>
                     </thead>
                     <tbody id="formBody">
                         @forelse($rows as $idx => $row)
                             <tr data-row="{{ $idx }}">
-                                <td>{{ $idx + 1 }}</td>
-                                <td>
+                                <td class="col-index">{{ $idx + 1 }}</td>
+                                <td class="col-subject">
                                     <div class="fw-semibold">{{ $row['subject_name'] ?? '—' }}</div>
                                     <input type="hidden" class="row-subject" value="{{ $row['subject_id'] }}">
                                     <input type="hidden" class="row-hours-per-class" value="{{ $row['hours_per_class'] ?? 2 }}">
                                     <input type="hidden" class="row-total-hours" value="{{ $row['total_hours'] ?? 0 }}">
                                 </td>
-                                <td>
+                                <td class="col-teacher">
                                     <div>{{ $row['teacher_name'] ?? '—' }}</div>
                                     <input type="hidden" class="row-teacher" value="{{ $row['teacher_id'] }}">
                                 </td>
-                                <td>
+                                <td class="col-norm">
                                     <div class="small text-muted">
                                         Остаток на начало:
                                         <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
@@ -218,7 +220,7 @@
                                         $titleParts = array_filter([$tooltip, $holidayNote]);
                                         $cellTitle = $titleParts ? implode(' | ', $titleParts) : 'Нет записи';
                                     @endphp
-                                    <td class="text-center day-cell {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">
+                                    <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">
                                         <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
                                             <span class="chip-value">{{ $value }}</span>
                                         </div>
@@ -247,9 +249,9 @@
                                         </div>
                                     </td>
                                 @endforeach
-                                <td class="fw-semibold used-cell">{{ $row['used_hours_total'] ?? 0 }}</td>
-                                <td class="fw-semibold text-primary">{{ $row['bonus_hours_total'] ?? 0 }}</td>
-                                <td class="fw-semibold text-success">{{ $row['hours_left'] ?? 0 }}</td>
+                                <td class="fw-semibold used-cell col-used">{{ $row['used_hours_total'] ?? 0 }}</td>
+                                <td class="fw-semibold text-primary col-bonus">{{ $row['bonus_hours_total'] ?? 0 }}</td>
+                                <td class="fw-semibold text-success col-left">{{ $row['hours_left'] ?? 0 }}</td>
                             </tr>
                         @empty
                             <tr><td colspan="{{ 7 + $daysCount }}" class="text-center text-muted">Данных нет</td></tr>
@@ -258,13 +260,13 @@
                     <tfoot>
                         <tr class="column-totals-row">
                             <td colspan="3" class="text-end text-muted small">Итого:</td>
-                            <td class="text-center totals-cell text-primary">{{ $columnTotals['normative'] ?? 0 }}</td>
+                            <td class="text-center totals-cell text-primary col-norm">{{ $columnTotals['normative'] ?? 0 }}</td>
                             @foreach($days as $d)
-                                <td class="text-center totals-cell text-primary">{{ $dayTotals[$d] ?? 0 }}</td>
+                                <td class="text-center totals-cell text-primary col-day">{{ $dayTotals[$d] ?? 0 }}</td>
                             @endforeach
-                            <td class="fw-semibold">{{ $columnTotals['used'] ?? 0 }}</td>
-                            <td class="fw-semibold text-primary">{{ $columnTotals['bonus'] ?? 0 }}</td>
-                            <td class="fw-semibold text-success">{{ $columnTotals['left'] ?? 0 }}</td>
+                            <td class="fw-semibold col-used">{{ $columnTotals['used'] ?? 0 }}</td>
+                            <td class="fw-semibold text-primary col-bonus">{{ $columnTotals['bonus'] ?? 0 }}</td>
+                            <td class="fw-semibold text-success col-left">{{ $columnTotals['left'] ?? 0 }}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -284,33 +286,33 @@
                 <table class="table table-sm align-middle form-two-table replacement-table">
                     <thead>
                         <tr>
-                            <th class="text-muted">#</th>
-                            <th class="text-muted">Предмет</th>
-                            <th class="text-muted">Преподаватель</th>
-                            <th class="text-muted">Норматив</th>
+                            <th class="text-muted col-index">#</th>
+                            <th class="text-muted col-subject">Предмет</th>
+                            <th class="text-muted col-teacher">Преподаватель</th>
+                            <th class="text-muted col-norm">Норматив</th>
                             @foreach($days as $d)
-                                <th class="text-center text-muted day-head {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
+                                <th class="text-center text-muted day-head col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
                             @endforeach
-                            <th class="text-muted">Использовано</th>
-                            <th class="text-muted">Бонус</th>
-                            <th class="text-muted">Остаток</th>
+                            <th class="text-muted col-used">Использовано</th>
+                            <th class="text-muted col-bonus">Бонус</th>
+                            <th class="text-muted col-left">Остаток</th>
                         </tr>
                     </thead>
                     <tbody id="replacementTableBody">
                         @forelse($replacementTableRows as $idx => $row)
                             <tr data-row="{{ $idx }}">
-                                <td>{{ $idx + 1 }}</td>
-                                <td>
+                                <td class="col-index">{{ $idx + 1 }}</td>
+                                <td class="col-subject">
                                     <div class="fw-semibold">{{ $row['subject_name'] ?? '—' }}</div>
                                     <input type="hidden" class="row-subject" value="{{ $row['subject_id'] }}">
                                     <input type="hidden" class="row-hours-per-class" value="{{ $row['hours_per_class'] ?? 2 }}">
                                     <input type="hidden" class="row-total-hours" value="{{ $row['total_hours'] ?? 0 }}">
                                 </td>
-                                <td>
+                                <td class="col-teacher">
                                     <div>{{ $row['teacher_name'] ?? '—' }}</div>
                                     <input type="hidden" class="row-teacher" value="{{ $row['teacher_id'] }}">
                                 </td>
-                                <td>
+                                <td class="col-norm">
                                     <div class="small text-muted">
                                         Остаток на начало:
                                         <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
@@ -359,20 +361,32 @@
                                         $defaultTitle = $status === 'empty' ? '—' : 'Нет записи';
                                         $cellTitle = $titleParts ? implode(' | ', $titleParts) : $defaultTitle;
                                     @endphp
-                                    <td class="text-center day-cell {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">
+                                    <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">
                                         <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
                                             <span class="chip-value">{{ $status === 'empty' ? '' : $value }}</span>
                                         </div>
                                     </td>
                                 @endforeach
-                                <td class="fw-semibold used-cell">{{ $row['used_hours_total'] ?? 0 }}</td>
-                                <td class="fw-semibold text-primary">{{ $row['bonus_hours_total'] ?? 0 }}</td>
-                                <td class="fw-semibold text-success">{{ $row['hours_left'] ?? 0 }}</td>
+                                <td class="fw-semibold used-cell col-used">{{ $row['used_hours_total'] ?? 0 }}</td>
+                                <td class="fw-semibold text-primary col-bonus">{{ $row['bonus_hours_total'] ?? 0 }}</td>
+                                <td class="fw-semibold text-success col-left">{{ $row['hours_left'] ?? 0 }}</td>
                             </tr>
                         @empty
                             <tr><td colspan="{{ 7 + $daysCount }}" class="text-center text-muted">Данных нет</td></tr>
                         @endforelse
                     </tbody>
+                <tfoot>
+                    <tr class="column-totals-row">
+                        <td colspan="3" class="text-end text-muted small">Итого:</td>
+                        <td class="text-center totals-cell text-primary col-norm">{{ $replacementColumnTotals['normative'] ?? 0 }}</td>
+                        @foreach($days as $d)
+                            <td class="text-center totals-cell text-primary col-day">{{ $replacementDayTotals[$d] ?? 0 }}</td>
+                        @endforeach
+                        <td class="fw-semibold col-used">{{ $replacementColumnTotals['used'] ?? 0 }}</td>
+                        <td class="fw-semibold text-primary col-bonus">{{ $replacementColumnTotals['bonus'] ?? 0 }}</td>
+                        <td class="fw-semibold text-success col-left">{{ $replacementColumnTotals['left'] ?? 0 }}</td>
+                    </tr>
+                </tfoot>
                 </table>
             </div>
         </div>
@@ -390,29 +404,29 @@
                 <table class="table table-sm align-middle form-two-table">
                     <thead>
                         <tr>
-                            <th class="text-muted">#</th>
-                            <th class="text-muted">Предмет</th>
-                            <th class="text-muted">Преподаватель</th>
-                            <th class="text-muted">Норматив</th>
+                            <th class="text-muted col-index">#</th>
+                            <th class="text-muted col-subject">Предмет</th>
+                            <th class="text-muted col-teacher">Преподаватель</th>
+                            <th class="text-muted col-norm">Норматив</th>
                             @foreach($days as $d)
-                                <th class="text-center text-muted day-head {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
+                                <th class="text-center text-muted day-head col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
                             @endforeach
-                            <th class="text-muted">Использовано</th>
-                            <th class="text-muted">Бонус</th>
-                            <th class="text-muted">Остаток</th>
+                            <th class="text-muted col-used">Использовано</th>
+                            <th class="text-muted col-bonus">Бонус</th>
+                            <th class="text-muted col-left">Остаток</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($subgroupTwoRows as $idx => $row)
                             <tr data-row="{{ $idx }}">
-                                <td>{{ $idx + 1 }}</td>
-                                <td>
+                                <td class="col-index">{{ $idx + 1 }}</td>
+                                <td class="col-subject">
                                     <div class="fw-semibold">{{ $row['subject_name'] ?? '—' }}</div>
                                 </td>
-                                <td>
+                                <td class="col-teacher">
                                     <div>{{ $row['teacher_name'] ?? '—' }}</div>
                                 </td>
-                                <td>
+                                <td class="col-norm">
                                     <div class="small text-muted">
                                         Остаток на начало:
                                         <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
@@ -463,15 +477,15 @@
                                         $titleParts = array_filter([$tooltip, $holidayNote]);
                                         $cellTitle = $titleParts ? implode(' | ', $titleParts) : 'Нет записи';
                                     @endphp
-                                    <td class="text-center day-cell {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">
+                                    <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">
                                         <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
                                             <span class="chip-value">{{ $value }}</span>
                                         </div>
                                     </td>
                                 @endforeach
-                                <td class="fw-semibold used-cell">{{ $row['used_hours_total'] ?? 0 }}</td>
-                                <td class="fw-semibold text-primary">{{ $row['bonus_hours_total'] ?? 0 }}</td>
-                                <td class="fw-semibold text-success">{{ $row['hours_left'] ?? 0 }}</td>
+                                <td class="fw-semibold used-cell col-used">{{ $row['used_hours_total'] ?? 0 }}</td>
+                                <td class="fw-semibold text-primary col-bonus">{{ $row['bonus_hours_total'] ?? 0 }}</td>
+                                <td class="fw-semibold text-success col-left">{{ $row['hours_left'] ?? 0 }}</td>
                             </tr>
                         @empty
                             <tr><td colspan="{{ 7 + $daysCount }}" class="text-center text-muted">Данных нет</td></tr>
@@ -480,13 +494,13 @@
                     <tfoot>
                         <tr class="column-totals-row">
                             <td colspan="3" class="text-end text-muted small">Итого:</td>
-                            <td class="text-center totals-cell text-primary">{{ $subgroupTwoColumnTotals['normative'] ?? 0 }}</td>
+                            <td class="text-center totals-cell text-primary col-norm">{{ $subgroupTwoColumnTotals['normative'] ?? 0 }}</td>
                             @foreach($days as $d)
-                                <td class="text-center totals-cell text-primary">{{ $subgroupTwoDayTotals[$d] ?? 0 }}</td>
+                                <td class="text-center totals-cell text-primary col-day">{{ $subgroupTwoDayTotals[$d] ?? 0 }}</td>
                             @endforeach
-                            <td class="fw-semibold">{{ $subgroupTwoColumnTotals['used'] ?? 0 }}</td>
-                            <td class="fw-semibold text-primary">{{ $subgroupTwoColumnTotals['bonus'] ?? 0 }}</td>
-                            <td class="fw-semibold text-success">{{ $subgroupTwoColumnTotals['left'] ?? 0 }}</td>
+                            <td class="fw-semibold col-used">{{ $subgroupTwoColumnTotals['used'] ?? 0 }}</td>
+                            <td class="fw-semibold text-primary col-bonus">{{ $subgroupTwoColumnTotals['bonus'] ?? 0 }}</td>
+                            <td class="fw-semibold text-success col-left">{{ $subgroupTwoColumnTotals['left'] ?? 0 }}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -514,6 +528,29 @@
     }
     .form-two-table .day-head {
         min-width: 54px;
+    }
+    .form-two-table {
+        table-layout: fixed;
+    }
+    .form-two-table .col-index {
+        width: 40px;
+    }
+    .form-two-table .col-subject {
+        width: 280px;
+    }
+    .form-two-table .col-teacher {
+        width: 220px;
+    }
+    .form-two-table .col-norm {
+        width: 190px;
+    }
+    .form-two-table .col-day {
+        width: 54px;
+    }
+    .form-two-table .col-used,
+    .form-two-table .col-bonus,
+    .form-two-table .col-left {
+        width: 90px;
     }
     .form-two-table .day-head.weekend {
         background-color: #d1fae5 !important;

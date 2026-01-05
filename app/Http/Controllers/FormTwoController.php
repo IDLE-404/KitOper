@@ -43,6 +43,14 @@ class FormTwoController extends Controller
             'bonus' => 0,
             'left' => 0,
         ];
+        $replacementTotals = $this->service->calculateReplacementTotals($replacementTableRows, $days);
+        $replacementDayTotals = $replacementTotals['day_totals'] ?? [];
+        $replacementColumnTotals = $replacementTotals['column_totals'] ?? [
+            'normative' => 0,
+            'used' => 0,
+            'bonus' => 0,
+            'left' => 0,
+        ];
         foreach ($days as $day) {
             if (!isset($dayTotals[$day])) {
                 $dayTotals[$day] = 0;
@@ -77,6 +85,8 @@ class FormTwoController extends Controller
             'teachers' => $teachers,
             'replacementRows' => $replacementRows,
             'replacementTableRows' => $replacementTableRows,
+            'replacementDayTotals' => $replacementDayTotals,
+            'replacementColumnTotals' => $replacementColumnTotals,
             'subgroupTwoRows' => $subgroupTwoRows,
             'subgroupTwoDayTotals' => $subgroupTwoDayTotals,
             'subgroupTwoColumnTotals' => $subgroupTwoColumnTotals,

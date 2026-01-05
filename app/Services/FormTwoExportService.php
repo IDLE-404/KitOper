@@ -19,10 +19,19 @@ class FormTwoExportService
         $rows = $report['rows'] ?? [];
         $days = $report['days'] ?? [];
         $replacementRows = $report['replacement_rows'] ?? [];
+        $replacementTableRows = $report['replacement_table_rows'] ?? [];
         $subgroupTwoRows = $report['subgroup_two_rows'] ?? [];
         $totals = $report['totals'] ?? $formTwoService->calculateTotals($rows, $days);
         $dayTotals = $totals['day_totals'] ?? [];
         $columnTotals = $totals['column_totals'] ?? [
+            'normative' => 0,
+            'used' => 0,
+            'bonus' => 0,
+            'left' => 0,
+        ];
+        $replacementTotals = $formTwoService->calculateReplacementTotals($replacementTableRows, $days);
+        $replacementDayTotals = $replacementTotals['day_totals'] ?? [];
+        $replacementColumnTotals = $replacementTotals['column_totals'] ?? [
             'normative' => 0,
             'used' => 0,
             'bonus' => 0,
@@ -127,23 +136,49 @@ class FormTwoExportService
         $totalsRow[] = $columnTotals['left'] ?? 0;
         fputcsv($file, $totalsRow, ';');
 
-        if ($replacementRows) {
+        if ($replacementTableRows) {
             fputcsv($file, []);
             fputcsv($file, ['Таблица замен (только учителя)'], ';');
-            fputcsv($file, ['Дата', 'Пара', 'Подгр.', 'Предмет', 'Преподаватель', 'Замещающий', 'Комментарий'], ';');
-            foreach ($replacementRows as $replacement) {
-                $formattedDate = $replacement['class_date_label']
-                    ?? ($replacement['class_date'] ? Carbon::parse($replacement['class_date'])->format('d.m.Y') : '');
-                fputcsv($file, [
-                    $formattedDate,
-                    $replacement['lesson_number'] ?? '',
-                    $replacement['subgroup'] ?? '',
-                    $replacement['subject_name'] ?? '—',
-                    $replacement['teacher_name'] ?? '—',
-                    $replacement['replacement_teacher_name'] ?? '—',
-                    $replacement['comment'] ?? '',
-                ], ';');
+            fputcsv($file, $headers, ';');
+
+            $idx = 1;
+            foreach ($replacementTableRows as $row) {
+                $data = [
+                    $idx++,
+                    $row['subject_name'] ?? '—',
+                    $row['teacher_name'] ?? '—',
+                    $row['total_hours'] ?? 0,
+                ];
+
+                foreach ($days as $day) {
+                    $cell = $row['days'][$day] ?? [];
+                    if (($cell['status'] ?? 'empty') === 'replacement') {
+                        $data[] = $cell['value'] ?? ($cell['bonus_hours'] ?? '2');
+                    } else {
+                        $data[] = '•';
+                    }
+                }
+
+                $data[] = $row['used_hours_total'] ?? 0;
+                $data[] = $row['bonus_hours_total'] ?? 0;
+                $data[] = $row['hours_left'] ?? 0;
+
+                fputcsv($file, $data, ';');
             }
+
+            $totalsRow = [
+                '',
+                'Итого',
+                '',
+                $replacementColumnTotals['normative'] ?? 0,
+            ];
+            foreach ($days as $day) {
+                $totalsRow[] = $replacementDayTotals[$day] ?? 0;
+            }
+            $totalsRow[] = $replacementColumnTotals['used'] ?? 0;
+            $totalsRow[] = $replacementColumnTotals['bonus'] ?? 0;
+            $totalsRow[] = $replacementColumnTotals['left'] ?? 0;
+            fputcsv($file, $totalsRow, ';');
         }
 
         if ($subgroupTwoRows) {

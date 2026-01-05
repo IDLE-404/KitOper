@@ -117,8 +117,8 @@
                 </div>
                 <div class="d-flex align-items-center gap-3">
                     <a href="{{ route('first.schedule.form_two.export', ['group_id' => $groupId, 'month' => $month, 'year' => $year, 'course' => $course]) }}"
-                       class="btn btn-primary btn-sm">
-                        📥 Экспорт в CSV
+                       class="btn btn-outline-primary btn-sm">
+                        📊 Экспорт в Excel
                     </a>
                     <div class="form-check form-switch mb-0">
                         <input class="form-check-input" type="checkbox" id="manualToggle">

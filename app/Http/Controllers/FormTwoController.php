@@ -142,17 +142,10 @@ class FormTwoController extends Controller
 
         try {
             $exportService = new \App\Services\FormTwoExportService();
-            $filename = $exportService->export($groupId, $year, $month, $course);
-
-            $months = [
-                1 => 'Январь', 2 => 'Февраль', 3 => 'Март', 4 => 'Апрель',
-                5 => 'Май', 6 => 'Июнь', 7 => 'Июль', 8 => 'Август',
-                9 => 'Сентябрь', 10 => 'Октябрь', 11 => 'Ноябрь', 12 => 'Декабрь',
-            ];
-            $downloadName = 'Форма_2_' . $months[$month] . '_' . $year . '.csv';
-
+            $filename = $exportService->exportXlsx($groupId, $year, $month, $course);
+            $downloadName = 'Форма_2_' . $month . '_' . $year . '.xlsx';
             return response()->download($filename, $downloadName, [
-                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             ])->deleteFileAfterSend(true);
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Ошибка при экспорте: ' . $e->getMessage());

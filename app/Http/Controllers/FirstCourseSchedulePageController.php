@@ -7,6 +7,7 @@ use App\Services\KazakhstanHolidayService;
 use App\Services\ScheduleToFormTwoSyncService;
 use App\Services\FormTwoService;
 use App\Services\SemesterScheduleService;
+use App\Services\PracticeService;
 use App\Support\CourseContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -104,6 +105,32 @@ class FirstCourseSchedulePageController extends Controller
         foreach ($days as $day) {
             if (!empty($day['holiday']) && !empty($day['date'])) {
                 $holidayWeekDates[$day['date']] = $day['holiday'];
+            }
+        }
+
+        $practiceMap = [];
+        if ($course >= 2) {
+            /** @var PracticeService $practiceService */
+            $practiceService = app(PracticeService::class);
+            $groupIds = $groupRecords->pluck('id')->all();
+            $weekEnd = $weekStart->copy()->addDays(6);
+            $periods = $practiceService->periodsForRange($course, $groupIds, $weekStart, $weekEnd);
+
+            foreach ($periods as $period) {
+                $rangeStart = Carbon::parse($period->start_date)->max($weekStart);
+                $rangeEnd = Carbon::parse($period->end_date)->min($weekEnd);
+                for ($cursor = $rangeStart->copy(); $cursor->lte($rangeEnd); $cursor->addDay()) {
+                    $dateKey = $cursor->toDateString();
+                    if (!empty($holidayWeekDates[$dateKey])) {
+                        continue;
+                    }
+                    $practiceMap[$period->group_id][$dateKey] = [
+                        'type' => $period->type,
+                        'teacher_id' => $period->teacher_id,
+                        'room_id' => $period->room_id,
+                        'hours_per_day' => $period->hours_per_day,
+                    ];
+                }
             }
         }
 
@@ -365,6 +392,7 @@ class FirstCourseSchedulePageController extends Controller
             'weekDays' => $days,
             'weeklyHolidays' => $weeklyHolidays,
             'holidayWeekDates' => $holidayWeekDates ?? [],
+            'practiceMap' => $practiceMap,
         ]);
     }
 

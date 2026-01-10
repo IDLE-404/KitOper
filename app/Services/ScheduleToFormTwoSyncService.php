@@ -23,6 +23,9 @@ class ScheduleToFormTwoSyncService
         $weekStart = $weekStart->copy()->startOfDay();
         $weekMode = $this->resolveWeekMode($classWeekStart, $course);
         $weekEnd = $classWeekStart->copy()->addDays(6);
+        /** @var PracticeService $practiceService */
+        $practiceService = app(PracticeService::class);
+        $practiceDates = $practiceService->practiceDatesForRange($course, $groupId, $classWeekStart, $weekEnd);
 
         $dayOffset = [
             'Понедельник' => 0,
@@ -33,10 +36,13 @@ class ScheduleToFormTwoSyncService
             'Суббота' => 5,
         ];
 
-        DB::table($tables['form_two_records'])
+        $deleteQuery = DB::table($tables['form_two_records'])
             ->where('group_id', $groupId)
-            ->whereBetween('class_date', [$classWeekStart->toDateString(), $weekEnd->toDateString()])
-            ->delete();
+            ->whereBetween('class_date', [$classWeekStart->toDateString(), $weekEnd->toDateString()]);
+        if ($practiceDates) {
+            $deleteQuery->whereNotIn('class_date', $practiceDates);
+        }
+        $deleteQuery->delete();
 
         $rows = $rows ?? $this->fetchWeekRows($groupId, $weekStart, $tables['schedules']);
 
@@ -54,6 +60,9 @@ class ScheduleToFormTwoSyncService
 
             $lessonNumber = (int) $row->lesson_number;
             $classDate = $classWeekStart->copy()->addDays($dayOffset[$dayName]);
+            if ($practiceDates && in_array($classDate->toDateString(), $practiceDates, true)) {
+                continue;
+            }
 
             foreach ($this->subgroupsForRow($row) as $subgroup) {
                 $payload = array_merge($payload, $this->syncSubgroup(

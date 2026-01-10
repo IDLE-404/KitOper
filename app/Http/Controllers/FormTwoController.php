@@ -71,9 +71,15 @@ class FormTwoController extends Controller
 
         $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get(['id', 'teacher_name']);
         $subjects = DB::table($tables['subjects'])
-            ->select('id', DB::raw('COALESCE(name_ru, subject_name) as title'))
-            ->orderBy('title')
-            ->get();
+            ->select('id', 'subject_name', 'name_ru', 'module_title')
+            ->orderByRaw('COALESCE(name_ru, subject_name)')
+            ->get()
+            ->map(function ($row) {
+                $name = $row->name_ru ?: $row->subject_name;
+                $module = trim((string) ($row->module_title ?? ''));
+                $row->title = $module !== '' ? trim($module . ' ' . $name) : $name;
+                return $row;
+            });
 
         return view('first_course.form_two', [
             'groups' => $groups,

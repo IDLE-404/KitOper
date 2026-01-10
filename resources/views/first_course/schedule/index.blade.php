@@ -47,6 +47,11 @@
     .holiday-cell {
         background-color: #fff9c2;
     }
+    .pair-cell.highlighted {
+        border: 2px solid #4f7cff;
+        box-shadow: 0 12px 22px rgba(79, 124, 255, 0.25);
+        background: #eef2ff;
+    }
     .holiday-lock {
         font-size: 0.75rem;
         color: #7c2d12;
@@ -54,6 +59,20 @@
         border-radius: 4px;
         background: #fef3c7;
         margin-bottom: 0.35rem;
+    }
+    .pair-practice {
+        background: #eef2ff;
+        border: 1px dashed #94a3b8;
+    }
+    .practice-label {
+        font-weight: 600;
+        text-align: center;
+        margin-top: 0.3rem;
+    }
+    .practice-meta {
+        font-size: 0.75rem;
+        text-align: center;
+        margin-top: 0.15rem;
     }
 </style>
 @endpush
@@ -74,6 +93,7 @@
     }
     $holidayWeekDates = $holidayWeekDates ?? [];
     $weeklyHolidays = $weeklyHolidays ?? [];
+    $practiceMap = $practiceMap ?? [];
     $dayDetails = [];
     foreach ($weekDays as $dayInfo) {
         $dayDetails[$dayInfo['name']] = $dayInfo;
@@ -121,7 +141,12 @@
         <button type="button" class="btn-pill ghost" id="weekPrev">Предыдущая неделя</button>
         <a href="{{ route('first.schedule.week', ['course' => $course ?? 1]) }}" class="btn-pill primary">Редактор недели</a>
         <a href="{{ route('first.schedule.week', $expandLinkParams) }}#semesterExpandSection" class="btn-pill ghost">Развернуть семестр</a>
+        @php
+            $practiceCourse = max(2, (int) ($course ?? 2));
+        @endphp
+        <a href="{{ route('practice.index', ['course' => $practiceCourse]) }}" class="btn-pill ghost">Практика</a>
         <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Форма 2</a>
+        <a href="{{ route('teachers.workload') }}" class="btn-pill ghost">Занятость преподавателей</a>
         <a href="{{ route('teachers.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Преподаватели</a>
         <a href="{{ route('subjects.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Предметы</a>
     </div>
@@ -142,7 +167,7 @@
     <div class="groups-compact">
         @foreach($itemsByGroup as $groupId => $groupData)
             @php $groupItems = $groupData['days'] ?? []; @endphp
-        <div class="group-compact">
+        <div class="group-compact" id="group-{{ $groupId }}">
             <div class="group-compact__head">
                 <h2 class="group-compact__title">Группа: {{ $groupData['name'] ?? 'Без названия' }}</h2>
                 <a href="{{ route('first.schedule.week') }}" class="link-edit">Редактировать</a>
@@ -169,19 +194,41 @@
                         @for($i = 1; $i <= 5; $i++)
                             @php
                                 $pair = $groupItems[$day][$i] ?? ['sub1'=>[], 'sub2'=>[], 'has_denominator' => false];
-                                $hasLesson = ($pair['sub1']['has_den'] ?? false) || ($pair['sub1']['has_num'] ?? false) || ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
+                                $practiceInfo = $practiceMap[$groupId][$dayInfo['date'] ?? ''] ?? null;
+                                $hasPractice = !empty($practiceInfo);
+                                $hasLesson = $hasPractice
+                                    ? true
+                                    : (($pair['sub1']['has_den'] ?? false) || ($pair['sub1']['has_num'] ?? false) || ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false));
                                 $hasConflict = ($pair['sub1']['active_conflict'] ?? false) || ($pair['sub2']['active_conflict'] ?? false);
                                 $hasSubgroupsAny = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
                                 $hasSubgroupsCurrentWeek = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
                                 $pairStatus = '';
-                                if (($pair['sub1']['is_replacement'] ?? false) || ($pair['sub2']['is_replacement'] ?? false)) {
+                                if ($hasPractice) {
+                                    $pairStatus = 'pair-practice';
+                                } elseif (($pair['sub1']['is_replacement'] ?? false) || ($pair['sub2']['is_replacement'] ?? false)) {
                                     $pairStatus = 'pair-replacement';
                                 } elseif (($pair['sub1']['is_absent'] ?? false) || ($pair['sub2']['is_absent'] ?? false)) {
                                     $pairStatus = 'pair-sick';
                                 }
                             @endphp
-                            <div class="grid-cell pair-cell {{ $hasLesson ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}{{ $holidayMeta ? ' holiday-cell' : '' }}">
-                                @if(!$holidayMeta)
+                            <div class="grid-cell pair-cell {{ $hasLesson ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}{{ $holidayMeta ? ' holiday-cell' : '' }}"
+                                 data-group="{{ $groupId }}"
+                                 data-day="{{ $day }}"
+                                 data-lesson="{{ $i }}">
+                                @if($hasPractice)
+                                    <div class="practice-label" title="Практика">
+                                        На практике
+                                    </div>
+                                    <div class="practice-meta text-muted">
+                                        {{ ($practiceInfo['type'] ?? '') === 'educational' ? 'Учебная' : 'Производственная' }}
+                                        @if(!empty($practiceInfo['teacher_id']))
+                                            — {{ $teachers[$practiceInfo['teacher_id']] ?? 'Преподаватель' }}
+                                        @endif
+                                        @if(!empty($practiceInfo['room_id']))
+                                            (каб. {{ $practiceInfo['room_id'] }})
+                                        @endif
+                                    </div>
+                                @elseif(!$holidayMeta)
                                     <a href="#"
                                        class="cell-edit"
                                        title="Редактировать"
@@ -236,7 +283,7 @@
                                         🎉 {{ $holidayMeta['label'] }} ({{ $holidayMeta['day'] ?? '' }})
                                     </div>
                                 @endif
-                                @if ($hasLesson)
+                                @if ($hasLesson && !$hasPractice)
                                     @php $main = $pair['sub1'] ?? []; @endphp
                                     <div class="cell-line main-line sub-line">
                                         <span class="pill badge-sub">1</span>
@@ -333,6 +380,26 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        const params = new URLSearchParams(window.location.search);
+        const targetGroupId = params.get('group_id');
+        const targetDay = params.get('day');
+        const targetLesson = params.get('lesson');
+
+        if (targetGroupId && targetDay && targetLesson) {
+            const groupCard = document.getElementById(`group-${targetGroupId}`);
+            if (groupCard) {
+                const targetCell = groupCard.querySelector(
+                    `.pair-cell[data-group="${targetGroupId}"][data-day="${targetDay}"][data-lesson="${targetLesson}"]`
+                );
+                if (targetCell) {
+                    targetCell.classList.add('highlighted');
+                    targetCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    groupCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+        }
+
         const subjects = @json($subjects ?? []);
         const teachers = @json($teachers ?? []);
 

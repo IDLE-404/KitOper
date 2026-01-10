@@ -4,8 +4,14 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\FirstCourseSchedulePageController;
 use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\SubjectController;
+use App\Http\Controllers\TeacherWorkloadController;
+use App\Http\Controllers\PracticeController;
 
 Route::get('/', [FirstCourseSchedulePageController::class, 'index'])->name('home');
+Route::get('/teachers/workload', [TeacherWorkloadController::class, 'index'])->name('teachers.workload');
+Route::get('/practice', [PracticeController::class, 'index'])->name('practice.index');
+Route::post('/practice', [PracticeController::class, 'store'])->name('practice.store');
+Route::delete('/practice/{practicePeriod}', [PracticeController::class, 'destroy'])->name('practice.destroy');
 
 Route::prefix('first-course')->group(function () {
     Route::get('/schedule', [FirstCourseSchedulePageController::class, 'index'])->name('first.schedule.index');

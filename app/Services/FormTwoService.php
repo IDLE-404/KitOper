@@ -26,8 +26,15 @@ class FormTwoService
         $days = range(1, $daysCount);
 
         $subjectNames = DB::table($tables['subjects'])
-            ->orderBy('name_ru')
-            ->pluck(DB::raw('COALESCE(name_ru, subject_name)'), 'id');
+            ->select('id', 'subject_name', 'name_ru', 'module_title')
+            ->orderByRaw('COALESCE(name_ru, subject_name)')
+            ->get()
+            ->mapWithKeys(function ($row) {
+                $name = $row->name_ru ?: $row->subject_name;
+                $module = trim((string) ($row->module_title ?? ''));
+                $title = $module !== '' ? trim($module . ' ' . $name) : $name;
+                return [$row->id => $title];
+            });
 
         $normatives = DB::table($tables['form_two_normatives'])
             ->where('group_id', $groupId)
@@ -73,6 +80,8 @@ class FormTwoService
             ->pluck('teacher_name', 'id');
 
         $preferredOrder = [
+            'Учебная практика',
+            'Производственная практика',
             'Русский язык',
             'Русская литература',
             'Казахский язык и литература',
@@ -132,8 +141,10 @@ class FormTwoService
             $preferredOrder,
             false
         );
-        $report['subgroup_two_rows'] = $subgroupTwoReport['rows'];
-        $report['subgroup_two_totals'] = $subgroupTwoReport['totals'];
+        // В подвоении показываем только строки с активностью в текущем месяце.
+        $filteredSubgroupTwoRows = $this->filterRowsByActivity($subgroupTwoReport['rows'], $days);
+        $report['subgroup_two_rows'] = $filteredSubgroupTwoRows;
+        $report['subgroup_two_totals'] = $this->calculateTotals($filteredSubgroupTwoRows, $days);
 
         return $report;
     }
@@ -870,5 +881,21 @@ class FormTwoService
         });
 
         return $rows;
+    }
+
+    protected function filterRowsByActivity(array $rows, array $days): array
+    {
+        return array_values(array_filter($rows, function (array $row) use ($days) {
+            foreach ($days as $day) {
+                $cell = $row['days'][$day] ?? null;
+                if (!$cell) {
+                    continue;
+                }
+                if (($cell['status'] ?? 'empty') !== 'empty') {
+                    return true;
+                }
+            }
+            return false;
+        }));
     }
 }

@@ -138,6 +138,8 @@ class FirstCourseSchedulePageController extends Controller
         $currentMode = $isDenominatorWeek ? 'denominator' : 'numerator';
         $roomConflicts = FirstCourseSchedule::detectRoomConflicts($raw);
         $teacherConflicts = FirstCourseSchedule::detectTeacherConflicts($raw);
+        $teacherConflictsCross = $this->detectTeacherConflictsAcrossCourses($raw, $weekStart, $course, $teachers->all());
+        $teacherConflicts = $this->mergeTeacherConflicts($teacherConflicts, $teacherConflictsCross);
         $schedule = [];
 
         foreach ($raw as $row) {
@@ -324,7 +326,9 @@ class FirstCourseSchedulePageController extends Controller
                             ? ($pair[$key]['teacher_conflict_den'] ?? null)
                             : ($pair[$key]['teacher_conflict_num'] ?? null);
                         $teacherConflictGroups = [];
-                        if ($teacherConflictRaw && !empty($teacherConflictRaw['groups'])) {
+                        if ($teacherConflictRaw && !empty($teacherConflictRaw['groups_named'])) {
+                            $teacherConflictGroups = $teacherConflictRaw['groups_named'];
+                        } elseif ($teacherConflictRaw && !empty($teacherConflictRaw['groups'])) {
                             foreach ($teacherConflictRaw['groups'] as $conflictGroupId) {
                                 if ((int) $conflictGroupId === (int) $groupId) {
                                     continue;
@@ -380,6 +384,8 @@ class FirstCourseSchedulePageController extends Controller
                 }
             }
         }
+
+        // teacherConflicts is merged above and already applied in the per-pair loop.
 
         return view('first_course.schedule.index', [
             'schedule' => $schedule,
@@ -1776,6 +1782,169 @@ class FirstCourseSchedulePageController extends Controller
             ->unique()
             ->values()
             ->all();
+    }
+
+    protected function mergeTeacherConflicts(array $base, array $extra): array
+    {
+        foreach ($extra as $groupId => $days) {
+            foreach ($days as $day => $lessons) {
+                foreach ($lessons as $lesson => $modes) {
+                    foreach ($modes as $mode => $subgroups) {
+                        foreach ($subgroups as $subgroup => $payload) {
+                            $existing = $base[$groupId][$day][$lesson][$mode][$subgroup] ?? [];
+                            $groupsNamed = $payload['groups_named'] ?? [];
+                            if (!empty($groupsNamed)) {
+                                $existingGroups = $existing['groups_named'] ?? [];
+                                $existing['groups_named'] = array_values(array_unique(array_merge($existingGroups, $groupsNamed)));
+                            }
+                            $base[$groupId][$day][$lesson][$mode][$subgroup] = $existing ?: $payload;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $base;
+    }
+
+    protected function detectTeacherConflictsAcrossCourses(
+        \Illuminate\Support\Collection $rows,
+        Carbon $weekStart,
+        int $currentCourse,
+        array $currentTeachers
+    ): array {
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        $normalize = fn (?string $name): string => mb_strtolower(trim((string) ($name ?? '')));
+        $teacherNameById = [];
+        foreach ($currentTeachers as $id => $name) {
+            $normalized = $normalize($name);
+            if ($normalized !== '') {
+                $teacherNameById[(int) $id] = $normalized;
+            }
+        }
+
+        $otherSlots = [];
+        foreach ([1, 2, 3, 4] as $course) {
+            if ($course === $currentCourse) {
+                continue;
+            }
+            $tables = CourseContext::tables($course);
+            if (
+                !Schema::hasTable($tables['schedules'])
+                || !Schema::hasTable($tables['teachers'])
+                || !Schema::hasTable($tables['groups'])
+            ) {
+                continue;
+            }
+
+            $teacherRows = DB::table($tables['teachers'])->select('id', 'teacher_name')->get();
+            $teacherNames = [];
+            foreach ($teacherRows as $row) {
+                $normalized = $normalize($row->teacher_name ?? null);
+                if ($normalized !== '') {
+                    $teacherNames[(int) $row->id] = $normalized;
+                }
+            }
+            if (empty($teacherNames)) {
+                continue;
+            }
+
+            $groupNames = DB::table($tables['groups'])->pluck('group_name', 'id')->all();
+            $courseRows = DB::table($tables['schedules'])
+                ->whereDate('week_start', $weekStart->toDateString())
+                ->get();
+
+            foreach ($courseRows as $row) {
+                foreach ($this->teacherSlotsForRow($row) as $slot) {
+                    $teacherName = $teacherNames[$slot['teacher_id']] ?? null;
+                    if (!$teacherName) {
+                        continue;
+                    }
+                    $key = $this->teacherConflictKey($teacherName, $slot['day'], $slot['lesson'], $slot['mode']);
+                    $groupName = $groupNames[$slot['group_id']] ?? ('Группа ' . (int) $slot['group_id']);
+                    $label = $this->formatCourseGroupLabel($course, $groupName);
+                    $otherSlots[$key][$label] = true;
+                }
+            }
+        }
+
+        if (empty($otherSlots)) {
+            return [];
+        }
+
+        $conflicts = [];
+        foreach ($rows as $row) {
+            foreach ($this->teacherSlotsForRow($row) as $slot) {
+                $teacherName = $teacherNameById[$slot['teacher_id']] ?? null;
+                if (!$teacherName) {
+                    continue;
+                }
+                $key = $this->teacherConflictKey($teacherName, $slot['day'], $slot['lesson'], $slot['mode']);
+                if (empty($otherSlots[$key])) {
+                    continue;
+                }
+                $conflicts[$slot['group_id']]
+                    [$slot['day']]
+                    [$slot['lesson']]
+                    [$slot['mode']]
+                    [$slot['subgroup']] = [
+                        'groups_named' => array_keys($otherSlots[$key]),
+                    ];
+            }
+        }
+
+        return $conflicts;
+    }
+
+    protected function teacherSlotsForRow(object $row): array
+    {
+        $day = $row->study_day ?? null;
+        $lesson = $row->lesson_number ?? null;
+        $groupId = $row->group_id ?? null;
+        if (!$day || !$lesson || !$groupId) {
+            return [];
+        }
+
+        $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? '2' : '1';
+        $teacherNum1 = $subgroupFlag === '1' ? ($row->teacher_id ?? null) : null;
+        $teacherNum2 = ($row->teacher_id_2 ?? null) ?: ($subgroupFlag === '2' ? ($row->teacher_id ?? null) : null);
+        $teacherDen1 = $subgroupFlag === '1' ? ($row->teacher_id_denominator ?? null) : null;
+        $teacherDen2 = ($row->teacher_id_denominator_2 ?? null) ?: ($subgroupFlag === '2' ? ($row->teacher_id_denominator ?? null) : null);
+
+        $result = [];
+        $append = function ($teacherId, string $mode, int $subgroup) use (&$result, $groupId, $day, $lesson) {
+            if (!$teacherId) {
+                return;
+            }
+            $result[] = [
+                'group_id' => (int) $groupId,
+                'day' => (string) $day,
+                'lesson' => (int) $lesson,
+                'mode' => $mode,
+                'subgroup' => $subgroup,
+                'teacher_id' => (int) $teacherId,
+            ];
+        };
+
+        $append($teacherNum1, 'numerator', 1);
+        $append($teacherNum2, 'numerator', 2);
+        $append($teacherDen1, 'denominator', 1);
+        $append($teacherDen2, 'denominator', 2);
+
+        return $result;
+    }
+
+    protected function teacherConflictKey(string $teacherName, string $day, int $lesson, string $mode): string
+    {
+        return implode('|', [$teacherName, $day, $lesson, $mode]);
+    }
+
+    protected function formatCourseGroupLabel(int $course, string $groupName): string
+    {
+        return $course . ' курс: ' . $groupName;
     }
 
     protected function teacherNamesByIds(array $teacherIds, ?string $teacherTable): array

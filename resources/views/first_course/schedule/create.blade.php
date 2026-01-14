@@ -35,9 +35,9 @@
         <div class="mb-3">
             <label class="form-label">Номер пары</label>
             <select name="lesson_number" class="form-select">
-                @for($i = 1; $i <= 8; $i++)
-                    <option value="{{ $i }}">{{ $i }} пара</option>
-                @endfor
+            @for($i = 1; $i <= 7; $i++)
+                <option value="{{ $i }}">{{ $i }} пара</option>
+            @endfor
             </select>
         </div>
 

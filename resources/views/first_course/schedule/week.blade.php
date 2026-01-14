@@ -78,6 +78,31 @@
         font-weight: 600;
         color: #92400e;
     }
+    .pair-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .remove-pair-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        border: 1px solid #fecaca;
+        background: #fff1f2;
+        color: #b91c1c;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+        padding: 0;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .remove-pair-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(185, 28, 28, 0.2);
+    }
     .holiday-pill {
         background: #fff;
         border-radius: 999px;
@@ -210,9 +235,17 @@
                                     @php
                                         $rowA = $existing[$dayKey][$pair]['1'] ?? $existing[$dayKey][$pair]['A'] ?? $existing[$dayKey][$pair][''] ?? null;
                                         $rowB = $existing[$dayKey][$pair]['2'] ?? $existing[$dayKey][$pair]['B'] ?? null;
+                                        $showPair = (bool) ($rowA || $rowB);
                                     @endphp
-                                    <tr>
-                                    <td><span class="pill-badge">{{ $pair }}</span></td>
+                                    <tr class="pair-row {{ $showPair ? '' : 'd-none' }}" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                    <td>
+                                        <div class="pair-actions">
+                                            <span class="pill-badge">{{ $pair }}</span>
+                                            <button type="button" class="remove-pair-btn" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" title="Убрать пару">
+                                                X
+                                            </button>
+                                        </div>
+                                    </td>
                                     <td>
                                         <div class="mb-3">
                                             <div class="text-muted small mb-1">Числитель</div>
@@ -278,7 +311,7 @@
                                         </div>
                                     </td>
                                 </tr>
-                                <tr class="subgroup-row {{ $rowB ? '' : 'd-none' }}" data-split="split-{{ $dayKey }}-{{ $pair }}">
+                                <tr class="subgroup-row {{ $showPair && $rowB ? '' : 'd-none' }}" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" data-split="split-{{ $dayKey }}-{{ $pair }}">
                                     <td><span class="pill-badge sub">2</span></td>
                                     <td>
                                         <div class="mb-3">
@@ -339,6 +372,11 @@
                                 @endforeach
                             </tbody>
                         </table>
+                        <div class="d-flex justify-content-end mt-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm add-pair-btn" data-day="{{ $dayKey }}">
+                                Добавить пару
+                            </button>
+                        </div>
                     </fieldset>
                     @if($isHoliday)
                         <div class="holiday-note-block">
@@ -447,6 +485,55 @@
             }
         });
     });
+
+    const clearRowInputs = (row) => {
+        row.querySelectorAll('input, select').forEach(el => {
+            if (el.tagName === 'SELECT') { el.selectedIndex = 0; }
+            else { el.value = ''; }
+            if (el.type === 'checkbox') { el.checked = false; }
+        });
+    };
+
+    const updateAddButtons = () => {
+        document.querySelectorAll('.add-pair-btn').forEach(btn => {
+            const day = btn.dataset.day;
+            const hidden = document.querySelector(`tr.pair-row.d-none[data-day="${day}"]`);
+            btn.disabled = !hidden;
+        });
+    };
+
+    document.querySelectorAll('.add-pair-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const day = btn.dataset.day;
+            const nextRow = document.querySelector(`tr.pair-row.d-none[data-day="${day}"]`);
+            if (!nextRow) return;
+            nextRow.classList.remove('d-none');
+            updateAddButtons();
+        });
+    });
+
+    document.querySelectorAll('.remove-pair-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const day = btn.dataset.day;
+            const pair = btn.dataset.pair;
+            const row = document.querySelector(`tr.pair-row[data-day="${day}"][data-pair="${pair}"]`);
+            const subRow = document.querySelector(`tr.subgroup-row[data-day="${day}"][data-pair="${pair}"]`);
+            if (!row) return;
+            clearRowInputs(row);
+            row.classList.add('d-none');
+            if (subRow) {
+                clearRowInputs(subRow);
+                subRow.classList.add('d-none');
+            }
+            const toggle = document.getElementById(`split-${day}-${pair}`);
+            if (toggle) {
+                toggle.checked = false;
+            }
+            updateAddButtons();
+        });
+    });
+
+    updateAddButtons();
 
     // Быстрый поиск по select
     const filterInputs = document.querySelectorAll('.filter-input');

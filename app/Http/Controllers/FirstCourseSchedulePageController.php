@@ -465,7 +465,7 @@ class FirstCourseSchedulePageController extends Controller
     {
         $validated = $request->validate([
             'study_day'     => 'required|string',
-            'lesson_number' => 'required|integer|min:1|max:8',
+            'lesson_number' => 'required|integer|min:1|max:7',
             'group_id'      => 'required|integer',
             'subject_id'    => 'nullable|integer',
             'teacher_id'    => 'nullable|integer',
@@ -628,7 +628,7 @@ class FirstCourseSchedulePageController extends Controller
 
         $days = $this->buildWeekDays($weekStart);
 
-        $pairs = [1, 2, 3, 4, 5];
+        $pairs = [1, 2, 3, 4, 5, 6, 7];
 
         $dayNames = collect($days)->mapWithKeys(fn($d) => [$d['key'] => $d['full']]);
 
@@ -1067,7 +1067,7 @@ class FirstCourseSchedulePageController extends Controller
         $data = $request->validate([
             'group_id'      => 'required|integer',
             'study_day'     => 'required|string',
-            'lesson_number' => 'required|integer|min:1|max:5',
+            'lesson_number' => 'required|integer|min:1|max:7',
             'week_start'    => 'required|date',
             'subject_id'    => 'nullable|integer',
             'teacher_id'    => 'nullable|integer',
@@ -1463,7 +1463,7 @@ class FirstCourseSchedulePageController extends Controller
         $data = $request->validate([
             'group_id' => 'required|integer',
             'study_day' => 'required|string',
-            'lesson_number' => 'required|integer|min:1|max:5',
+            'lesson_number' => 'required|integer|min:1|max:7',
             'week_start' => 'required|date',
             'course' => 'nullable|integer|min:1|max:4',
         ]);

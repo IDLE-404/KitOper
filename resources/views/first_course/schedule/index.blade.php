@@ -175,7 +175,7 @@
             <div class="grid-table">
                 <div class="grid-row grid-head">
                     <div class="grid-cell day-col"></div>
-                    @for($i = 1; $i <= 5; $i++)
+                    @for($i = 1; $i <= 7; $i++)
                         <div class="grid-cell col-head">Пара {{ $i }}</div>
                     @endfor
                 </div>
@@ -191,7 +191,7 @@
                                 <div class="holiday-note">{{ $holidayMeta['name'] }}</div>
                             @endif
                         </div>
-                        @for($i = 1; $i <= 5; $i++)
+                        @for($i = 1; $i <= 7; $i++)
                             @php
                                 $pair = $groupItems[$day][$i] ?? ['sub1'=>[], 'sub2'=>[], 'has_denominator' => false];
                                 $practiceInfo = $practiceMap[$groupId][$dayInfo['date'] ?? ''] ?? null;

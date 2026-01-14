@@ -23,6 +23,7 @@ Route::prefix('first-course')->group(function () {
     Route::get('/form-two', [\App\Http\Controllers\FormTwoController::class, 'index'])->name('first.schedule.form_two');
     Route::post('/form-two/save', [\App\Http\Controllers\FormTwoController::class, 'save'])->name('first.schedule.form_two.save');
     Route::get('/form-two/export', [\App\Http\Controllers\FormTwoController::class, 'export'])->name('first.schedule.form_two.export');
+    Route::get('/form-two/export-semester', [\App\Http\Controllers\FormTwoController::class, 'exportSemester'])->name('first.schedule.form_two.export_semester');
     Route::get('/teachers', [TeacherController::class, 'index'])->name('teachers.index');
     Route::post('/teachers', [TeacherController::class, 'store'])->name('teachers.store');
     Route::put('/teachers/{id}', [TeacherController::class, 'update'])->name('teachers.update');

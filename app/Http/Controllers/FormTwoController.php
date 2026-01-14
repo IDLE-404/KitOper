@@ -158,4 +158,34 @@ class FormTwoController extends Controller
             return redirect()->back()->with('error', 'Ошибка при экспорте: ' . $e->getMessage());
         }
     }
+
+    public function exportSemester(Request $request)
+    {
+        $course = CourseContext::normalize($request->integer('course') ?? 1);
+        $groupId = (int) $request->input('group_id');
+        $semester = (int) ($request->input('semester') ?? 1);
+        $year = (int) ($request->input('year') ?? now()->year);
+
+        if (!$groupId) {
+            return redirect()->back()->with('error', 'Не указана группа');
+        }
+        if (!in_array($semester, [1, 2], true)) {
+            return redirect()->back()->with('error', 'Некорректный семестр');
+        }
+        if ($year < 2000 || $year > 2100) {
+            $year = now()->year;
+        }
+
+        try {
+            $exportService = new \App\Services\FormTwoExportService();
+            $filename = $exportService->exportSemesterXlsx($groupId, $semester, $year, $course);
+            $rangeLabel = $semester === 1 ? "{$year}-" . ($year + 1) : (string) $year;
+            $downloadName = "Форма_2_Семестр_{$semester}_{$rangeLabel}.xlsx";
+            return response()->download($filename, $downloadName, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Ошибка при экспорте: ' . $e->getMessage());
+        }
+    }
 }

@@ -115,6 +115,146 @@ class FormTwoExportService
         return $filename;
     }
 
+    public function exportSemesterXlsx(int $groupId, int $semester, int $year, int $course = 1): string
+    {
+        if (!in_array($semester, [1, 2], true)) {
+            throw new \InvalidArgumentException('Некорректный семестр');
+        }
+
+        $formTwoService = new FormTwoService();
+        $holidayService = new KazakhstanHolidayService();
+
+        if ($semester === 1) {
+            $start = Carbon::create($year, 9, 1);
+            $end = Carbon::create($year + 1, 1, 18);
+        } else {
+            $start = Carbon::create($year, 2, 2);
+            $end = Carbon::create($year, 6, 28);
+        }
+
+        $tables = CourseContext::tables($course);
+        $group = \Illuminate\Support\Facades\DB::table($tables['groups'])
+            ->where('id', $groupId)
+            ->first();
+        $groupName = $group->group_name ?? "Группа #{$groupId}";
+
+        $months = [
+            1 => 'Январь', 2 => 'Февраль', 3 => 'Март', 4 => 'Апрель',
+            5 => 'Май', 6 => 'Июнь', 7 => 'Июль', 8 => 'Август',
+            9 => 'Сентябрь', 10 => 'Октябрь', 11 => 'Ноябрь', 12 => 'Декабрь',
+        ];
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Форма 2');
+
+        $row = 1;
+        $sheet->setCellValue("A{$row}", "Форма 2 — {$course} курс");
+        $sheet->getStyle("A{$row}")->getFont()->setBold(true)->setSize(12);
+        $row++;
+        $sheet->setCellValue("A{$row}", "Группа: {$groupName}");
+        $row++;
+        $sheet->setCellValue(
+            "A{$row}",
+            'Период: ' . $this->semesterLabel($semester, $start, $end)
+        );
+        $row += 2;
+
+        $cursor = $start->copy()->startOfMonth();
+        while ($cursor->lte($end)) {
+            $month = (int) $cursor->month;
+            $yearValue = (int) $cursor->year;
+            $monthName = $months[$month] ?? "Месяц {$month}";
+            $monthStart = $cursor->copy()->startOfMonth();
+            $monthEnd = $cursor->copy()->endOfMonth();
+
+            $minDay = $monthStart->isSameMonth($start) ? (int) $start->day : 1;
+            $maxDay = $monthEnd->isSameMonth($end) ? (int) $end->day : (int) $monthEnd->day;
+
+            $holidayDays = $holidayService->getMonthHolidays($yearValue, $month);
+            $report = $formTwoService->buildMonthReport($groupId, $yearValue, $month, $course, $holidayDays);
+
+            [$report, $holidayDays] = $this->sliceReportByDays(
+                $report,
+                $holidayDays,
+                $minDay,
+                $maxDay,
+                $formTwoService
+            );
+
+            $rows = $report['rows'] ?? [];
+            $days = $report['days'] ?? [];
+            $replacementTableRows = $report['replacement_table_rows'] ?? [];
+            $subgroupTwoRows = $report['subgroup_two_rows'] ?? [];
+            $totals = $report['totals'] ?? $formTwoService->calculateTotals($rows, $days);
+            $replacementTotals = $formTwoService->calculateReplacementTotals($replacementTableRows, $days);
+            $subgroupTwoTotals = $report['subgroup_two_totals'] ?? $formTwoService->calculateTotals($subgroupTwoRows, $days);
+
+            $sheet->setCellValue("A{$row}", "{$monthName} {$yearValue}");
+            $sheet->getStyle("A{$row}")->getFont()->setBold(true);
+            $row += 2;
+
+            $row = $this->writeGridTable(
+                $sheet,
+                $row,
+                'Основная таблица',
+                $rows,
+                $days,
+                $totals,
+                $holidayDays,
+                $month,
+                $yearValue,
+                false
+            );
+
+            if (!empty($replacementTableRows)) {
+                $row += 2;
+                $row = $this->writeGridTable(
+                    $sheet,
+                    $row,
+                    'Таблица замен (только учителя)',
+                    $replacementTableRows,
+                    $days,
+                    $replacementTotals,
+                    $holidayDays,
+                    $month,
+                    $yearValue,
+                    true
+                );
+            }
+
+            if (!empty($subgroupTwoRows)) {
+                $row += 2;
+                $row = $this->writeGridTable(
+                    $sheet,
+                    $row,
+                    'Подвоение (подгруппа 2)',
+                    $subgroupTwoRows,
+                    $days,
+                    $subgroupTwoTotals,
+                    $holidayDays,
+                    $month,
+                    $yearValue,
+                    false
+                );
+            }
+
+            $row += 3;
+            $cursor->addMonth();
+        }
+
+        $filename = storage_path('app/temp/form_two_semester_' . $semester . '_' . $groupId . '_' . time() . '.xlsx');
+        $dir = dirname($filename);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($filename);
+
+        return $filename;
+    }
+
     private function writeGridTable(
         \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet,
         int $startRow,
@@ -351,5 +491,64 @@ class FormTwoExportService
     private function cellRef(int $column, int $row): string
     {
         return Coordinate::stringFromColumnIndex($column) . $row;
+    }
+
+    private function semesterLabel(int $semester, Carbon $start, Carbon $end): string
+    {
+        return sprintf(
+            '%d семестр (%s — %s)',
+            $semester,
+            $start->format('d.m.Y'),
+            $end->format('d.m.Y')
+        );
+    }
+
+    private function sliceReportByDays(
+        array $report,
+        array $holidayDays,
+        int $minDay,
+        int $maxDay,
+        FormTwoService $formTwoService
+    ): array {
+        $days = array_values(array_filter(
+            $report['days'] ?? [],
+            fn ($day) => $day >= $minDay && $day <= $maxDay
+        ));
+        $dayKeys = array_flip($days);
+
+        $filterRows = function (array $rows) use ($days, $dayKeys): array {
+            foreach ($rows as &$row) {
+                $rowDays = $row['days'] ?? [];
+                $row['days'] = array_intersect_key($rowDays, $dayKeys);
+                $used = 0;
+                $bonus = 0;
+                foreach ($days as $day) {
+                    $cell = $row['days'][$day] ?? [];
+                    $used += (int) ($cell['used_hours'] ?? 0);
+                    $bonus += (int) ($cell['bonus_hours'] ?? 0);
+                }
+                $row['used_hours_total'] = $used;
+                $row['bonus_hours_total'] = $bonus;
+                $startLeft = (int) ($row['hours_left_start'] ?? $row['total_hours'] ?? 0);
+                $row['hours_left'] = max(0, $startLeft - ($used - $bonus));
+            }
+            unset($row);
+            return $rows;
+        };
+
+        $rows = $filterRows($report['rows'] ?? []);
+        $replacementRows = $filterRows($report['replacement_table_rows'] ?? []);
+        $subgroupTwoRows = $filterRows($report['subgroup_two_rows'] ?? []);
+
+        $holidayDays = array_intersect_key($holidayDays, $dayKeys);
+
+        $report['rows'] = $rows;
+        $report['replacement_table_rows'] = $replacementRows;
+        $report['subgroup_two_rows'] = $subgroupTwoRows;
+        $report['days'] = $days;
+        $report['totals'] = $formTwoService->calculateTotals($rows, $days);
+        $report['subgroup_two_totals'] = $formTwoService->calculateTotals($subgroupTwoRows, $days);
+
+        return [$report, $holidayDays];
     }
 }

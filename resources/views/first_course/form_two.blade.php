@@ -108,6 +108,10 @@
         </div>
     </div>
 
+    @php
+        $semester1Year = $month >= 9 ? $year : ($year - 1);
+        $semester2Year = $month >= 9 ? ($year + 1) : $year;
+    @endphp
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
@@ -119,6 +123,14 @@
                     <a href="{{ route('first.schedule.form_two.export', ['group_id' => $groupId, 'month' => $month, 'year' => $year, 'course' => $course]) }}"
                        class="btn btn-outline-primary btn-sm">
                         📊 Экспорт в Excel
+                    </a>
+                    <a href="{{ route('first.schedule.form_two.export_semester', ['group_id' => $groupId, 'semester' => 1, 'year' => $semester1Year, 'course' => $course]) }}"
+                       class="btn btn-outline-primary btn-sm">
+                        📘 Экспорт 1 семестр
+                    </a>
+                    <a href="{{ route('first.schedule.form_two.export_semester', ['group_id' => $groupId, 'semester' => 2, 'year' => $semester2Year, 'course' => $course]) }}"
+                       class="btn btn-outline-primary btn-sm">
+                        📗 Экспорт 2 семестр
                     </a>
                     <div class="form-check form-switch mb-0">
                         <input class="form-check-input" type="checkbox" id="manualToggle">

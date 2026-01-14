@@ -89,7 +89,7 @@ class TeacherWorkloadController extends Controller
                         continue;
                     }
 
-                    $subjectTitle = $this->formatSubjectTitle($subjects[$subjectId] ?? null);
+                    $subjectTitle = $this->formatSubjectTitle($subjects[$subjectId] ?? null, $course !== 1);
 
                     $occupancy[$teacherName][$day][$lesson][] = [
                         'lesson' => $lesson,
@@ -197,7 +197,7 @@ class TeacherWorkloadController extends Controller
         return [$activeSubject, $activeTeacher];
     }
 
-    protected function formatSubjectTitle(?array $subject): string
+    protected function formatSubjectTitle(?array $subject, bool $includeModule): string
     {
         if (!$subject) {
             return '—';
@@ -205,7 +205,7 @@ class TeacherWorkloadController extends Controller
 
         $name = $subject['title'] ?? null;
         $module = trim((string) ($subject['module'] ?? ''));
-        if ($module !== '') {
+        if ($includeModule && $module !== '') {
             return trim($module . ' ' . ($name ?: ''));
         }
 

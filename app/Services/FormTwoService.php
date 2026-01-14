@@ -25,14 +25,15 @@ class FormTwoService
         $daysCount = $monthStart->daysInMonth;
         $days = range(1, $daysCount);
 
+        $includeModule = $course !== 1;
         $subjectNames = DB::table($tables['subjects'])
             ->select('id', 'subject_name', 'name_ru', 'module_title')
             ->orderByRaw('COALESCE(name_ru, subject_name)')
             ->get()
-            ->mapWithKeys(function ($row) {
+            ->mapWithKeys(function ($row) use ($includeModule) {
                 $name = $row->name_ru ?: $row->subject_name;
                 $module = trim((string) ($row->module_title ?? ''));
-                $title = $module !== '' ? trim($module . ' ' . $name) : $name;
+                $title = ($includeModule && $module !== '') ? trim($module . ' ' . $name) : $name;
                 return [$row->id => $title];
             });
 

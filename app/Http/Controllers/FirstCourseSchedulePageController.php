@@ -60,9 +60,10 @@ class FirstCourseSchedulePageController extends Controller
             })
             ->all();
 
+        $includeModule = $course !== 1;
         $subjectsForView = [];
         foreach ($subjects as $id => $entry) {
-            $subjectsForView[$id] = $this->formatSubjectTitle($entry, false);
+            $subjectsForView[$id] = $this->formatSubjectTitle($entry, false, $includeModule);
         }
 
         $teachers = DB::table($tables['teachers'])
@@ -164,7 +165,7 @@ class FirstCourseSchedulePageController extends Controller
                 ];
             }
 
-        $subjectResolver = fn (?int $subjectId) => $this->resolveSubjectTitle($subjects, $subjectId, $useKazakh);
+        $subjectResolver = fn (?int $subjectId) => $this->resolveSubjectTitle($subjects, $subjectId, $useKazakh, $includeModule);
 
             $subgroupFlag = $row->subgroup === '2' ? 2 : 1;
             $num1 = $subgroupFlag === 1 ? $row->subject_id : null;
@@ -276,7 +277,7 @@ class FirstCourseSchedulePageController extends Controller
         // Проставляем активные значения по чётности недели
         foreach ($schedule as $groupId => $groupData) {
             $useKazakh = $groupData['use_kz'] ?? false;
-            $subjectResolver = fn (?int $subjectId) => $this->resolveSubjectTitle($subjects, $subjectId, $useKazakh);
+            $subjectResolver = fn (?int $subjectId) => $this->resolveSubjectTitle($subjects, $subjectId, $useKazakh, $includeModule);
             foreach ($groupData['days'] as $day => $lessons) {
                 foreach ($lessons as $lesson => $pair) {
                     foreach ([1, 2] as $subIndex) {
@@ -396,7 +397,7 @@ class FirstCourseSchedulePageController extends Controller
         ]);
     }
 
-    protected function resolveSubjectTitle(array $subjects, ?int $subjectId, bool $useKazakh): ?string
+    protected function resolveSubjectTitle(array $subjects, ?int $subjectId, bool $useKazakh, bool $includeModule): ?string
     {
         if (!$subjectId) {
             return null;
@@ -406,17 +407,17 @@ class FirstCourseSchedulePageController extends Controller
             return '—';
         }
 
-        return $this->formatSubjectTitle($subjects[$subjectId], $useKazakh);
+        return $this->formatSubjectTitle($subjects[$subjectId], $useKazakh, $includeModule);
     }
 
-    protected function formatSubjectTitle(array $entry, bool $useKazakh): string
+    protected function formatSubjectTitle(array $entry, bool $useKazakh, bool $includeModule): string
     {
         $ru = $entry['ru'] ?? null;
         $kz = $entry['kz'] ?? null;
         $name = $useKazakh ? ($kz ?: $ru) : ($ru ?: $kz);
         $module = trim((string) ($entry['module'] ?? ''));
 
-        if ($module !== '') {
+        if ($includeModule && $module !== '') {
             return trim($module . ' ' . ($name ?: ''));
         }
 
@@ -609,13 +610,14 @@ class FirstCourseSchedulePageController extends Controller
         $tables = CourseContext::tables($course);
 
         $groups = DB::table($tables['groups'])->orderBy('group_name')->get();
+        $includeModule = $course !== 1;
         $subjects = DB::table($tables['subjects'])
             ->orderBy('name_ru')
             ->get()
-            ->map(function ($row) {
+            ->map(function ($row) use ($includeModule) {
                 $name = $row->name_ru ?: $row->subject_name;
                 $module = trim((string) ($row->module_title ?? ''));
-                $row->title = $module !== '' ? trim($module . ' ' . $name) : $name;
+                $row->title = ($includeModule && $module !== '') ? trim($module . ' ' . $name) : $name;
                 return $row;
             });
         $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get();
@@ -1442,6 +1444,52 @@ class FirstCourseSchedulePageController extends Controller
         $sync->syncWeek($groupId, $weekStart, $weekStart, null, $course);
 
         return response()->json(['message' => 'Пара обновлена']);
+    }
+
+    /**
+     * Удалить пару из расписания (и синхронизировать Form 2).
+     */
+    public function deletePair(Request $request)
+    {
+        $dayMap = [
+            'Понедельник',
+            'Вторник',
+            'Среда',
+            'Четверг',
+            'Пятница',
+            'Суббота',
+        ];
+
+        $data = $request->validate([
+            'group_id' => 'required|integer',
+            'study_day' => 'required|string',
+            'lesson_number' => 'required|integer|min:1|max:5',
+            'week_start' => 'required|date',
+            'course' => 'nullable|integer|min:1|max:4',
+        ]);
+
+        if (!in_array($data['study_day'], $dayMap, true)) {
+            return response()->json(['message' => 'Некорректный день недели'], 422);
+        }
+
+        $course = CourseContext::normalize($data['course'] ?? request()->integer('course') ?? 1);
+        $tables = CourseContext::tables($course);
+
+        $groupId = (int) $data['group_id'];
+        $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
+
+        DB::table($tables['schedules'])
+            ->where('group_id', $groupId)
+            ->where('study_day', $data['study_day'])
+            ->where('lesson_number', $data['lesson_number'])
+            ->whereDate('week_start', $weekStart->toDateString())
+            ->delete();
+
+        /** @var ScheduleToFormTwoSyncService $sync */
+        $sync = app(ScheduleToFormTwoSyncService::class);
+        $sync->syncWeekWithAlternation($groupId, $weekStart, $course);
+
+        return response()->json(['message' => 'Пара удалена']);
     }
 
     /**

@@ -763,6 +763,38 @@
         }
     });
 
+    const deleteBtn = document.getElementById('modalDelete');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', async () => {
+            if (!confirm('Удалить эту пару из расписания?')) return;
+            const formData = new FormData();
+            formData.set('group_id', hiddenGroup.value || '');
+            formData.set('study_day', hiddenDay.value || '');
+            formData.set('lesson_number', hiddenLesson.value || '');
+            formData.set('week_start', weekStartHidden.value || '');
+            formData.set('course', form.querySelector('input[name="course"]')?.value || '');
+            try {
+                const res = await fetch("{{ route('first.schedule.pair.delete') }}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    alert(err.message || 'Ошибка удаления');
+                    return;
+                }
+                closeModal();
+                window.location.reload();
+            } catch (error) {
+                alert('Ошибка сети');
+            }
+        });
+    }
+
     const weekNext = document.getElementById('weekNext');
     const weekPrev = document.getElementById('weekPrev');
     const applyWeekStart = (value) => {
@@ -1235,7 +1267,8 @@
             </div>
         </div>
 
-        <div class="mt-3 d-flex justify-content-end">
+        <div class="mt-3 d-flex justify-content-between">
+            <button class="btn btn-outline-danger" type="button" id="modalDelete">Удалить пару</button>
             <button class="btn btn-primary" type="submit">Сохранить</button>
         </div>
     </form>

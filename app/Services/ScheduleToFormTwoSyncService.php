@@ -341,6 +341,9 @@ class ScheduleToFormTwoSyncService
         $tables = \App\Support\CourseContext::tables($course);
         $rows = $this->fetchWeekRows($groupId, $weekStart, $tables['schedules']);
         if ($rows->isEmpty()) {
+            $empty = collect();
+            $this->syncWeek($groupId, $weekStart, $weekStart, $empty, $course);
+            $this->syncWeek($groupId, $otherWeekStart, $otherWeekStart, $empty, $course);
             return;
         }
 

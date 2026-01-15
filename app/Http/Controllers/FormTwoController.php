@@ -69,7 +69,10 @@ class FormTwoController extends Controller
             }
         }
 
-        $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get(['id', 'teacher_name']);
+        $teachers = DB::table($tables['teachers'])
+            ->select('id', DB::raw('COALESCE(initials, teacher_name) as teacher_name'))
+            ->orderBy('teacher_name')
+            ->get();
         $includeModule = $course !== 1;
         $subjects = DB::table($tables['subjects'])
             ->select('id', 'subject_name', 'name_ru', 'module_title')

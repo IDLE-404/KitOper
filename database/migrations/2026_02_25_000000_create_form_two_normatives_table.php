@@ -16,7 +16,7 @@ return new class extends Migration
                 $table->id();
                 $table->foreignId('group_id')->constrained('first_course_group')->cascadeOnDelete();
                 $table->foreignId('subject_id')->constrained('first_course_subjects')->cascadeOnDelete();
-                $table->foreignId('teacher_id')->nullable()->constrained('frist_course_teachers')->nullOnDelete();
+                $table->foreignId('teacher_id')->nullable()->constrained('teachers')->nullOnDelete();
                 $table->unsignedTinyInteger('month');
                 $table->unsignedSmallInteger('year');
                 $table->integer('total_hours')->default(0);
@@ -36,7 +36,7 @@ return new class extends Migration
                 $table->foreignId('subject_id')->after('group_id')->constrained('first_course_subjects')->cascadeOnDelete();
             }
             if (!Schema::hasColumn('form_two_normatives', 'teacher_id')) {
-                $table->foreignId('teacher_id')->nullable()->after('subject_id')->constrained('frist_course_teachers')->nullOnDelete();
+                $table->foreignId('teacher_id')->nullable()->after('subject_id')->constrained('teachers')->nullOnDelete();
             }
             if (!Schema::hasColumn('form_two_normatives', 'month')) {
                 $table->unsignedTinyInteger('month')->after('teacher_id')->default(1);

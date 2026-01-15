@@ -17,7 +17,7 @@ return new class extends Migration
         foreach ($courses as $prefix) {
             $groupTable = "{$prefix}_course_group";
             $subjectTable = "{$prefix}_course_subjects";
-            $teacherTable = "{$prefix}_course_teachers";
+            $teacherTable = 'teachers';
             $scheduleTable = "{$prefix}_course_schedules";
             $formTwoNormatives = "{$prefix}_form_two_normatives";
             $formTwoRecords = "{$prefix}_form_two_records";
@@ -40,14 +40,6 @@ return new class extends Migration
                     $table->string('subject_name')->nullable();
                     $table->string('name_ru')->nullable();
                     $table->string('name_kz')->nullable();
-                    $table->timestamps();
-                });
-            }
-
-            if (!Schema::hasTable($teacherTable)) {
-                Schema::create($teacherTable, function (Blueprint $table) {
-                    $table->id();
-                    $table->string('teacher_name');
                     $table->timestamps();
                 });
             }

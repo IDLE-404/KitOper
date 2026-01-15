@@ -146,6 +146,7 @@
         @endphp
         <a href="{{ route('practice.index', ['course' => $practiceCourse]) }}" class="btn-pill ghost">Практика</a>
         <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Форма 2</a>
+        <a href="{{ route('holidays.index') }}" class="btn-pill ghost">Праздники</a>
         <a href="{{ route('teachers.workload') }}" class="btn-pill ghost">Занятость преподавателей</a>
         <a href="{{ route('teachers.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Преподаватели</a>
         <a href="{{ route('subjects.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Предметы</a>
@@ -222,7 +223,7 @@
                                     <div class="practice-meta text-muted">
                                         {{ ($practiceInfo['type'] ?? '') === 'educational' ? 'Учебная' : 'Производственная' }}
                                         @if(!empty($practiceInfo['teacher_id']))
-                                            — {{ $teachers[$practiceInfo['teacher_id']] ?? 'Преподаватель' }}
+                                            — {{ $teacherDisplay[$practiceInfo['teacher_id']] ?? 'Преподаватель' }}
                                         @endif
                                         @if(!empty($practiceInfo['room_id']))
                                             (каб. {{ $practiceInfo['room_id'] }})

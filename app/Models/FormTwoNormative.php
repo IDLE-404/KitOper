@@ -30,6 +30,6 @@ class FormTwoNormative extends Model
 
     public function teacher()
     {
-        return $this->belongsTo(FristCourseTeacher::class, 'teacher_id');
+        return $this->belongsTo(Teacher::class, 'teacher_id');
     }
 }

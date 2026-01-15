@@ -42,12 +42,12 @@ class FormTwoRecord extends Model
 
     public function teacher()
     {
-        return $this->belongsTo(\App\Models\FristCourseTeacher::class, 'teacher_id');
+        return $this->belongsTo(\App\Models\Teacher::class, 'teacher_id');
     }
 
     public function replacementTeacher()
     {
-        return $this->belongsTo(\App\Models\FristCourseTeacher::class, 'replacement_teacher_id');
+        return $this->belongsTo(\App\Models\Teacher::class, 'replacement_teacher_id');
     }
 
     public function isNormal(): bool

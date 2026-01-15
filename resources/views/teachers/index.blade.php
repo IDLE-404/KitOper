@@ -117,6 +117,9 @@
                 <thead>
                     <tr>
                         <th>ФИО</th>
+                        @if($hasInitials)
+                            <th>Инициалы</th>
+                        @endif
                         <th class="text-end">Действия</th>
                     </tr>
                 </thead>
@@ -124,6 +127,9 @@
                     @forelse($teachers as $teacher)
                         <tr data-name="{{ mb_strtolower($teacher->teacher_name ?? '') }}">
                             <td>{{ $teacher->teacher_name ?? '—' }}</td>
+                            @if($hasInitials)
+                                <td>{{ $teacher->initials ?? '—' }}</td>
+                            @endif
                             <td class="text-end">
                                 <div class="table-actions">
                                     <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editTeacher{{ $teacher->id }}">Редактировать</button>

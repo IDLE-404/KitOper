@@ -6,12 +6,17 @@ use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TeacherWorkloadController;
 use App\Http\Controllers\PracticeController;
+use App\Http\Controllers\HolidayController;
 
 Route::get('/', [FirstCourseSchedulePageController::class, 'index'])->name('home');
 Route::get('/teachers/workload', [TeacherWorkloadController::class, 'index'])->name('teachers.workload');
 Route::get('/practice', [PracticeController::class, 'index'])->name('practice.index');
 Route::post('/practice', [PracticeController::class, 'store'])->name('practice.store');
 Route::delete('/practice/{practicePeriod}', [PracticeController::class, 'destroy'])->name('practice.destroy');
+Route::get('/holidays', [HolidayController::class, 'index'])->name('holidays.index');
+Route::post('/holidays', [HolidayController::class, 'store'])->name('holidays.store');
+Route::put('/holidays/{holiday}', [HolidayController::class, 'update'])->name('holidays.update');
+Route::delete('/holidays/{holiday}', [HolidayController::class, 'destroy'])->name('holidays.destroy');
 
 Route::prefix('first-course')->group(function () {
     Route::get('/schedule', [FirstCourseSchedulePageController::class, 'index'])->name('first.schedule.index');

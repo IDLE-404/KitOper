@@ -34,12 +34,11 @@ class CourseContext
     {
         $course = self::normalize($course);
         $prefix = self::prefix($course);
-        $teacherTable = $course === 1 ? 'frist_course_teachers' : "{$prefix}_course_teachers";
 
         return [
             'groups' => "{$prefix}_course_group",
             'subjects' => "{$prefix}_course_subjects",
-            'teachers' => $teacherTable,
+            'teachers' => 'teachers',
             'schedules' => "{$prefix}_course_schedules",
             'form_two_normatives' => $course === 1 ? 'form_two_normatives' : "{$prefix}_form_two_normatives",
             'form_two_records' => $course === 1 ? 'form_two_records' : "{$prefix}_form_two_records",

@@ -71,7 +71,12 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label text-muted small mb-1">Год</label>
-                    <input type="number" class="form-control" id="yearInput" value="{{ $year }}">
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-outline-secondary btn-sm" id="yearPrevBtn" type="button">Предыдущий</button>
+                        <span class="fw-semibold" id="yearLabel">{{ $year }}</span>
+                        <button class="btn btn-outline-secondary btn-sm" id="yearNextBtn" type="button">Следующий</button>
+                    </div>
+                    <input type="hidden" id="yearInput" value="{{ $year }}">
                 </div>
                 <div class="col-md-1 text-end">
                     <button class="btn btn-primary w-100" id="reloadBtn">OK</button>
@@ -680,6 +685,9 @@
     const groupSelect = document.getElementById('groupSelect');
     const monthSelect = document.getElementById('monthSelect');
     const yearInput = document.getElementById('yearInput');
+    const yearLabel = document.getElementById('yearLabel');
+    const yearPrevBtn = document.getElementById('yearPrevBtn');
+    const yearNextBtn = document.getElementById('yearNextBtn');
     const courseSelect = document.getElementById('courseSelect');
     const reloadBtn = document.getElementById('reloadBtn');
     const saveBtn = document.getElementById('saveBtn');
@@ -691,6 +699,24 @@
         params.set('course', courseSelect.value);
         params.delete('group_id');
         window.location.search = params.toString();
+    });
+
+    const updateYearLabel = () => {
+        if (yearLabel && yearInput) {
+            yearLabel.textContent = yearInput.value;
+        }
+    };
+
+    updateYearLabel();
+
+    yearPrevBtn?.addEventListener('click', () => {
+        yearInput.value = Number(yearInput.value) - 1;
+        updateYearLabel();
+    });
+
+    yearNextBtn?.addEventListener('click', () => {
+        yearInput.value = Number(yearInput.value) + 1;
+        updateYearLabel();
     });
 
     reloadBtn?.addEventListener('click', () => {

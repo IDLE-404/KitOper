@@ -68,6 +68,9 @@ class FirstCourseSchedulePageController extends Controller
 
         $teachers = DB::table($tables['teachers'])
             ->pluck('teacher_name', 'id');
+        $teacherDisplay = DB::table($tables['teachers'])
+            ->select('id', DB::raw('COALESCE(initials, teacher_name) as display_name'))
+            ->pluck('display_name', 'id');
 
         $groupRecords = DB::table($tables['groups'])
             ->select('id', 'group_name')
@@ -215,12 +218,12 @@ class FirstCourseSchedulePageController extends Controller
                 $sub1Data = array_merge($sub1Data, [
                     'subject_num' => $num1 ? $subjectResolver($num1) : ($sub1Data['subject_num'] ?? null),
                     'subject_num_id' => $num1 ?? ($sub1Data['subject_num_id'] ?? null),
-                    'teacher_num' => $teacherNum1 ? ($teachers[$teacherNum1] ?? '—') : ($sub1Data['teacher_num'] ?? null),
+                    'teacher_num' => $teacherNum1 ? ($teacherDisplay[$teacherNum1] ?? '—') : ($sub1Data['teacher_num'] ?? null),
                     'teacher_num_id' => $teacherNum1 ?? ($sub1Data['teacher_num_id'] ?? null),
                     'room_num' => $roomNum1 ?? ($sub1Data['room_num'] ?? null),
                     'subject_den' => $den1 ? $subjectResolver($den1) : ($sub1Data['subject_den'] ?? null),
                     'subject_den_id' => $den1 ?? ($sub1Data['subject_den_id'] ?? null),
-                    'teacher_den' => $teacherDen1 ? ($teachers[$teacherDen1] ?? '—') : ($sub1Data['teacher_den'] ?? null),
+                    'teacher_den' => $teacherDen1 ? ($teacherDisplay[$teacherDen1] ?? '—') : ($sub1Data['teacher_den'] ?? null),
                     'teacher_den_id' => $teacherDen1 ?? ($sub1Data['teacher_den_id'] ?? null),
                     'room_den' => $roomDen1 ?? ($sub1Data['room_den'] ?? null),
                     'conflict_num' => $confNum1 ?? ($sub1Data['conflict_num'] ?? false),
@@ -248,12 +251,12 @@ class FirstCourseSchedulePageController extends Controller
                 $sub2Data = array_merge($sub2Data, [
                     'subject_num' => $num2 ? $subjectResolver($num2) : ($sub2Data['subject_num'] ?? null),
                     'subject_num_id' => $num2 ?? ($sub2Data['subject_num_id'] ?? null),
-                    'teacher_num' => $teacherNum2 ? ($teachers[$teacherNum2] ?? '—') : ($sub2Data['teacher_num'] ?? null),
+                    'teacher_num' => $teacherNum2 ? ($teacherDisplay[$teacherNum2] ?? '—') : ($sub2Data['teacher_num'] ?? null),
                     'teacher_num_id' => $teacherNum2 ?? ($sub2Data['teacher_num_id'] ?? null),
                     'room_num' => $roomNum2 ?? ($sub2Data['room_num'] ?? null),
                     'subject_den' => $den2 ? $subjectResolver($den2) : ($sub2Data['subject_den'] ?? null),
                     'subject_den_id' => $den2 ?? ($sub2Data['subject_den_id'] ?? null),
-                    'teacher_den' => $teacherDen2 ? ($teachers[$teacherDen2] ?? '—') : ($sub2Data['teacher_den'] ?? null),
+                    'teacher_den' => $teacherDen2 ? ($teacherDisplay[$teacherDen2] ?? '—') : ($sub2Data['teacher_den'] ?? null),
                     'teacher_den_id' => $teacherDen2 ?? ($sub2Data['teacher_den_id'] ?? null),
                     'room_den' => $roomDen2 ?? ($sub2Data['room_den'] ?? null),
                     'conflict_num' => $confNum2 ?? ($sub2Data['conflict_num'] ?? false),
@@ -311,7 +314,7 @@ class FirstCourseSchedulePageController extends Controller
                         $replacementSubjectId = $useDenominator ? ($pair[$key]['replacement_subject_den'] ?? null) : ($pair[$key]['replacement_subject_num'] ?? null);
                         $replacementSubjectName = $replacementSubjectId ? $subjectResolver($replacementSubjectId) : null;
                         $replacementComment = $useDenominator ? ($pair[$key]['replacement_comment_den'] ?? null) : ($pair[$key]['replacement_comment_num'] ?? null);
-                        $replacementTeacherName = $replacementTeacherId ? ($teachers[$replacementTeacherId] ?? '—') : null;
+                        $replacementTeacherName = $replacementTeacherId ? ($teacherDisplay[$replacementTeacherId] ?? '—') : null;
 
                         if ($replacementFlag && $replacementSubjectName) {
                             $activeSubject = $replacementSubjectName;
@@ -344,7 +347,7 @@ class FirstCourseSchedulePageController extends Controller
                         $pair[$key]['has_den'] = $denExists;
                         $pair[$key]['has_num'] = $numExists;
                         $pair[$key]['label'] = (string) $subIndex;
-                        $pair[$key]['original_teacher'] = $originalTeacherId ? ($teachers[$originalTeacherId] ?? '—') : null;
+                        $pair[$key]['original_teacher'] = $originalTeacherId ? ($teacherDisplay[$originalTeacherId] ?? '—') : null;
                         $pair[$key]['original_teacher_id'] = $originalTeacherId;
                         $pair[$key]['is_absent'] = $absent;
                         $pair[$key]['is_replacement'] = $replacementFlag;
@@ -391,6 +394,7 @@ class FirstCourseSchedulePageController extends Controller
             'schedule' => $schedule,
             'subjects' => $subjectsForView,
             'teachers' => $teachers,
+            'teacherDisplay' => $teacherDisplay,
             'weekMode' => $isDenominatorWeek ? 'den' : 'num',
             'weekStart' => $weekStart->toDateString(),
             'requestedWeekStart' => $requestedWeekStart->toDateString(),
@@ -446,7 +450,7 @@ class FirstCourseSchedulePageController extends Controller
     {
         $groups = DB::table('groups')->where('year', 1)->get();
         $subjects = DB::table('first_course_subjects')->get();
-        $teachers = DB::table('frist_course_teachers')->get();
+        $teachers = DB::table(CourseContext::tables(1)['teachers'])->get();
 
         $days = [
             'Понедельник',
@@ -2005,7 +2009,9 @@ class FirstCourseSchedulePageController extends Controller
         $days = $report['days'] ?? range(1, Carbon::create($year, max(1, min(12, $month)), 1)->daysInMonth);
         $rows = $report['rows'] ?? [];
         $replacementRows = $report['replacement_rows'] ?? [];
-        $teachers = DB::table('frist_course_teachers')->orderBy('teacher_name')->get(['id', 'teacher_name']);
+        $teachers = DB::table(CourseContext::tables(1)['teachers'])
+            ->orderBy('teacher_name')
+            ->get(['id', 'teacher_name']);
         $subjects = DB::table('first_course_subjects')
             ->select('id', DB::raw('COALESCE(name_ru, subject_name) as title'))
             ->orderBy('title')

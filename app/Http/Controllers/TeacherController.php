@@ -45,7 +45,7 @@ class TeacherController extends Controller
             'updated_at' => now(),
         ];
         if ($hasInitials) {
-            $payload['initials'] = $data['initials'] ?? null;
+            $payload['initials'] = $this->resolveInitials($data['teacher_name'], $data['initials'] ?? null);
         }
 
         DB::table($tables['teachers'])->insert($payload);
@@ -71,7 +71,7 @@ class TeacherController extends Controller
             'updated_at' => now(),
         ];
         if ($hasInitials) {
-            $payload['initials'] = $data['initials'] ?? null;
+            $payload['initials'] = $this->resolveInitials($data['teacher_name'], $data['initials'] ?? null);
         }
 
         DB::table($tables['teachers'])
@@ -101,5 +101,34 @@ class TeacherController extends Controller
         return redirect()
             ->route('teachers.index', ['course' => $course])
             ->with('success', 'Преподаватель удален.');
+    }
+
+    private function resolveInitials(string $teacherName, ?string $initialsInput = null): ?string
+    {
+        $initialsInput = $initialsInput !== null ? trim($initialsInput) : null;
+        if ($initialsInput !== null && $initialsInput !== '') {
+            return $initialsInput;
+        }
+
+        $clean = trim(preg_replace('/\s+/u', ' ', $teacherName));
+        if ($clean === '') {
+            return null;
+        }
+        if (mb_strpos($clean, '.') !== false) {
+            return $clean;
+        }
+
+        $parts = array_values(array_filter(explode(' ', $clean), fn($part) => $part !== ''));
+        if (count($parts) < 2) {
+            return $clean;
+        }
+
+        $surname = array_shift($parts);
+        $initials = $surname . ' ';
+        foreach ($parts as $part) {
+            $initials .= mb_substr($part, 0, 1) . '.';
+        }
+
+        return trim($initials);
     }
 }

@@ -78,7 +78,8 @@ class FormTwoService
 
         $teachers = DB::table($tables['teachers'])
             ->whereIn('id', $teacherIds)
-            ->pluck('teacher_name', 'id');
+            ->select('id', DB::raw('COALESCE(initials, teacher_name) as display_name'))
+            ->pluck('display_name', 'id');
 
         $preferredOrder = [
             'Учебная практика',

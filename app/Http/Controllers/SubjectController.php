@@ -15,6 +15,10 @@ class SubjectController extends Controller
         $tables = CourseContext::tables($course);
 
         $subjects = DB::table($tables['subjects'])
+            ->when(
+                \Illuminate\Support\Facades\Schema::hasColumn($tables['subjects'], 'group_type'),
+                fn ($q) => $q->where('group_type', '<>', 'hidden')
+            )
             ->orderBy('module_title')
             ->orderByRaw('COALESCE(name_ru, subject_name)')
             ->get();

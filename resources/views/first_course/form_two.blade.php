@@ -137,6 +137,7 @@
                        class="btn btn-outline-primary btn-sm">
                         📗 Экспорт 2 семестр
                     </a>
+                    <button class="btn btn-outline-secondary btn-sm" id="semester2Btn">Ко 2 семестру</button>
                     <div class="form-check form-switch mb-0">
                         <input class="form-check-input" type="checkbox" id="manualToggle">
                         <label class="form-check-label small text-muted" for="manualToggle">Режим коррекции</label>
@@ -691,8 +692,10 @@
     const courseSelect = document.getElementById('courseSelect');
     const reloadBtn = document.getElementById('reloadBtn');
     const saveBtn = document.getElementById('saveBtn');
+    const semester2Btn = document.getElementById('semester2Btn');
     const formBody = document.getElementById('formBody');
     const manualToggle = document.getElementById('manualToggle');
+    const semester2Year = Number("{{ $semester2Year ?? ($year ?? now()->year) }}");
 
     courseSelect?.addEventListener('change', () => {
         const params = new URLSearchParams(window.location.search);
@@ -726,6 +729,16 @@
         params.set('year', yearInput.value);
         params.set('course', courseSelect ? courseSelect.value : '{{ $course ?? 1 }}');
         window.location.search = params.toString();
+    });
+
+    semester2Btn?.addEventListener('click', () => {
+        if (!monthSelect || !yearInput) {
+            return;
+        }
+        monthSelect.value = '2';
+        yearInput.value = String(semester2Year || yearInput.value);
+        updateYearLabel();
+        reloadBtn?.click();
     });
 
     manualToggle?.addEventListener('change', () => {

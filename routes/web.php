@@ -7,6 +7,7 @@ use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TeacherWorkloadController;
 use App\Http\Controllers\PracticeController;
 use App\Http\Controllers\HolidayController;
+use App\Http\Controllers\GroupController;
 
 Route::get('/', [FirstCourseSchedulePageController::class, 'index'])->name('home');
 Route::get('/teachers/workload', [TeacherWorkloadController::class, 'index'])->name('teachers.workload');
@@ -33,6 +34,10 @@ Route::prefix('first-course')->group(function () {
     Route::post('/teachers', [TeacherController::class, 'store'])->name('teachers.store');
     Route::put('/teachers/{id}', [TeacherController::class, 'update'])->name('teachers.update');
     Route::delete('/teachers/{id}', [TeacherController::class, 'destroy'])->name('teachers.destroy');
+    Route::get('/groups', [GroupController::class, 'index'])->name('groups.index');
+    Route::post('/groups', [GroupController::class, 'store'])->name('groups.store');
+    Route::put('/groups/{id}', [GroupController::class, 'update'])->name('groups.update');
+    Route::delete('/groups/{id}', [GroupController::class, 'destroy'])->name('groups.destroy');
     Route::get('/subjects', [SubjectController::class, 'index'])->name('subjects.index');
     Route::post('/subjects', [SubjectController::class, 'store'])->name('subjects.store');
     Route::put('/subjects/{id}', [SubjectController::class, 'update'])->name('subjects.update');

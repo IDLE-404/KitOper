@@ -148,6 +148,7 @@
         <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Форма 2</a>
         <a href="{{ route('holidays.index') }}" class="btn-pill ghost">Праздники</a>
         <a href="{{ route('teachers.workload') }}" class="btn-pill ghost">Занятость преподавателей</a>
+        <a href="{{ route('groups.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Группы</a>
         <a href="{{ route('teachers.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Преподаватели</a>
         <a href="{{ route('subjects.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Предметы</a>
     </div>
@@ -401,7 +402,10 @@
             }
         }
 
-        const subjects = @json($subjects ?? []);
+        const subjectsRu = @json($subjects ?? []);
+        const subjectsKz = @json($subjectsKz ?? []);
+        const subjectGroupTypes = @json($subjectGroupTypes ?? []);
+        const groupLocalePreference = @json($groupLocalePreference ?? []);
         const teachers = @json($teachers ?? []);
 
     const modal = document.getElementById('pairModal');
@@ -462,6 +466,42 @@
     const hiddenGroup = document.getElementById('modalGroupId');
     const hiddenDay = document.getElementById('modalDay');
     const hiddenLesson = document.getElementById('modalLesson');
+
+    let currentSubjectMode = 'ru';
+    const subjectSelects = [
+        subject1,
+        subject2,
+        subject1Den,
+        subject2Den,
+        replacementSubject1,
+        replacementSubject2,
+        replacementSubject1Den,
+        replacementSubject2Den,
+    ].filter(Boolean);
+
+    const applySubjectFilter = (groupId) => {
+        const useKazakh = groupLocalePreference[String(groupId)] === true;
+        const mode = useKazakh ? 'kz' : 'ru';
+        const titles = useKazakh ? subjectsKz : subjectsRu;
+        currentSubjectMode = mode;
+
+        subjectSelects.forEach((select) => {
+            Array.from(select.options).forEach((option) => {
+                if (!option.value) {
+                    option.hidden = false;
+                    option.disabled = false;
+                    return;
+                }
+                const groupType = subjectGroupTypes[option.value] || 'both';
+                const allowed = groupType === 'both' || groupType === mode;
+                const keepSelected = option.value === select.value;
+
+                option.textContent = titles[option.value] || option.textContent;
+                option.hidden = !(allowed || keepSelected);
+                option.disabled = !(allowed || keepSelected);
+            });
+        });
+    };
 
     const syncReplacementFlag1 = (resetFields = false) => {
         const enabled = replacementToggle1.checked;
@@ -560,6 +600,8 @@
         subject2Den.value = data.denSubject2 || '';
         teacher2Den.value = data.denTeacher2 || '';
         room2Den.value = data.denRoom2 || '';
+
+        applySubjectFilter(data.group);
 
         toggleSub2.checked = data.hasSub2 === '1';
         sub2CardNum.classList.toggle('d-none', !toggleSub2.checked);
@@ -729,14 +771,22 @@
         const targetId = input.dataset.target;
         const select = document.getElementById(targetId);
         if (!select) return;
-        const options = Array.from(select.options);
 
         input.addEventListener('input', () => {
             const term = input.value.toLowerCase();
-            select.innerHTML = '';
-            options
-                .filter(opt => opt.text.toLowerCase().includes(term))
-                .forEach(opt => select.appendChild(opt.cloneNode(true)));
+            Array.from(select.options).forEach(option => {
+                if (!option.value) {
+                    option.hidden = false;
+                    option.disabled = false;
+                    return;
+                }
+                const groupType = subjectGroupTypes[option.value] || 'both';
+                const allowed = groupType === 'both' || groupType === currentSubjectMode;
+                const match = option.text.toLowerCase().includes(term);
+                const keepSelected = option.value === select.value;
+                option.hidden = !(allowed && match) && !keepSelected;
+                option.disabled = !(allowed && match) && !keepSelected;
+            });
         });
     });
 
@@ -1051,7 +1101,7 @@
                             <select class="form-select" name="subject_id" id="modalSubject1">
                                 <option value="">—</option>
                                 @foreach($subjects as $id => $title)
-                                    <option value="{{ $id }}">{{ $title }}</option>
+                                    <option value="{{ $id }}" data-group="{{ $subjectGroupTypes[$id] ?? 'both' }}" data-title-ru="{{ $title }}" data-title-kz="{{ $subjectsKz[$id] ?? $title }}">{{ $title }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -1090,7 +1140,7 @@
                             <select class="form-select mb-2" name="replacement_subject_id_1" id="modalReplacementSubject1">
                                 <option value="">— предмет</option>
                                 @foreach($subjects as $id => $title)
-                                    <option value="{{ $id }}">{{ $title }}</option>
+                                    <option value="{{ $id }}" data-group="{{ $subjectGroupTypes[$id] ?? 'both' }}" data-title-ru="{{ $title }}" data-title-kz="{{ $subjectsKz[$id] ?? $title }}">{{ $title }}</option>
                                 @endforeach
                             </select>
                             <input type="text" class="form-control" name="replacement_comment_1" id="modalReplacementComment1" placeholder="Комментарий">
@@ -1107,7 +1157,7 @@
                             <select class="form-select" name="subject_id_2" id="modalSubject2">
                                 <option value="">—</option>
                                 @foreach($subjects as $id => $title)
-                                    <option value="{{ $id }}">{{ $title }}</option>
+                                    <option value="{{ $id }}" data-group="{{ $subjectGroupTypes[$id] ?? 'both' }}" data-title-ru="{{ $title }}" data-title-kz="{{ $subjectsKz[$id] ?? $title }}">{{ $title }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -1145,7 +1195,7 @@
                         <select class="form-select mb-2" name="replacement_subject_id_2" id="modalReplacementSubject2">
                             <option value="">— предмет</option>
                             @foreach($subjects as $id => $title)
-                                <option value="{{ $id }}">{{ $title }}</option>
+                                <option value="{{ $id }}" data-group="{{ $subjectGroupTypes[$id] ?? 'both' }}" data-title-ru="{{ $title }}" data-title-kz="{{ $subjectsKz[$id] ?? $title }}">{{ $title }}</option>
                             @endforeach
                         </select>
                         <input type="text" class="form-control" name="replacement_comment_2" id="modalReplacementComment2" placeholder="Комментарий">
@@ -1168,7 +1218,7 @@
                             <select class="form-select" name="den_subject_id" id="modalSubject1Den">
                                 <option value="">—</option>
                                 @foreach($subjects as $id => $title)
-                                    <option value="{{ $id }}">{{ $title }}</option>
+                                    <option value="{{ $id }}" data-group="{{ $subjectGroupTypes[$id] ?? 'both' }}" data-title-ru="{{ $title }}" data-title-kz="{{ $subjectsKz[$id] ?? $title }}">{{ $title }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -1205,7 +1255,7 @@
                             <select class="form-select mb-2" name="replacement_subject_id_1_den" id="modalReplacementSubject1Den">
                                 <option value="">— предмет</option>
                                 @foreach($subjects as $id => $title)
-                                    <option value="{{ $id }}">{{ $title }}</option>
+                                    <option value="{{ $id }}" data-group="{{ $subjectGroupTypes[$id] ?? 'both' }}" data-title-ru="{{ $title }}" data-title-kz="{{ $subjectsKz[$id] ?? $title }}">{{ $title }}</option>
                                 @endforeach
                             </select>
                             <input type="text" class="form-control" name="replacement_comment_1_den" id="modalReplacementComment1Den" placeholder="Комментарий">
@@ -1221,7 +1271,7 @@
                             <select class="form-select" name="den_subject_id_2" id="modalSubject2Den">
                                 <option value="">—</option>
                                 @foreach($subjects as $id => $title)
-                                    <option value="{{ $id }}">{{ $title }}</option>
+                                    <option value="{{ $id }}" data-group="{{ $subjectGroupTypes[$id] ?? 'both' }}" data-title-ru="{{ $title }}" data-title-kz="{{ $subjectsKz[$id] ?? $title }}">{{ $title }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -1258,7 +1308,7 @@
                             <select class="form-select mb-2" name="replacement_subject_id_2_den" id="modalReplacementSubject2Den">
                                 <option value="">— предмет</option>
                                 @foreach($subjects as $id => $title)
-                                    <option value="{{ $id }}">{{ $title }}</option>
+                                    <option value="{{ $id }}" data-group="{{ $subjectGroupTypes[$id] ?? 'both' }}" data-title-ru="{{ $title }}" data-title-kz="{{ $subjectsKz[$id] ?? $title }}">{{ $title }}</option>
                                 @endforeach
                             </select>
                             <input type="text" class="form-control" name="replacement_comment_2_den" id="modalReplacementComment2Den" placeholder="Комментарий">

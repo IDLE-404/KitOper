@@ -43,10 +43,15 @@ class FirstCourseSchedulePageController extends Controller
 
         $isFallbackWeek = false;
 
-        $subjects = DB::table($tables['subjects'])
-            ->select('id', 'subject_name', 'name_ru', 'name_kz', 'module_title')
+        $subjectHasGroupType = Schema::hasColumn($tables['subjects'], 'group_type');
+        $subjectsQuery = DB::table($tables['subjects'])
+            ->select('id', 'subject_name', 'name_ru', 'name_kz', 'module_title');
+        if ($subjectHasGroupType) {
+            $subjectsQuery->addSelect('group_type');
+        }
+        $subjects = $subjectsQuery
             ->get()
-            ->mapWithKeys(function ($row) {
+            ->mapWithKeys(function ($row) use ($subjectHasGroupType) {
                 $ru = $row->name_ru ?: $row->subject_name;
                 $kz = $row->name_kz ?: $ru;
 
@@ -55,6 +60,7 @@ class FirstCourseSchedulePageController extends Controller
                         'ru' => $ru,
                         'kz' => $kz,
                         'module' => $row->module_title,
+                        'group_type' => $subjectHasGroupType ? ($row->group_type ?? 'both') : 'both',
                     ],
                 ];
             })
@@ -62,8 +68,12 @@ class FirstCourseSchedulePageController extends Controller
 
         $includeModule = $course !== 1;
         $subjectsForView = [];
+        $subjectsForViewKz = [];
+        $subjectGroupTypes = [];
         foreach ($subjects as $id => $entry) {
             $subjectsForView[$id] = $this->formatSubjectTitle($entry, false, $includeModule);
+            $subjectsForViewKz[$id] = $this->formatSubjectTitle($entry, true, $includeModule);
+            $subjectGroupTypes[$id] = $entry['group_type'] ?? 'both';
         }
 
         $teachers = DB::table($tables['teachers'])
@@ -72,15 +82,17 @@ class FirstCourseSchedulePageController extends Controller
             ->select('id', DB::raw('COALESCE(initials, teacher_name) as display_name'))
             ->pluck('display_name', 'id');
 
-        $groupRecords = DB::table($tables['groups'])
-            ->select('id', 'group_name')
-            ->get();
+        $groupsQuery = DB::table($tables['groups'])->select('id', 'group_name');
+        if (Schema::hasColumn($tables['groups'], 'group_type')) {
+            $groupsQuery->addSelect('group_type');
+        }
+        $groupRecords = $groupsQuery->get();
 
         $groups = [];
         $groupLocalePreference = [];
         foreach ($groupRecords as $group) {
             $groups[$group->id] = $group->group_name;
-            $groupLocalePreference[$group->id] = $this->isKazakhGroup($group->group_name);
+            $groupLocalePreference[$group->id] = $this->resolveGroupIsKazakh($group);
         }
 
         $raw = DB::table($tables['schedules'] . ' as s')
@@ -393,6 +405,8 @@ class FirstCourseSchedulePageController extends Controller
         return view('first_course.schedule.index', [
             'schedule' => $schedule,
             'subjects' => $subjectsForView,
+            'subjectsKz' => $subjectsForViewKz,
+            'subjectGroupTypes' => $subjectGroupTypes,
             'teachers' => $teachers,
             'teacherDisplay' => $teacherDisplay,
             'weekMode' => $isDenominatorWeek ? 'den' : 'num',
@@ -404,6 +418,7 @@ class FirstCourseSchedulePageController extends Controller
             'weeklyHolidays' => $weeklyHolidays,
             'holidayWeekDates' => $holidayWeekDates ?? [],
             'practiceMap' => $practiceMap,
+            'groupLocalePreference' => $groupLocalePreference,
         ]);
     }
 
@@ -443,14 +458,43 @@ class FirstCourseSchedulePageController extends Controller
         return (bool) preg_match('/[ҚқӘәҢңӨөҰұҮүІіҺһҒғ]/u', $groupName);
     }
 
+    protected function resolveGroupIsKazakh(object $group): bool
+    {
+        $groupType = $group->group_type ?? null;
+        if ($groupType === 'ru') {
+            return false;
+        }
+        if ($groupType === 'kz') {
+            return true;
+        }
+
+        return $this->isKazakhGroup($group->group_name ?? null);
+    }
+
     /**
      * Форма создания строки расписания.
      */
     public function create()
     {
-        $groups = DB::table('groups')->where('year', 1)->get();
-        $subjects = DB::table('first_course_subjects')->get();
+        $groupsQuery = DB::table('groups')
+            ->select('id', 'group_name', 'group_number', 'subgroup')
+            ->where('year', 1);
+        if (Schema::hasColumn('groups', 'group_type')) {
+            $groupsQuery->addSelect('group_type');
+        }
+        $groups = $groupsQuery->get();
+        $subjectsQuery = DB::table('first_course_subjects')
+            ->select('id', 'subject_name', 'name_ru', 'name_kz');
+        if (Schema::hasColumn('first_course_subjects', 'group_type')) {
+            $subjectsQuery->addSelect('group_type')
+                ->where('group_type', '<>', 'hidden');
+        }
+        $subjects = $subjectsQuery->get();
         $teachers = DB::table(CourseContext::tables(1)['teachers'])->get();
+        $groupLocalePreference = [];
+        foreach ($groups as $group) {
+            $groupLocalePreference[$group->id] = $this->resolveGroupIsKazakh($group);
+        }
 
         $days = [
             'Понедельник',
@@ -465,6 +509,7 @@ class FirstCourseSchedulePageController extends Controller
             'subjects' => $subjects,
             'teachers' => $teachers,
             'days' => $days,
+            'groupLocalePreference' => $groupLocalePreference,
         ]);
     }
 
@@ -619,20 +664,37 @@ class FirstCourseSchedulePageController extends Controller
         $course = CourseContext::normalize(request()->integer('course') ?? 1);
         $tables = CourseContext::tables($course);
 
-        $groups = DB::table($tables['groups'])->orderBy('group_name')->get();
+        $groupsQuery = DB::table($tables['groups'])
+            ->select('id', 'group_name')
+            ->orderBy('group_name');
+        if (Schema::hasColumn($tables['groups'], 'group_type')) {
+            $groupsQuery->addSelect('group_type');
+        }
+        $groups = $groupsQuery->get();
         $includeModule = $course !== 1;
-        $subjects = DB::table($tables['subjects'])
-            ->orderBy('name_ru')
+        $selectedGroupId = request()->integer('group_id') ?: ($groups->first()->id ?? null);
+        $selectedGroup = $selectedGroupId
+            ? $groups->firstWhere('id', $selectedGroupId)
+            : null;
+        $useKazakh = $selectedGroup ? $this->resolveGroupIsKazakh($selectedGroup) : false;
+
+        $subjectsQuery = DB::table($tables['subjects'])->orderBy('name_ru');
+        if (Schema::hasColumn($tables['subjects'], 'group_type')) {
+            $subjectsQuery->whereIn('group_type', [$useKazakh ? 'kz' : 'ru', 'both']);
+        }
+
+        $subjects = $subjectsQuery
             ->get()
-            ->map(function ($row) use ($includeModule) {
-                $name = $row->name_ru ?: $row->subject_name;
+            ->map(function ($row) use ($includeModule, $useKazakh) {
+                $name = $useKazakh
+                    ? ($row->name_kz ?: ($row->name_ru ?: $row->subject_name))
+                    : ($row->name_ru ?: ($row->name_kz ?: $row->subject_name));
                 $module = trim((string) ($row->module_title ?? ''));
                 $row->title = ($includeModule && $module !== '') ? trim($module . ' ' . $name) : $name;
                 return $row;
             });
         $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get();
 
-        $selectedGroupId = request()->integer('group_id') ?: ($groups->first()->id ?? null);
         $weekStartInput = request()->get('week_start');
         $weekStart = $weekStartInput ? Carbon::parse($weekStartInput)->startOfWeek(Carbon::MONDAY) : Carbon::now()->startOfWeek(Carbon::MONDAY);
 

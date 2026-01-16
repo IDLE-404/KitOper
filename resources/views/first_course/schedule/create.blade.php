@@ -57,7 +57,12 @@
             <select name="subject_id" id="subjectSelect1" class="form-select filterable">
                 <option value="">—</option>
                 @foreach($subjects as $s)
-                    <option value="{{ $s->id }}">{{ $s->name_ru ?? $s->subject_name }}</option>
+                    <option value="{{ $s->id }}"
+                            data-group="{{ $s->group_type ?? 'both' }}"
+                            data-title-ru="{{ $s->name_ru ?? $s->subject_name }}"
+                            data-title-kz="{{ $s->name_kz ?? ($s->name_ru ?? $s->subject_name) }}">
+                        {{ $s->name_ru ?? $s->subject_name }}
+                    </option>
                 @endforeach
             </select>
         </div>
@@ -67,7 +72,12 @@
             <select name="subject_id_denominator" id="subjectSelect1Den" class="form-select filterable denom-block d-none">
                 <option value="">— если пары чередуются</option>
                 @foreach($subjects as $s)
-                    <option value="{{ $s->id }}">{{ $s->name_ru ?? $s->subject_name }}</option>
+                    <option value="{{ $s->id }}"
+                            data-group="{{ $s->group_type ?? 'both' }}"
+                            data-title-ru="{{ $s->name_ru ?? $s->subject_name }}"
+                            data-title-kz="{{ $s->name_kz ?? ($s->name_ru ?? $s->subject_name) }}">
+                        {{ $s->name_ru ?? $s->subject_name }}
+                    </option>
                 @endforeach
             </select>
         </div>
@@ -113,7 +123,12 @@
             <select name="subject_id_second" id="subjectSelect2" class="form-select filterable">
                 <option value="">— выберите предмет для 2 подгруппы</option>
                 @foreach($subjects as $s)
-                    <option value="{{ $s->id }}">{{ $s->name_ru ?? $s->subject_name }}</option>
+                    <option value="{{ $s->id }}"
+                            data-group="{{ $s->group_type ?? 'both' }}"
+                            data-title-ru="{{ $s->name_ru ?? $s->subject_name }}"
+                            data-title-kz="{{ $s->name_kz ?? ($s->name_ru ?? $s->subject_name) }}">
+                        {{ $s->name_ru ?? $s->subject_name }}
+                    </option>
                 @endforeach
             </select>
             <div class="mt-3">
@@ -141,10 +156,15 @@
                 <input type="search" class="form-control mb-2 filter-input" data-target="#subjectSelect2Den" placeholder="Поиск предмета">
                 <select name="subject_id_second_denominator" id="subjectSelect2Den" class="form-select filterable denom-block d-none">
                     <option value="">— если предмет отличается для знаменателя</option>
-                    @foreach($subjects as $s)
-                        <option value="{{ $s->id }}">{{ $s->name_ru ?? $s->subject_name }}</option>
-                    @endforeach
-                </select>
+                @foreach($subjects as $s)
+                    <option value="{{ $s->id }}"
+                            data-group="{{ $s->group_type ?? 'both' }}"
+                            data-title-ru="{{ $s->name_ru ?? $s->subject_name }}"
+                            data-title-kz="{{ $s->name_kz ?? ($s->name_ru ?? $s->subject_name) }}">
+                        {{ $s->name_ru ?? $s->subject_name }}
+                    </option>
+                @endforeach
+            </select>
             </div>
             <div class="mt-3">
                 <label class="form-label">Аудитория (подгруппа 2)</label>
@@ -167,6 +187,8 @@
 <script>
     const switchEl = document.getElementById('hasSubgroups');
     const secondSubgroup = document.getElementById('secondSubgroup');
+    const groupSelect = document.getElementById('groupSelect');
+    const groupLocalePreference = @json($groupLocalePreference ?? []);
 
     const toggleSubgroup = () => {
         secondSubgroup.classList.toggle('d-none', !switchEl.checked);
@@ -192,20 +214,68 @@
     denomToggle.addEventListener('change', toggleDenominator);
     toggleDenominator();
 
+    const subjectSelects = [
+        document.getElementById('subjectSelect1'),
+        document.getElementById('subjectSelect1Den'),
+        document.getElementById('subjectSelect2'),
+        document.getElementById('subjectSelect2Den'),
+    ].filter(Boolean);
+
+    let currentSubjectMode = 'ru';
+
+    const applySubjectFilter = (groupId) => {
+        const useKazakh = groupLocalePreference[String(groupId)] === true;
+        currentSubjectMode = useKazakh ? 'kz' : 'ru';
+
+        subjectSelects.forEach((select) => {
+            Array.from(select.options).forEach((option) => {
+                if (!option.value) {
+                    option.hidden = false;
+                    option.disabled = false;
+                    return;
+                }
+                const groupType = option.dataset.group || 'both';
+                const allowed = groupType === 'both' || groupType === currentSubjectMode;
+                const keepSelected = option.value === select.value;
+                const title = currentSubjectMode === 'kz'
+                    ? (option.dataset.titleKz || option.textContent)
+                    : (option.dataset.titleRu || option.textContent);
+
+                option.textContent = title;
+                option.hidden = !(allowed || keepSelected);
+                option.disabled = !(allowed || keepSelected);
+            });
+        });
+    };
+
+    groupSelect?.addEventListener('change', () => {
+        applySubjectFilter(groupSelect.value);
+    });
+
+    applySubjectFilter(groupSelect?.value);
+
     // Быстрый поиск по select
     const filterInputs = document.querySelectorAll('.filter-input');
     filterInputs.forEach(input => {
         const targetSelector = input.getAttribute('data-target');
         const selectEl = document.querySelector(targetSelector);
-        const originalOptions = Array.from(selectEl.options);
+        if (!selectEl) return;
 
         input.addEventListener('input', () => {
             const term = input.value.toLowerCase();
-            selectEl.innerHTML = '';
-
-            originalOptions
-                .filter(opt => opt.text.toLowerCase().includes(term))
-                .forEach(opt => selectEl.appendChild(opt.cloneNode(true)));
+            Array.from(selectEl.options).forEach(option => {
+                if (!option.value) {
+                    option.hidden = false;
+                    option.disabled = false;
+                    return;
+                }
+                const groupType = option.dataset.group || 'both';
+                const allowed = groupType === 'both' || groupType === currentSubjectMode;
+                const match = option.text.toLowerCase().includes(term);
+                const keepSelected = option.value === selectEl.value;
+                option.hidden = !(allowed && match) && !keepSelected;
+                option.disabled = !(allowed && match) && !keepSelected;
+            });
         });
     });
 </script>

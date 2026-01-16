@@ -22,7 +22,13 @@ class FormTwoController extends Controller
         $course = CourseContext::normalize($request->integer('course') ?? 1);
         $tables = CourseContext::tables($course);
 
-        $groups = DB::table($tables['groups'])->orderBy('group_name')->get();
+        $groupsQuery = DB::table($tables['groups'])
+            ->select('id', 'group_name')
+            ->orderBy('group_name');
+        if (\Illuminate\Support\Facades\Schema::hasColumn($tables['groups'], 'group_type')) {
+            $groupsQuery->addSelect('group_type');
+        }
+        $groups = $groupsQuery->get();
         $groupId = (int) ($request->input('group_id') ?? ($groups->first()->id ?? 0));
         $month = (int) ($request->input('month') ?? now()->month);
         $year = (int) ($request->input('year') ?? now()->year);
@@ -69,17 +75,34 @@ class FormTwoController extends Controller
             }
         }
 
+        $selectedGroup = $groups->firstWhere('id', $groupId);
+        $groupType = $selectedGroup->group_type ?? null;
+        if ($groupType === 'ru') {
+            $useKazakh = false;
+        } elseif ($groupType === 'kz') {
+            $useKazakh = true;
+        } else {
+            $selectedGroupName = $selectedGroup->group_name ?? '';
+            $useKazakh = (bool) preg_match('/[ҚқӘәҢңӨөҰұҮүІіҺһҒғ]/u', (string) $selectedGroupName);
+        }
+
         $teachers = DB::table($tables['teachers'])
             ->select('id', DB::raw('COALESCE(initials, teacher_name) as teacher_name'))
             ->orderBy('teacher_name')
             ->get();
         $includeModule = $course !== 1;
-        $subjects = DB::table($tables['subjects'])
-            ->select('id', 'subject_name', 'name_ru', 'module_title')
+        $subjectsQuery = DB::table($tables['subjects']);
+        if (\Illuminate\Support\Facades\Schema::hasColumn($tables['subjects'], 'group_type')) {
+            $subjectsQuery->whereIn('group_type', [$useKazakh ? 'kz' : 'ru', 'both']);
+        }
+        $subjects = $subjectsQuery
+            ->select('id', 'subject_name', 'name_ru', 'name_kz', 'module_title')
             ->orderByRaw('COALESCE(name_ru, subject_name)')
             ->get()
-            ->map(function ($row) use ($includeModule) {
-                $name = $row->name_ru ?: $row->subject_name;
+            ->map(function ($row) use ($includeModule, $useKazakh) {
+                $name = $useKazakh
+                    ? ($row->name_kz ?: ($row->name_ru ?: $row->subject_name))
+                    : ($row->name_ru ?: ($row->name_kz ?: $row->subject_name));
                 $module = trim((string) ($row->module_title ?? ''));
                 $row->title = ($includeModule && $module !== '') ? trim($module . ' ' . $name) : $name;
                 return $row;

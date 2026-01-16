@@ -25,13 +25,32 @@ class FormTwoService
         $daysCount = $monthStart->daysInMonth;
         $days = range(1, $daysCount);
 
+        $groupRow = DB::table($tables['groups'])
+            ->select('group_name')
+            ->when(
+                \Illuminate\Support\Facades\Schema::hasColumn($tables['groups'], 'group_type'),
+                fn ($q) => $q->addSelect('group_type')
+            )
+            ->where('id', $groupId)
+            ->first();
+        $groupType = $groupRow->group_type ?? null;
+        if ($groupType === 'ru') {
+            $useKazakh = false;
+        } elseif ($groupType === 'kz') {
+            $useKazakh = true;
+        } else {
+            $groupName = $groupRow->group_name ?? '';
+            $useKazakh = (bool) preg_match('/[ҚқӘәҢңӨөҰұҮүІіҺһҒғ]/u', (string) $groupName);
+        }
         $includeModule = $course !== 1;
         $subjectNames = DB::table($tables['subjects'])
-            ->select('id', 'subject_name', 'name_ru', 'module_title')
+            ->select('id', 'subject_name', 'name_ru', 'name_kz', 'module_title')
             ->orderByRaw('COALESCE(name_ru, subject_name)')
             ->get()
-            ->mapWithKeys(function ($row) use ($includeModule) {
-                $name = $row->name_ru ?: $row->subject_name;
+            ->mapWithKeys(function ($row) use ($includeModule, $useKazakh) {
+                $name = $useKazakh
+                    ? ($row->name_kz ?: ($row->name_ru ?: $row->subject_name))
+                    : ($row->name_ru ?: ($row->name_kz ?: $row->subject_name));
                 $module = trim((string) ($row->module_title ?? ''));
                 $title = ($includeModule && $module !== '') ? trim($module . ' ' . $name) : $name;
                 return [$row->id => $title];
@@ -81,15 +100,30 @@ class FormTwoService
             ->select('id', DB::raw('COALESCE(initials, teacher_name) as display_name'))
             ->pluck('display_name', 'id');
 
-        $preferredOrder = [
-            'Учебная практика',
-            'Производственная практика',
+        $kzOrder = [
+            'Қазақ тілі',
+            'Қазақ әдебиеті',
+            'Орыс тілі және әдәбиеті',
+            'Шетел тілі',
+            'Математика',
+            'Информатика',
+            'Қазақстан тарихы',
+            'Дене тәрбиесі',
+            'Бастапқы әскери және технологиялық дайындық',
+            'Физика',
+            'Химия',
+            'Биология',
+            'География',
+            'Графика және жобалау',
+            'Дүние жүзі тарихы',
+        ];
+        $ruOrder = [
             'Русский язык',
             'Русская литература',
             'Казахский язык и литература',
             'Иностранный язык',
             'Математика',
-            '2',
+            'Информатика',
             'История Казахстана',
             'Физическая культура',
             'Начальная военная и технологическая подготовка',
@@ -99,7 +133,12 @@ class FormTwoService
             'География',
             'Графика и проектирование',
             'Всемирная история',
+            'Глобальные компетенции',
         ];
+
+        $preferredOrder = $useKazakh
+            ? $kzOrder
+            : $ruOrder;
 
         $mainReport = $this->buildReportData(
             $recordsMain,
@@ -117,6 +156,15 @@ class FormTwoService
             $preferredOrder,
             true
         );
+        $allowedOrder = $useKazakh ? $kzOrder : $ruOrder;
+        $mainReport['rows'] = array_values(array_filter($mainReport['rows'], function (array $row) use ($allowedOrder): bool {
+            return in_array($row['subject_name'] ?? '', $allowedOrder, true);
+        }));
+        $mainReport['replacement_rows'] = array_values(array_filter($mainReport['replacement_rows'], function (array $row) use ($allowedOrder): bool {
+            return in_array($row['subject_name'] ?? '', $allowedOrder, true);
+        }));
+        $mainReport['totals'] = $this->calculateTotals($mainReport['rows'], $days);
+
         $sortedReplacements = $this->sortReplacementRows($mainReport['replacement_rows']);
         $report = [
             'days' => $days,
@@ -145,6 +193,9 @@ class FormTwoService
         );
         // В подвоении показываем только строки с активностью в текущем месяце.
         $filteredSubgroupTwoRows = $this->filterRowsByActivity($subgroupTwoReport['rows'], $days);
+        $filteredSubgroupTwoRows = array_values(array_filter($filteredSubgroupTwoRows, function (array $row) use ($allowedOrder): bool {
+            return in_array($row['subject_name'] ?? '', $allowedOrder, true);
+        }));
         $report['subgroup_two_rows'] = $filteredSubgroupTwoRows;
         $report['subgroup_two_totals'] = $this->calculateTotals($filteredSubgroupTwoRows, $days);
 

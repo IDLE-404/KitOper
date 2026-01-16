@@ -117,12 +117,15 @@
                 </div>
             </div>
         </form>
+        <div class="mt-3">
+            <input type="search" id="groupSearch" class="search-input w-100" placeholder="Поиск по группе">
+        </div>
     </div>
 
     <div class="panel-card">
         <div class="panel-title">Список групп</div>
         <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
+            <table class="table table-hover align-middle" id="groupsTable">
                 <thead>
                     <tr>
                         <th>Группа</th>
@@ -135,7 +138,7 @@
                 </thead>
                 <tbody>
                     @forelse($groups as $group)
-                        <tr>
+                        <tr data-name="{{ mb_strtolower($group->group_name ?? '') }}">
                             <td>{{ $group->group_name }}</td>
                             <td>{{ $group->group_number }}</td>
                             @if($hasGroupType)
@@ -143,11 +146,11 @@
                             @endif
                             <td class="text-end">
                                 <div class="table-actions">
-                                    <button class="btn-pill ghost" type="button" data-bs-toggle="collapse" data-bs-target="#edit-{{ $group->id }}">Редактировать</button>
+                                    <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#edit-{{ $group->id }}">Редактировать</button>
                                     <form method="POST" action="{{ route('groups.destroy', ['id' => $group->id]) }}">
                                         @csrf
                                         @method('DELETE')
-                                        <button class="btn-pill danger" type="submit" onclick="return confirm('Удалить группу?')">Удалить</button>
+                                        <button class="btn btn-outline-danger btn-sm" type="submit" onclick="return confirm('Удалить группу?')">Удалить</button>
                                     </form>
                                 </div>
                             </td>
@@ -172,7 +175,7 @@
                                         </div>
                                     @endif
                                     <div class="form-field form-field--actions">
-                                        <button class="btn-pill primary">Сохранить</button>
+                                        <button class="btn btn-outline-primary btn-sm">Сохранить</button>
                                     </div>
                                 </form>
                             </td>
@@ -196,6 +199,17 @@
         const params = new URLSearchParams(window.location.search);
         params.set('course', courseSelect.value);
         window.location.search = params.toString();
+    });
+
+    const groupSearch = document.getElementById('groupSearch');
+    const groupRows = Array.from(document.querySelectorAll('#groupsTable tbody tr'))
+        .filter(row => row.dataset.name !== undefined);
+
+    groupSearch?.addEventListener('input', () => {
+        const query = groupSearch.value.trim().toLowerCase();
+        groupRows.forEach(row => {
+            row.style.display = row.dataset.name.includes(query) ? '' : 'none';
+        });
     });
 </script>
 @endpush

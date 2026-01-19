@@ -138,6 +138,8 @@ class FormTwoController extends Controller
             'month' => 'required|integer|min:1|max:12',
             'year' => 'required|integer|min:2000|max:2100',
             'rows' => 'required|array',
+            'replacement_normatives' => 'nullable|array',
+            'subgroup_two_normatives' => 'nullable|array',
             'allow_manual' => 'nullable|boolean',
             'course' => 'nullable|integer|min:1|max:4',
         ]);
@@ -156,7 +158,9 @@ class FormTwoController extends Controller
             (int) $data['month'],
             $data['rows'],
             $course,
-            $holidayDays
+            $holidayDays,
+            $data['replacement_normatives'] ?? [],
+            $data['subgroup_two_normatives'] ?? []
         );
 
         return response()->json(['status' => 'ok']);

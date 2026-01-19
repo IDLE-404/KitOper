@@ -138,11 +138,9 @@
                         📗 Экспорт 2 семестр
                     </a>
                     <button class="btn btn-outline-secondary btn-sm" id="semester2Btn">Ко 2 семестру</button>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input" type="checkbox" id="manualToggle">
-                        <label class="form-check-label small text-muted" for="manualToggle">Режим коррекции</label>
-                    </div>
-                    <button class="btn btn-success d-none" id="saveBtn">Сохранить коррекцию</button>
+                    <input class="form-check-input d-none" type="checkbox" id="manualToggle">
+                    <button class="btn btn-outline-secondary btn-sm js-correction-toggle" type="button">Режим коррекции</button>
+                    <button class="btn btn-success btn-sm d-none js-correction-save" id="saveBtn" type="button">Сохранить коррекцию</button>
                 </div>
             </div>
             <div class="table-responsive">
@@ -181,7 +179,7 @@
                                         <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
                                     </div>
                                     <div class="small text-muted">По паре: {{ $row['hours_per_class'] ?? 2 }}</div>
-                                    <div class="manual-input d-none mt-2">
+                                    <div class="manual-norm d-none mt-2">
                                         <label class="form-label text-muted small mb-1">Всего часов</label>
                                         <input type="number"
                                                class="form-control form-control-sm row-total-hours-input"
@@ -242,7 +240,7 @@
                                         <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
                                             <span class="chip-value">{{ $value }}</span>
                                         </div>
-                                        <div class="manual-input d-none mt-1">
+                                        <div class="manual-status d-none mt-1">
                                             <select class="form-select form-select-sm cell-status" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
                                                 <option value="empty" @selected($status === 'empty')>—</option>
                                                 <option value="normal" @selected($status === 'normal')>Норма</option>
@@ -299,6 +297,10 @@
                     <div class="fw-semibold">Только замены преподавателей</div>
                     <div class="text-muted small">повторяет форму 2, но показывает только фактические подмены</div>
                 </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-outline-secondary btn-sm js-correction-toggle" type="button">Режим коррекции</button>
+                    <button class="btn btn-success btn-sm d-none js-correction-save" type="button">Сохранить коррекцию</button>
+                </div>
             </div>
             <div class="table-responsive">
                 <table class="table table-sm align-middle form-two-table replacement-table">
@@ -336,6 +338,14 @@
                                         <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
                                     </div>
                                     <div class="small text-muted">По паре: {{ $row['hours_per_class'] ?? 2 }}</div>
+                                    <div class="manual-norm d-none mt-2">
+                                        <label class="form-label text-muted small mb-1">Всего часов</label>
+                                        <input type="number"
+                                               class="form-control form-control-sm row-total-hours-input"
+                                               min="0"
+                                               step="1"
+                                               value="{{ $row['total_hours'] ?? 0 }}">
+                                    </div>
                                 </td>
                                 @foreach($days as $d)
                                     @php
@@ -417,6 +427,10 @@
                     <div class="fw-semibold">Подвоение (подгруппа 2)</div>
                     <div class="text-muted small">только записи со второй подгруппой</div>
                 </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-outline-secondary btn-sm js-correction-toggle" type="button">Режим коррекции</button>
+                    <button class="btn btn-success btn-sm d-none js-correction-save" type="button">Сохранить коррекцию</button>
+                </div>
             </div>
             <div class="table-responsive">
                 <table class="table table-sm align-middle form-two-table">
@@ -434,15 +448,19 @@
                             <th class="text-muted col-left">Остаток</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="subgroupTwoBody">
                         @forelse($subgroupTwoRows as $idx => $row)
                             <tr data-row="{{ $idx }}">
                                 <td class="col-index">{{ $idx + 1 }}</td>
                                 <td class="col-subject">
                                     <div class="fw-semibold">{{ $row['subject_name'] ?? '—' }}</div>
+                                    <input type="hidden" class="row-subject" value="{{ $row['subject_id'] }}">
+                                    <input type="hidden" class="row-hours-per-class" value="{{ $row['hours_per_class'] ?? 2 }}">
+                                    <input type="hidden" class="row-total-hours" value="{{ $row['total_hours'] ?? 0 }}">
                                 </td>
                                 <td class="col-teacher">
                                     <div>{{ $row['teacher_name'] ?? '—' }}</div>
+                                    <input type="hidden" class="row-teacher" value="{{ $row['teacher_id'] }}">
                                 </td>
                                 <td class="col-norm">
                                     <div class="small text-muted">
@@ -450,6 +468,14 @@
                                         <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
                                     </div>
                                     <div class="small text-muted">По паре: {{ $row['hours_per_class'] ?? 2 }}</div>
+                                    <div class="manual-norm d-none mt-2">
+                                        <label class="form-label text-muted small mb-1">Всего часов</label>
+                                        <input type="number"
+                                               class="form-control form-control-sm row-total-hours-input"
+                                               min="0"
+                                               step="1"
+                                               value="{{ $row['total_hours'] ?? 0 }}">
+                                    </div>
                                 </td>
                                 @foreach($days as $d)
                                     @php
@@ -646,7 +672,7 @@
         min-width: 14px;
         text-align: center;
     }
-    .manual-input .form-select {
+    .manual-status .form-select {
         padding-top: 3px;
         padding-bottom: 3px;
         font-size: 12px;
@@ -694,6 +720,8 @@
     const saveBtn = document.getElementById('saveBtn');
     const semester2Btn = document.getElementById('semester2Btn');
     const formBody = document.getElementById('formBody');
+    const replacementTableBody = document.getElementById('replacementTableBody');
+    const subgroupTwoBody = document.getElementById('subgroupTwoBody');
     const manualToggle = document.getElementById('manualToggle');
     const semester2Year = Number("{{ $semester2Year ?? ($year ?? now()->year) }}");
 
@@ -743,8 +771,9 @@
 
     manualToggle?.addEventListener('change', () => {
         const enabled = manualToggle.checked;
-        document.querySelectorAll('.manual-input').forEach(el => el.classList.toggle('d-none', !enabled));
+        document.querySelectorAll('.manual-norm').forEach(el => el.classList.toggle('d-none', !enabled));
         saveBtn?.classList.toggle('d-none', !enabled);
+        document.querySelectorAll('.js-correction-save').forEach(btn => btn.classList.toggle('d-none', !enabled));
     });
 
     saveBtn?.addEventListener('click', async () => {
@@ -782,6 +811,44 @@
             });
         });
 
+        const replacementNormatives = [];
+        replacementTableBody?.querySelectorAll('tr[data-row]').forEach((tr) => {
+            const subjectId = Number(tr.querySelector('.row-subject')?.value);
+            if (!subjectId) return;
+            const teacherId = Number(tr.querySelector('.row-teacher')?.value) || null;
+            const totalHoursInput = tr.querySelector('.row-total-hours-input');
+            const totalHoursHidden = tr.querySelector('.row-total-hours');
+            const totalHours = totalHoursInput
+                ? Number(totalHoursInput.value || 0)
+                : Number(totalHoursHidden?.value || 0);
+            const hoursPerClass = Number(tr.querySelector('.row-hours-per-class')?.value) || 2;
+            replacementNormatives.push({
+                subject_id: subjectId,
+                teacher_id: teacherId,
+                total_hours: totalHours,
+                hours_per_class: hoursPerClass,
+            });
+        });
+
+        const subgroupTwoNormatives = [];
+        subgroupTwoBody?.querySelectorAll('tr[data-row]').forEach((tr) => {
+            const subjectId = Number(tr.querySelector('.row-subject')?.value);
+            if (!subjectId) return;
+            const teacherId = Number(tr.querySelector('.row-teacher')?.value) || null;
+            const totalHoursInput = tr.querySelector('.row-total-hours-input');
+            const totalHoursHidden = tr.querySelector('.row-total-hours');
+            const totalHours = totalHoursInput
+                ? Number(totalHoursInput.value || 0)
+                : Number(totalHoursHidden?.value || 0);
+            const hoursPerClass = Number(tr.querySelector('.row-hours-per-class')?.value) || 2;
+            subgroupTwoNormatives.push({
+                subject_id: subjectId,
+                teacher_id: teacherId,
+                total_hours: totalHours,
+                hours_per_class: hoursPerClass,
+            });
+        });
+
         const payload = {
             group_id: Number(groupSelect.value),
             month: Number(monthSelect.value),
@@ -789,6 +856,8 @@
             course: courseSelect ? Number(courseSelect.value) : 1,
             allow_manual: true,
             rows,
+            replacement_normatives: replacementNormatives,
+            subgroup_two_normatives: subgroupTwoNormatives,
         };
 
         try {
@@ -811,6 +880,20 @@
         } catch (e) {
             alert('Ошибка сети');
         }
+    });
+
+    document.querySelectorAll('.js-correction-toggle').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            if (!manualToggle) return;
+            manualToggle.checked = !manualToggle.checked;
+            manualToggle.dispatchEvent(new Event('change'));
+        });
+    });
+
+    document.querySelectorAll('.js-correction-save').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            saveBtn?.click();
+        });
     });
 </script>
 @endpush

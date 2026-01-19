@@ -421,7 +421,16 @@ class FormTwoService
     /**
      * Ручная коррекция (используется редко). Ограничиваемся изменением статуса/комментария.
      */
-    public function saveMonthRecords(int $groupId, int $year, int $month, array $rows, int $course = 1, array $holidayDays = []): void
+    public function saveMonthRecords(
+        int $groupId,
+        int $year,
+        int $month,
+        array $rows,
+        int $course = 1,
+        array $holidayDays = [],
+        array $replacementNormatives = [],
+        array $subgroupTwoNormatives = []
+    ): void
     {
         $tables = CourseContext::tables($course);
         $payload = [];
@@ -543,6 +552,36 @@ class FormTwoService
                     'updated_at',
                 ]
             );
+        }
+
+        $extraNormatives = array_merge($replacementNormatives, $subgroupTwoNormatives);
+        if ($extraNormatives) {
+            $extraPayload = [];
+            foreach ($extraNormatives as $row) {
+                $subjectId = $row['subject_id'] ?? null;
+                if (!$subjectId) {
+                    continue;
+                }
+                $teacherId = $row['teacher_id'] ?? null;
+                $extraPayload[] = [
+                    'group_id' => $groupId,
+                    'subject_id' => $subjectId,
+                    'teacher_id' => $teacherId,
+                    'month' => $month,
+                    'year' => $year,
+                    'total_hours' => (int) ($row['total_hours'] ?? 0),
+                    'hours_per_class' => (int) ($row['hours_per_class'] ?? 2),
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ];
+            }
+            if ($extraPayload) {
+                DB::table($tables['form_two_normatives'])->upsert(
+                    $extraPayload,
+                    ['group_id', 'subject_id', 'teacher_id', 'month', 'year'],
+                    ['total_hours', 'hours_per_class', 'updated_at']
+                );
+            }
         }
     }
 

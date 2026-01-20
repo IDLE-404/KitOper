@@ -31,6 +31,10 @@ class FormTwoService
                 \Illuminate\Support\Facades\Schema::hasColumn($tables['groups'], 'group_type'),
                 fn ($q) => $q->addSelect('group_type')
             )
+            ->when(
+                \Illuminate\Support\Facades\Schema::hasColumn($tables['groups'], 'has_subgroups'),
+                fn ($q) => $q->addSelect('has_subgroups')
+            )
             ->where('id', $groupId)
             ->first();
         $groupType = $groupRow->group_type ?? null;
@@ -42,6 +46,7 @@ class FormTwoService
             $groupName = $groupRow->group_name ?? '';
             $useKazakh = (bool) preg_match('/[ҚқӘәҢңӨөҰұҮүІіҺһҒғ]/u', (string) $groupName);
         }
+        $hasSubgroups = (bool) ($groupRow->has_subgroups ?? false);
         $includeModule = $course !== 1;
         $subjectNames = DB::table($tables['subjects'])
             ->select('id', 'subject_name', 'name_ru', 'name_kz', 'module_title')
@@ -135,10 +140,17 @@ class FormTwoService
             'Всемирная история',
             'Глобальные компетенции',
         ];
+        $kzGlobalCompetencies = 'Ғаламдық құзыреттер';
+        $kzOrderWithGlobal = array_merge($kzOrder, [$kzGlobalCompetencies]);
 
-        $preferredOrder = $useKazakh
-            ? $kzOrder
-            : $ruOrder;
+        $preferredOrder = $this->resolveSpecialtyOrder(
+            $groupRow->group_name ?? '',
+            $useKazakh,
+            $ruOrder,
+            $kzOrder,
+            $kzOrderWithGlobal
+        )
+            ?? ($useKazakh ? $kzOrder : $ruOrder);
 
         $mainReport = $this->buildReportData(
             $recordsMain,
@@ -156,10 +168,11 @@ class FormTwoService
             $preferredOrder,
             true
         );
-        $allowedOrder = $useKazakh ? $kzOrder : $ruOrder;
+        $allowedOrder = $preferredOrder;
         $mainReport['rows'] = array_values(array_filter($mainReport['rows'], function (array $row) use ($allowedOrder): bool {
             return in_array($row['subject_name'] ?? '', $allowedOrder, true);
         }));
+        $mainReport['rows'] = $this->collapseNullTeacherRows($mainReport['rows']);
         $mainReport['replacement_rows'] = array_values(array_filter($mainReport['replacement_rows'], function (array $row) use ($allowedOrder): bool {
             return in_array($row['subject_name'] ?? '', $allowedOrder, true);
         }));
@@ -175,29 +188,43 @@ class FormTwoService
 
         $report['totals'] = $mainReport['totals'];
 
-        $subgroupTwoReport = $this->buildReportData(
-            $recordsSubgroupTwo,
-            $normatives,
-            $subjectNames,
-            $teachers,
-            $days,
-            $holidayFlags,
-            $monthStart,
-            $monthEnd,
-            $studyYearStart,
-            $year,
-            $month,
-            $daysCount,
-            $preferredOrder,
-            false
-        );
-        // В подвоении показываем только строки с активностью в текущем месяце.
-        $filteredSubgroupTwoRows = $this->filterRowsByActivity($subgroupTwoReport['rows'], $days);
-        $filteredSubgroupTwoRows = array_values(array_filter($filteredSubgroupTwoRows, function (array $row) use ($allowedOrder): bool {
-            return in_array($row['subject_name'] ?? '', $allowedOrder, true);
-        }));
-        $report['subgroup_two_rows'] = $filteredSubgroupTwoRows;
-        $report['subgroup_two_totals'] = $this->calculateTotals($filteredSubgroupTwoRows, $days);
+        if ($hasSubgroups) {
+            $subgroupTwoReport = $this->buildReportData(
+                $recordsSubgroupTwo,
+                $normatives,
+                $subjectNames,
+                $teachers,
+                $days,
+                $holidayFlags,
+                $monthStart,
+                $monthEnd,
+                $studyYearStart,
+                $year,
+                $month,
+                $daysCount,
+                $preferredOrder,
+                false
+            );
+            // В подвоении показываем только строки с активностью в текущем месяце.
+            $filteredSubgroupTwoRows = $this->filterRowsByActivity($subgroupTwoReport['rows'], $days);
+            $filteredSubgroupTwoRows = array_values(array_filter($filteredSubgroupTwoRows, function (array $row) use ($allowedOrder): bool {
+                return in_array($row['subject_name'] ?? '', $allowedOrder, true);
+            }));
+            $subgroupTwoRows = $this->applyFirstCourseSubgroupTwoTemplate(
+                $filteredSubgroupTwoRows,
+                $normatives,
+                $subjectNames,
+                $teachers,
+                $days,
+                $useKazakh,
+                $course
+            );
+            $report['subgroup_two_rows'] = $subgroupTwoRows;
+            $report['subgroup_two_totals'] = $this->calculateTotals($subgroupTwoRows, $days);
+        } else {
+            $report['subgroup_two_rows'] = [];
+            $report['subgroup_two_totals'] = $this->calculateTotals([], $days);
+        }
 
         return $report;
     }
@@ -437,31 +464,31 @@ class FormTwoService
         $normativePayload = [];
         $now = now();
         $holidayFlags = $this->normalizeHolidayDays($holidayDays);
+        $rowSubjectIds = [];
 
         foreach ($rows as $row) {
             $subjectId = $row['subject_id'] ?? null;
             if (!$subjectId) {
                 continue;
             }
+            $rowSubjectIds[(int) $subjectId] = true;
             $teacherId = $row['teacher_id'] ?? null;
             $totalHours = $row['total_hours'] ?? 0;
             $hoursPerClass = $row['hours_per_class'] ?? 2;
             $days = $row['days'] ?? [];
 
             // Сохраняем норматив отдельно, даже если по дням пока пусто
-            if ($teacherId) {
-                $normativePayload[] = [
-                    'group_id' => $groupId,
-                    'subject_id' => $subjectId,
-                    'teacher_id' => $teacherId,
-                    'month' => $month,
-                    'year' => $year,
-                    'total_hours' => $totalHours,
-                    'hours_per_class' => $hoursPerClass,
-                    'updated_at' => $now,
-                    'created_at' => $now,
-                ];
-            }
+            $normativePayload[] = [
+                'group_id' => $groupId,
+                'subject_id' => $subjectId,
+                'teacher_id' => $teacherId,
+                'month' => $month,
+                'year' => $year,
+                'total_hours' => $totalHours,
+                'hours_per_class' => $hoursPerClass,
+                'updated_at' => $now,
+                'created_at' => $now,
+            ];
 
             foreach ($days as $day => $cell) {
                 $dayIndex = (int) $day;
@@ -521,11 +548,7 @@ class FormTwoService
         }
 
         if ($normativePayload) {
-            DB::table($tables['form_two_normatives'])->upsert(
-                $normativePayload,
-                ['group_id', 'subject_id', 'teacher_id', 'month', 'year'],
-                ['total_hours', 'hours_per_class', 'updated_at']
-            );
+            $this->persistNormatives($tables['form_two_normatives'], $normativePayload);
         }
 
         if ($payload) {
@@ -562,6 +585,9 @@ class FormTwoService
                 if (!$subjectId) {
                     continue;
                 }
+                if (isset($rowSubjectIds[(int) $subjectId])) {
+                    continue;
+                }
                 $teacherId = $row['teacher_id'] ?? null;
                 $extraPayload[] = [
                     'group_id' => $groupId,
@@ -576,12 +602,43 @@ class FormTwoService
                 ];
             }
             if ($extraPayload) {
-                DB::table($tables['form_two_normatives'])->upsert(
-                    $extraPayload,
-                    ['group_id', 'subject_id', 'teacher_id', 'month', 'year'],
-                    ['total_hours', 'hours_per_class', 'updated_at']
-                );
+                $this->persistNormatives($tables['form_two_normatives'], $extraPayload);
             }
+        }
+    }
+
+    protected function persistNormatives(string $table, array $payload): void
+    {
+        $withTeacher = [];
+        $withoutTeacher = [];
+        foreach ($payload as $row) {
+            if (!empty($row['teacher_id'])) {
+                $withTeacher[] = $row;
+            } else {
+                $key = $row['group_id'] . '-' . $row['subject_id'] . '-' . $row['month'] . '-' . $row['year'];
+                $withoutTeacher[$key] = $row;
+            }
+        }
+
+        if ($withTeacher) {
+            DB::table($table)->upsert(
+                $withTeacher,
+                ['group_id', 'subject_id', 'teacher_id', 'month', 'year'],
+                ['total_hours', 'hours_per_class', 'updated_at']
+            );
+        }
+
+        if ($withoutTeacher) {
+            foreach ($withoutTeacher as $row) {
+                DB::table($table)
+                    ->where('group_id', $row['group_id'])
+                    ->where('subject_id', $row['subject_id'])
+                    ->where('month', $row['month'])
+                    ->where('year', $row['year'])
+                    ->whereNull('teacher_id')
+                    ->delete();
+            }
+            DB::table($table)->insert(array_values($withoutTeacher));
         }
     }
 
@@ -989,5 +1046,179 @@ class FormTwoService
             }
             return false;
         }));
+    }
+
+    protected function collapseNullTeacherRows(array $rows): array
+    {
+        $grouped = [];
+        foreach ($rows as $row) {
+            $subjectId = $row['subject_id'] ?? null;
+            if (!$subjectId) {
+                $grouped[] = [$row];
+                continue;
+            }
+            $grouped[$subjectId][] = $row;
+        }
+
+        $result = [];
+        foreach ($grouped as $subjectRows) {
+            if (!is_array($subjectRows)) {
+                $result[] = $subjectRows;
+                continue;
+            }
+            $nullIndex = null;
+            $teacherRows = [];
+            foreach ($subjectRows as $index => $row) {
+                if (empty($row['teacher_id'])) {
+                    $nullIndex = $index;
+                    continue;
+                }
+                $teacherRows[] = $index;
+            }
+
+            if ($nullIndex !== null && count($teacherRows) >= 1) {
+                if (count($teacherRows) === 1) {
+                    $targetIndex = $teacherRows[0];
+                    $target = $subjectRows[$targetIndex];
+                    $nullRow = $subjectRows[$nullIndex];
+                    $target['total_hours'] = max((int) ($target['total_hours'] ?? 0), (int) ($nullRow['total_hours'] ?? 0));
+                    $target['hours_per_class'] = $target['hours_per_class'] ?? $nullRow['hours_per_class'] ?? 2;
+                    $target['hours_left_start'] = max((int) ($target['hours_left_start'] ?? 0), (int) ($nullRow['hours_left_start'] ?? 0));
+                    $target['hours_left'] = max((int) ($target['hours_left'] ?? 0), (int) ($nullRow['hours_left'] ?? 0));
+                    $subjectRows[$targetIndex] = $target;
+                }
+                unset($subjectRows[$nullIndex]);
+            }
+
+            foreach ($subjectRows as $row) {
+                $result[] = $row;
+            }
+        }
+
+        return $result;
+    }
+
+    protected function applyFirstCourseSubgroupTwoTemplate(
+        array $rows,
+        Collection $normatives,
+        Collection $subjectNames,
+        Collection $teachers,
+        array $days,
+        bool $useKazakh,
+        int $course
+    ): array {
+        if ($course !== 1) {
+            return $rows;
+        }
+
+        $desiredSubjects = $useKazakh
+            ? [
+                'Орыс тілі және әдәбиеті',
+                'Шетел тілі',
+                'Информатика',
+                'Дене тәрбиесі',
+            ]
+            : [
+                'Казахский язык и литература',
+                'Иностранный язык',
+                'Информатика',
+                'Физическая культура',
+            ];
+
+        $bySubject = [];
+        foreach ($rows as $row) {
+            $name = $row['subject_name'] ?? '';
+            if ($name !== '') {
+                $bySubject[$name] = $row;
+            }
+        }
+
+        $subjectIdByName = array_flip($subjectNames->all());
+        $normMap = $this->buildNormativeLookup($normatives);
+        $result = [];
+
+        foreach ($desiredSubjects as $subjectName) {
+            if (!empty($bySubject[$subjectName])) {
+                $result[] = $bySubject[$subjectName];
+                continue;
+            }
+
+            $subjectId = $subjectIdByName[$subjectName] ?? null;
+            if (!$subjectId) {
+                continue;
+            }
+
+            $norm = $this->matchNormative($normMap, (int) $subjectId, null);
+            $result[] = $this->emptyRow(
+                (int) $subjectId,
+                null,
+                (int) ($norm['total_hours'] ?? 0),
+                (int) ($norm['hours_per_class'] ?? 2),
+                $days,
+                $subjectNames,
+                $teachers
+            );
+        }
+
+        return $result;
+    }
+
+    protected function resolveSpecialtyOrder(
+        string $groupName,
+        bool $useKazakh,
+        array $ruOrder,
+        array $kzOrder,
+        array $kzOrderWithGlobal
+    ): ?array
+    {
+        $name = trim($groupName);
+        if ($name === '') {
+            return null;
+        }
+
+        $upper = mb_strtoupper($name, 'UTF-8');
+        $tokens = preg_split('/[\\s\\-\\/]+/u', $upper, -1, PREG_SPLIT_NO_EMPTY);
+        if (!$tokens) {
+            return null;
+        }
+
+        $special15 = ['М', 'СИБ', 'АҚЖ'];
+        $special16 = ['ПО', 'БҚЕ', 'ТЭ'];
+
+        if ($useKazakh) {
+            $order15 = $kzOrder;
+            $order16 = $kzOrderWithGlobal;
+        } else {
+            $order15 = array_values(array_filter($ruOrder, fn (string $subject): bool => $subject !== 'Глобальные компетенции'));
+            $order16 = $ruOrder;
+        }
+
+        foreach ($tokens as $token) {
+            if ($this->tokenMatchesPrefix($token, $special15)) {
+                return $order15;
+            }
+        }
+
+        foreach ($tokens as $token) {
+            if ($this->tokenMatchesPrefix($token, $special16)) {
+                return $order16;
+            }
+        }
+
+        return null;
+    }
+
+    protected function tokenMatchesPrefix(string $token, array $prefixes): bool
+    {
+        foreach ($prefixes as $prefix) {
+            if ($token === $prefix) {
+                return true;
+            }
+            if (preg_match('/^' . preg_quote($prefix, '/') . '\\d+$/u', $token) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

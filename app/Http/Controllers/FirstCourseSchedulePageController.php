@@ -31,6 +31,15 @@ class FirstCourseSchedulePageController extends Controller
         $tables = CourseContext::tables($course);
 
         $weekStartInput = request()->get('week_start');
+        if (!$weekStartInput) {
+            $today = Carbon::now();
+            $holidayService = app(KazakhstanHolidayService::class);
+            $holidayDays = $holidayService->getMonthHolidays($today->year, $today->month);
+            $todayHoliday = $holidayDays[$today->day] ?? null;
+            if ($this->isVacationHoliday($todayHoliday) && (int) $today->month === 1) {
+                $weekStartInput = Carbon::create($today->year, 2, 2)->toDateString();
+            }
+        }
         $requestedWeekStart = $weekStartInput
             ? Carbon::parse($weekStartInput)->startOfWeek(Carbon::MONDAY)
             : Carbon::now()->startOfWeek(Carbon::MONDAY);
@@ -696,7 +705,18 @@ class FirstCourseSchedulePageController extends Controller
         $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get();
 
         $weekStartInput = request()->get('week_start');
-        $weekStart = $weekStartInput ? Carbon::parse($weekStartInput)->startOfWeek(Carbon::MONDAY) : Carbon::now()->startOfWeek(Carbon::MONDAY);
+        if (!$weekStartInput) {
+            $today = Carbon::now();
+            $holidayService = app(KazakhstanHolidayService::class);
+            $holidayDays = $holidayService->getMonthHolidays($today->year, $today->month);
+            $todayHoliday = $holidayDays[$today->day] ?? null;
+            if ($this->isVacationHoliday($todayHoliday) && (int) $today->month === 1) {
+                $weekStartInput = Carbon::create($today->year, 2, 2)->toDateString();
+            }
+        }
+        $weekStart = $weekStartInput
+            ? Carbon::parse($weekStartInput)->startOfWeek(Carbon::MONDAY)
+            : Carbon::now()->startOfWeek(Carbon::MONDAY);
 
         $days = $this->buildWeekDays($weekStart);
 
@@ -1082,6 +1102,16 @@ class FirstCourseSchedulePageController extends Controller
         return redirect()
             ->route('first.schedule.week', ['group_id' => $groupId, 'week_start' => $weekStart->toDateString(), 'course' => $course])
             ->with('success', 'Недельное расписание сохранено.');
+    }
+
+    protected function isVacationHoliday(?array $holiday): bool
+    {
+        if (!$holiday) {
+            return false;
+        }
+
+        $name = (string) ($holiday['name'] ?? '');
+        return $name !== '' && mb_stripos($name, 'каникул') !== false;
     }
 
     protected function buildWeekDays(Carbon $weekStart): array

@@ -12,5 +12,6 @@ class FirstCourseGroup extends Model
         'group_name',
         'group_number',
         'subgroup',
+        'has_subgroups',
     ];
 }

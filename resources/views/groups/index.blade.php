@@ -61,6 +61,9 @@
 
 @section('content')
 <div class="schedule-shell compact">
+    @php
+        $groupTableCols = 3 + ($hasGroupType ? 1 : 0) + (($hasSubgroupsColumn ?? false) ? 1 : 0);
+    @endphp
     <div class="header-row">
         <div>
             <h1 class="page-title">Группы — {{ $course ?? 1 }} курс</h1>
@@ -112,6 +115,15 @@
                         </select>
                     </div>
                 @endif
+                @if($hasSubgroupsColumn ?? false)
+                    <div class="form-field">
+                        <label for="groupHasSubgroups">Подвоение</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="groupHasSubgroups" name="has_subgroups" value="1" @checked(old('has_subgroups'))>
+                            <label class="form-check-label" for="groupHasSubgroups">Есть подгруппа 2</label>
+                        </div>
+                    </div>
+                @endif
                 <div class="form-field form-field--actions">
                     <button type="submit" class="btn-pill primary">Добавить</button>
                 </div>
@@ -130,6 +142,9 @@
                     <tr>
                         <th>Группа</th>
                         <th>Номер</th>
+                        @if($hasSubgroupsColumn ?? false)
+                            <th>Подвоение</th>
+                        @endif
                         @if($hasGroupType)
                             <th>Тип</th>
                         @endif
@@ -141,6 +156,9 @@
                         <tr data-name="{{ mb_strtolower($group->group_name ?? '') }}">
                             <td>{{ $group->group_name }}</td>
                             <td>{{ $group->group_number }}</td>
+                            @if($hasSubgroupsColumn ?? false)
+                                <td>{{ !empty($group->has_subgroups) ? 'Да' : '—' }}</td>
+                            @endif
                             @if($hasGroupType)
                                 <td>{{ $group->group_type ?? '—' }}</td>
                             @endif
@@ -156,7 +174,7 @@
                             </td>
                         </tr>
                         <tr class="collapse" id="edit-{{ $group->id }}">
-                            <td colspan="{{ $hasGroupType ? 6 : 5 }}">
+                            <td colspan="{{ $groupTableCols }}">
                                 <form method="POST" action="{{ route('groups.update', ['id' => $group->id]) }}" class="form-row">
                                     @csrf
                                     @method('PUT')
@@ -174,6 +192,15 @@
                                             </select>
                                         </div>
                                     @endif
+                                    @if($hasSubgroupsColumn ?? false)
+                                        <div class="form-field">
+                                            <label>Подвоение</label>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="groupHasSubgroups-{{ $group->id }}" name="has_subgroups" value="1" @checked(old('has_subgroups', $group->has_subgroups))>
+                                                <label class="form-check-label" for="groupHasSubgroups-{{ $group->id }}">Есть подгруппа 2</label>
+                                            </div>
+                                        </div>
+                                    @endif
                                     <div class="form-field form-field--actions">
                                         <button class="btn btn-outline-primary btn-sm">Сохранить</button>
                                     </div>
@@ -182,7 +209,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ $hasGroupType ? 6 : 5 }}" class="empty-note">Группы не найдены.</td>
+                            <td colspan="{{ $groupTableCols }}" class="empty-note">Группы не найдены.</td>
                         </tr>
                     @endforelse
                 </tbody>

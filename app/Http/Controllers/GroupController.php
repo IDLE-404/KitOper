@@ -19,6 +19,10 @@ class GroupController extends Controller
         $groupsQuery = DB::table($groupsTable)
             ->select('id', 'group_name', 'group_number', 'subgroup')
             ->orderBy('group_name');
+        $hasSubgroupsColumn = Schema::hasColumn($groupsTable, 'has_subgroups');
+        if ($hasSubgroupsColumn) {
+            $groupsQuery->addSelect('has_subgroups');
+        }
         if (Schema::hasColumn($groupsTable, 'group_type')) {
             $groupsQuery->addSelect('group_type');
         }
@@ -28,6 +32,7 @@ class GroupController extends Controller
             'groups' => $groups,
             'course' => $course,
             'hasGroupType' => Schema::hasColumn($groupsTable, 'group_type'),
+            'hasSubgroupsColumn' => $hasSubgroupsColumn,
         ]);
     }
 
@@ -42,6 +47,9 @@ class GroupController extends Controller
         ];
         if (Schema::hasColumn($groupsTable, 'group_type')) {
             $rules['group_type'] = 'nullable|string|in:ru,kz';
+        }
+        if (Schema::hasColumn($groupsTable, 'has_subgroups')) {
+            $rules['has_subgroups'] = 'nullable|boolean';
         }
 
         $data = $request->validate($rules);
@@ -60,6 +68,9 @@ class GroupController extends Controller
         ];
         if (Schema::hasColumn($groupsTable, 'group_type')) {
             $payload['group_type'] = $data['group_type'] ?? 'kz';
+        }
+        if (Schema::hasColumn($groupsTable, 'has_subgroups')) {
+            $payload['has_subgroups'] = $request->boolean('has_subgroups');
         }
 
         DB::table($groupsTable)->insert($payload);
@@ -81,6 +92,9 @@ class GroupController extends Controller
         if (Schema::hasColumn($groupsTable, 'group_type')) {
             $rules['group_type'] = 'nullable|string|in:ru,kz';
         }
+        if (Schema::hasColumn($groupsTable, 'has_subgroups')) {
+            $rules['has_subgroups'] = 'nullable|boolean';
+        }
 
         $data = $request->validate($rules);
         $groupNumber = $this->extractGroupNumber($data['group_name']);
@@ -97,6 +111,9 @@ class GroupController extends Controller
         ];
         if (Schema::hasColumn($groupsTable, 'group_type')) {
             $payload['group_type'] = $data['group_type'] ?? 'kz';
+        }
+        if (Schema::hasColumn($groupsTable, 'has_subgroups')) {
+            $payload['has_subgroups'] = $request->boolean('has_subgroups');
         }
 
         DB::table($groupsTable)

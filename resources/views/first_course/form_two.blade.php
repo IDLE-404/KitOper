@@ -15,6 +15,7 @@
     $subgroupTwoRows = $subgroupTwoRows ?? [];
     $subgroupTwoDayTotals = $subgroupTwoDayTotals ?? [];
     $subgroupTwoColumnTotals = $subgroupTwoColumnTotals ?? ['normative' => 0, 'used' => 0, 'bonus' => 0, 'left' => 0];
+    $hasSubgroups = $hasSubgroups ?? false;
     $subjects = $subjects ?? collect();
     $dayTotals = $dayTotals ?? [];
     $columnTotals = $columnTotals ?? ['normative' => 0, 'used' => 0, 'bonus' => 0, 'left' => 0];
@@ -420,137 +421,139 @@
         </div>
     </div>
 
-    <div class="card shadow-sm mt-3">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
-                <div>
-                    <div class="fw-semibold">Подвоение (подгруппа 2)</div>
-                    <div class="text-muted small">только записи со второй подгруппой</div>
+    @if($hasSubgroups)
+        <div class="card shadow-sm mt-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
+                    <div>
+                        <div class="fw-semibold">Подвоение (подгруппа 2)</div>
+                        <div class="text-muted small">только записи со второй подгруппой</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-outline-secondary btn-sm js-correction-toggle" type="button">Режим коррекции</button>
+                        <button class="btn btn-success btn-sm d-none js-correction-save" type="button">Сохранить коррекцию</button>
+                    </div>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <button class="btn btn-outline-secondary btn-sm js-correction-toggle" type="button">Режим коррекции</button>
-                    <button class="btn btn-success btn-sm d-none js-correction-save" type="button">Сохранить коррекцию</button>
-                </div>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-sm align-middle form-two-table">
-                    <thead>
-                        <tr>
-                            <th class="text-muted col-index">#</th>
-                            <th class="text-muted col-subject">Предмет</th>
-                            <th class="text-muted col-teacher">Преподаватель</th>
-                            <th class="text-muted col-norm">Норматив</th>
-                            @foreach($days as $d)
-                                <th class="text-center text-muted day-head col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
-                            @endforeach
-                            <th class="text-muted col-used">Использовано</th>
-                            <th class="text-muted col-bonus">Бонус</th>
-                            <th class="text-muted col-left">Остаток</th>
-                        </tr>
-                    </thead>
-                    <tbody id="subgroupTwoBody">
-                        @forelse($subgroupTwoRows as $idx => $row)
-                            <tr data-row="{{ $idx }}">
-                                <td class="col-index">{{ $idx + 1 }}</td>
-                                <td class="col-subject">
-                                    <div class="fw-semibold">{{ $row['subject_name'] ?? '—' }}</div>
-                                    <input type="hidden" class="row-subject" value="{{ $row['subject_id'] }}">
-                                    <input type="hidden" class="row-hours-per-class" value="{{ $row['hours_per_class'] ?? 2 }}">
-                                    <input type="hidden" class="row-total-hours" value="{{ $row['total_hours'] ?? 0 }}">
-                                </td>
-                                <td class="col-teacher">
-                                    <div>{{ $row['teacher_name'] ?? '—' }}</div>
-                                    <input type="hidden" class="row-teacher" value="{{ $row['teacher_id'] }}">
-                                </td>
-                                <td class="col-norm">
-                                    <div class="small text-muted">
-                                        Остаток на начало:
-                                        <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
-                                    </div>
-                                    <div class="small text-muted">По паре: {{ $row['hours_per_class'] ?? 2 }}</div>
-                                    <div class="manual-norm d-none mt-2">
-                                        <label class="form-label text-muted small mb-1">Всего часов</label>
-                                        <input type="number"
-                                               class="form-control form-control-sm row-total-hours-input"
-                                               min="0"
-                                               step="1"
-                                               value="{{ $row['total_hours'] ?? 0 }}">
-                                    </div>
-                                </td>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle form-two-table">
+                        <thead>
+                            <tr>
+                                <th class="text-muted col-index">#</th>
+                                <th class="text-muted col-subject">Предмет</th>
+                                <th class="text-muted col-teacher">Преподаватель</th>
+                                <th class="text-muted col-norm">Норматив</th>
                                 @foreach($days as $d)
-                                    @php
-                                        $cell = $row['days'][$d] ?? [];
-                                        $status = $cell['status'] ?? 'empty';
-                                        $value = '';
-                                        if ($status === 'sick') {
-                                            $status = 'replaced';
-                                        }
-                                        if ($status === 'normal') {
-                                            $value = $cell['used_hours'] ?? $row['hours_per_class'] ?? '2';
-                                        } elseif ($status === 'replacement') {
-                                            $value = $cell['bonus_hours'] ?? $row['hours_per_class'] ?? '2';
-                                        } elseif ($status === 'replaced') {
-                                            $value = '■';
-                                        } else {
-                                            $value = '•';
-                                        }
-                                        $tooltip = collect($cell['details'] ?? [])->map(function ($detail) {
-                                            $parts = [];
-                                            if (!empty($detail['lesson_number'])) {
-                                                $parts[] = 'Пара ' . $detail['lesson_number'];
-                                            }
-                                            if (!empty($detail['subgroup'])) {
-                                                $parts[] = 'подгр. ' . $detail['subgroup'];
-                                            }
-                                            if (!empty($detail['mode'])) {
-                                                $parts[] = 'режим: ' . $detail['mode'];
-                                            }
-                                            if (!empty($detail['status'])) {
-                                                $parts[] = 'статус: ' . $detail['status'];
-                                            }
-                                            if (!empty($detail['replacement_teacher_name'])) {
-                                                $parts[] = 'замена: ' . $detail['replacement_teacher_name'];
-                                            }
-                                            if (!empty($detail['replacement_subject_name'])) {
-                                                $parts[] = 'предмет: ' . $detail['replacement_subject_name'];
-                                            }
-                                            return implode(', ', $parts);
-                                        })->filter()->implode(' | ');
-                                        $holidayMeta = $holidayDays[$d] ?? null;
-                                        $holidayNote = $holidayMeta ? ('Праздник: ' . $holidayMeta['name']) : null;
-                                        $titleParts = array_filter([$tooltip, $holidayNote]);
-                                        $cellTitle = $titleParts ? implode(' | ', $titleParts) : 'Нет записи';
-                                    @endphp
-                                    <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">
-                                        <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
-                                            <span class="chip-value">{{ $value }}</span>
+                                    <th class="text-center text-muted day-head col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
+                                @endforeach
+                                <th class="text-muted col-used">Использовано</th>
+                                <th class="text-muted col-bonus">Бонус</th>
+                                <th class="text-muted col-left">Остаток</th>
+                            </tr>
+                        </thead>
+                        <tbody id="subgroupTwoBody">
+                            @forelse($subgroupTwoRows as $idx => $row)
+                                <tr data-row="{{ $idx }}">
+                                    <td class="col-index">{{ $idx + 1 }}</td>
+                                    <td class="col-subject">
+                                        <div class="fw-semibold">{{ $row['subject_name'] ?? '—' }}</div>
+                                        <input type="hidden" class="row-subject" value="{{ $row['subject_id'] }}">
+                                        <input type="hidden" class="row-hours-per-class" value="{{ $row['hours_per_class'] ?? 2 }}">
+                                        <input type="hidden" class="row-total-hours" value="{{ $row['total_hours'] ?? 0 }}">
+                                    </td>
+                                    <td class="col-teacher">
+                                        <div>{{ $row['teacher_name'] ?? '—' }}</div>
+                                        <input type="hidden" class="row-teacher" value="{{ $row['teacher_id'] }}">
+                                    </td>
+                                    <td class="col-norm">
+                                        <div class="small text-muted">
+                                            Остаток на начало:
+                                            <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
+                                        </div>
+                                        <div class="small text-muted">По паре: {{ $row['hours_per_class'] ?? 2 }}</div>
+                                        <div class="manual-norm d-none mt-2">
+                                            <label class="form-label text-muted small mb-1">Всего часов</label>
+                                            <input type="number"
+                                                   class="form-control form-control-sm row-total-hours-input"
+                                                   min="0"
+                                                   step="1"
+                                                   value="{{ $row['total_hours'] ?? 0 }}">
                                         </div>
                                     </td>
+                                    @foreach($days as $d)
+                                        @php
+                                            $cell = $row['days'][$d] ?? [];
+                                            $status = $cell['status'] ?? 'empty';
+                                            $value = '';
+                                            if ($status === 'sick') {
+                                                $status = 'replaced';
+                                            }
+                                            if ($status === 'normal') {
+                                                $value = $cell['used_hours'] ?? $row['hours_per_class'] ?? '2';
+                                            } elseif ($status === 'replacement') {
+                                                $value = $cell['bonus_hours'] ?? $row['hours_per_class'] ?? '2';
+                                            } elseif ($status === 'replaced') {
+                                                $value = '■';
+                                            } else {
+                                                $value = '•';
+                                            }
+                                            $tooltip = collect($cell['details'] ?? [])->map(function ($detail) {
+                                                $parts = [];
+                                                if (!empty($detail['lesson_number'])) {
+                                                    $parts[] = 'Пара ' . $detail['lesson_number'];
+                                                }
+                                                if (!empty($detail['subgroup'])) {
+                                                    $parts[] = 'подгр. ' . $detail['subgroup'];
+                                                }
+                                                if (!empty($detail['mode'])) {
+                                                    $parts[] = 'режим: ' . $detail['mode'];
+                                                }
+                                                if (!empty($detail['status'])) {
+                                                    $parts[] = 'статус: ' . $detail['status'];
+                                                }
+                                                if (!empty($detail['replacement_teacher_name'])) {
+                                                    $parts[] = 'замена: ' . $detail['replacement_teacher_name'];
+                                                }
+                                                if (!empty($detail['replacement_subject_name'])) {
+                                                    $parts[] = 'предмет: ' . $detail['replacement_subject_name'];
+                                                }
+                                                return implode(', ', $parts);
+                                            })->filter()->implode(' | ');
+                                            $holidayMeta = $holidayDays[$d] ?? null;
+                                            $holidayNote = $holidayMeta ? ('Праздник: ' . $holidayMeta['name']) : null;
+                                            $titleParts = array_filter([$tooltip, $holidayNote]);
+                                            $cellTitle = $titleParts ? implode(' | ', $titleParts) : 'Нет записи';
+                                        @endphp
+                                        <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">
+                                            <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
+                                                <span class="chip-value">{{ $value }}</span>
+                                            </div>
+                                        </td>
+                                    @endforeach
+                                    <td class="fw-semibold used-cell col-used">{{ $row['used_hours_total'] ?? 0 }}</td>
+                                    <td class="fw-semibold text-primary col-bonus">{{ $row['bonus_hours_total'] ?? 0 }}</td>
+                                    <td class="fw-semibold text-success col-left">{{ $row['hours_left'] ?? 0 }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="{{ 7 + $daysCount }}" class="text-center text-muted">Данных нет</td></tr>
+                            @endforelse
+                        </tbody>
+                        <tfoot>
+                            <tr class="column-totals-row">
+                                <td colspan="3" class="text-end text-muted small">Итого:</td>
+                                <td class="text-center totals-cell text-primary col-norm">{{ $subgroupTwoColumnTotals['normative'] ?? 0 }}</td>
+                                @foreach($days as $d)
+                                    <td class="text-center totals-cell text-primary col-day">{{ $subgroupTwoDayTotals[$d] ?? 0 }}</td>
                                 @endforeach
-                                <td class="fw-semibold used-cell col-used">{{ $row['used_hours_total'] ?? 0 }}</td>
-                                <td class="fw-semibold text-primary col-bonus">{{ $row['bonus_hours_total'] ?? 0 }}</td>
-                                <td class="fw-semibold text-success col-left">{{ $row['hours_left'] ?? 0 }}</td>
+                                <td class="fw-semibold col-used">{{ $subgroupTwoColumnTotals['used'] ?? 0 }}</td>
+                                <td class="fw-semibold text-primary col-bonus">{{ $subgroupTwoColumnTotals['bonus'] ?? 0 }}</td>
+                                <td class="fw-semibold text-success col-left">{{ $subgroupTwoColumnTotals['left'] ?? 0 }}</td>
                             </tr>
-                        @empty
-                            <tr><td colspan="{{ 7 + $daysCount }}" class="text-center text-muted">Данных нет</td></tr>
-                        @endforelse
-                    </tbody>
-                    <tfoot>
-                        <tr class="column-totals-row">
-                            <td colspan="3" class="text-end text-muted small">Итого:</td>
-                            <td class="text-center totals-cell text-primary col-norm">{{ $subgroupTwoColumnTotals['normative'] ?? 0 }}</td>
-                            @foreach($days as $d)
-                                <td class="text-center totals-cell text-primary col-day">{{ $subgroupTwoDayTotals[$d] ?? 0 }}</td>
-                            @endforeach
-                            <td class="fw-semibold col-used">{{ $subgroupTwoColumnTotals['used'] ?? 0 }}</td>
-                            <td class="fw-semibold text-primary col-bonus">{{ $subgroupTwoColumnTotals['bonus'] ?? 0 }}</td>
-                            <td class="fw-semibold text-success col-left">{{ $subgroupTwoColumnTotals['left'] ?? 0 }}</td>
-                        </tr>
-                    </tfoot>
-                </table>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
+    @endif
 
 </div>
 </div>

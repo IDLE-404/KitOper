@@ -25,13 +25,31 @@ class FormTwoController extends Controller
         $groupsQuery = DB::table($tables['groups'])
             ->select('id', 'group_name')
             ->orderBy('group_name');
+        if (\Illuminate\Support\Facades\Schema::hasColumn($tables['groups'], 'has_subgroups')) {
+            $groupsQuery->addSelect('has_subgroups');
+        }
         if (\Illuminate\Support\Facades\Schema::hasColumn($tables['groups'], 'group_type')) {
             $groupsQuery->addSelect('group_type');
         }
         $groups = $groupsQuery->get();
         $groupId = (int) ($request->input('group_id') ?? ($groups->first()->id ?? 0));
+        $explicitPeriod = $request->query->has('month') || $request->query->has('year');
         $month = (int) ($request->input('month') ?? now()->month);
         $year = (int) ($request->input('year') ?? now()->year);
+
+        if (!$explicitPeriod && $groupId) {
+            $today = now();
+            $holidayDaysNow = $this->holidayService->getMonthHolidays($today->year, $today->month);
+            $todayHoliday = $holidayDaysNow[$today->day] ?? null;
+            if ($this->isVacationHoliday($todayHoliday) && (int) $today->month === 1) {
+                return redirect()->route('first.schedule.form_two', [
+                    'group_id' => $groupId,
+                    'month' => 2,
+                    'year' => $today->year,
+                    'course' => $course,
+                ]);
+            }
+        }
 
         $holidayDays = $this->holidayService->getMonthHolidays($year, $month);
         $report = $groupId ? $this->service->buildMonthReport($groupId, $year, $month, $course, $holidayDays) : ['rows' => [], 'days' => []];
@@ -77,6 +95,7 @@ class FormTwoController extends Controller
 
         $selectedGroup = $groups->firstWhere('id', $groupId);
         $groupType = $selectedGroup->group_type ?? null;
+        $hasSubgroups = (bool) ($selectedGroup->has_subgroups ?? false);
         if ($groupType === 'ru') {
             $useKazakh = false;
         } elseif ($groupType === 'kz') {
@@ -128,6 +147,7 @@ class FormTwoController extends Controller
             'holidayDays' => $holidayDays,
             'dayTotals' => $dayTotals,
             'columnTotals' => $columnTotals,
+            'hasSubgroups' => $hasSubgroups,
         ]);
     }
 
@@ -217,5 +237,15 @@ class FormTwoController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Ошибка при экспорте: ' . $e->getMessage());
         }
+    }
+
+    protected function isVacationHoliday(?array $holiday): bool
+    {
+        if (!$holiday) {
+            return false;
+        }
+
+        $name = (string) ($holiday['name'] ?? '');
+        return $name !== '' && mb_stripos($name, 'каникул') !== false;
     }
 }

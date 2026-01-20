@@ -203,7 +203,9 @@
                                     : (($pair['sub1']['has_den'] ?? false) || ($pair['sub1']['has_num'] ?? false) || ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false));
                                 $hasConflict = ($pair['sub1']['active_conflict'] ?? false) || ($pair['sub2']['active_conflict'] ?? false);
                                 $hasSubgroupsAny = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
-                                $hasSubgroupsCurrentWeek = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
+                                $hasSubgroupsCurrentWeek = ($weekMode ?? 'num') === 'den'
+                                    ? ($pair['sub2']['has_den'] ?? false)
+                                    : ($pair['sub2']['has_num'] ?? false);
                                 $pairStatus = '';
                                 if ($hasPractice) {
                                     $pairStatus = 'pair-practice';

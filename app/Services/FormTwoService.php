@@ -867,13 +867,13 @@ class FormTwoService
                     'teacher_id' => $replacementTeacherId,
                     'subject_name' => $replacement['subject_name'] ?? '—',
                     'teacher_name' => $replacement['replacement_teacher_name'] ?? '—',
-                    'total_hours' => $replacement['total_hours'] ?? 0,
-                    'hours_per_class' => $replacement['hours_per_class'] ?? 0,
+                    'total_hours' => 0,
+                    'hours_per_class' => $replacement['hours_per_class'] ?? 2,
                     'days' => $template,
                     'used_hours_total' => 0,
                     'bonus_hours_total' => 0,
                     'hours_left' => 0,
-                    'hours_left_start' => $replacement['total_hours'] ?? 0,
+                    'hours_left_start' => 0,
                 ];
             }
 
@@ -890,8 +890,16 @@ class FormTwoService
                 'bonus_hours' => (int) ($replacement['replacement_hours'] ?? 0),
             ];
 
-            $rows[$key]['bonus_hours_total'] += $replacement['replacement_hours'] ?? 0;
+            $replacementHours = (int) ($replacement['replacement_hours'] ?? 0);
+            $rows[$key]['bonus_hours_total'] += $replacementHours;
+            $rows[$key]['total_hours'] += $replacementHours;
+            $rows[$key]['hours_left_start'] = $rows[$key]['total_hours'];
         }
+
+        foreach ($rows as &$row) {
+            $row['hours_left'] = max(0, (int) ($row['total_hours'] ?? 0) - (int) ($row['bonus_hours_total'] ?? 0));
+        }
+        unset($row);
 
         $result = array_values($rows);
         usort($result, function (array $a, array $b) {

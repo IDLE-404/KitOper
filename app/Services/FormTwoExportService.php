@@ -539,6 +539,12 @@ class FormTwoExportService
         $rows = $filterRows($report['rows'] ?? []);
         $replacementRows = $filterRows($report['replacement_table_rows'] ?? []);
         $subgroupTwoRows = $filterRows($report['subgroup_two_rows'] ?? []);
+        foreach ($replacementRows as &$row) {
+            $row['total_hours'] = (int) ($row['bonus_hours_total'] ?? 0);
+            $row['hours_left_start'] = $row['total_hours'];
+            $row['hours_left'] = 0;
+        }
+        unset($row);
 
         $holidayDays = array_intersect_key($holidayDays, $dayKeys);
 

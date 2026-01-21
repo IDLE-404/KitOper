@@ -198,14 +198,22 @@
                                 $pair = $groupItems[$day][$i] ?? ['sub1'=>[], 'sub2'=>[], 'has_denominator' => false];
                                 $practiceInfo = $practiceMap[$groupId][$dayInfo['date'] ?? ''] ?? null;
                                 $hasPractice = !empty($practiceInfo);
-                                $hasLesson = $hasPractice
-                                    ? true
-                                    : (($pair['sub1']['has_den'] ?? false) || ($pair['sub1']['has_num'] ?? false) || ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false));
+                                $main = $pair['sub1'] ?? [];
+                                $sub2 = $pair['sub2'] ?? [];
+                                $mainHasActive = !empty($main['active_subject'])
+                                    || !empty($main['active_teacher'])
+                                    || !empty($main['active_room'])
+                                    || ($main['is_absent'] ?? false)
+                                    || ($main['is_replacement'] ?? false);
+                                $sub2HasActive = !empty($sub2['active_subject'])
+                                    || !empty($sub2['active_teacher'])
+                                    || !empty($sub2['active_room'])
+                                    || ($sub2['is_absent'] ?? false)
+                                    || ($sub2['is_replacement'] ?? false);
+                                $hasLesson = $hasPractice ? true : ($mainHasActive || $sub2HasActive);
                                 $hasConflict = ($pair['sub1']['active_conflict'] ?? false) || ($pair['sub2']['active_conflict'] ?? false);
                                 $hasSubgroupsAny = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
-                                $hasSubgroupsCurrentWeek = ($weekMode ?? 'num') === 'den'
-                                    ? ($pair['sub2']['has_den'] ?? false)
-                                    : ($pair['sub2']['has_num'] ?? false);
+                                $hasSubgroupsCurrentWeek = $sub2HasActive;
                                 $pairStatus = '';
                                 if ($hasPractice) {
                                     $pairStatus = 'pair-practice';
@@ -288,45 +296,45 @@
                                     </div>
                                 @endif
                                 @if ($hasLesson && !$hasPractice)
-                                    @php $main = $pair['sub1'] ?? []; @endphp
-                                    <div class="cell-line main-line sub-line">
-                                        <span class="pill badge-sub">1</span>
-                                        @if($main['is_absent'] ?? false)
-                                            <span class="status-chip tiny status-sick" title="Болезнь">Б</span>
-                                        @elseif($main['is_replacement'] ?? false)
-                                            <span class="status-chip tiny status-replacement" title="Замена">2</span>
+                                    @if($mainHasActive)
+                                        <div class="cell-line main-line sub-line">
+                                            <span class="pill badge-sub">1</span>
+                                            @if($main['is_absent'] ?? false)
+                                                <span class="status-chip tiny status-sick" title="Болезнь">Б</span>
+                                            @elseif($main['is_replacement'] ?? false)
+                                                <span class="status-chip tiny status-replacement" title="Замена">2</span>
+                                            @endif
+                                            <span class="cell-title emphasis">{{ $main['active_subject'] ?? '' }}</span>
+                                            @if(($main['replacement_subject'] ?? null) && ($main['is_replacement'] ?? false) && ($main['replacement_subject'] !== ($main['active_subject'] ?? null)))
+                                                <span class="text-danger ms-1">→ {{ $main['replacement_subject'] }}</span>
+                                            @endif
+                                        </div>
+                                        <div class="cell-meta">
+                                            @if (!empty($main['active_teacher']))
+                                                <span class="pill">
+                                                    <span>👤</span>{{ $main['active_teacher'] }}
+                                            @if(
+                                                ($main['replacement_teacher'] ?? null)
+                                                && ($main['is_replacement'] ?? false)
+                                                && ($main['replacement_teacher'] !== ($main['active_teacher'] ?? null))
+                                            )
+                                                <span class="text-warning ms-1">→ {{ $main['replacement_teacher'] }}</span>
+                                            @endif
+                                                </span>
+                                            @endif
+                                            @if (!empty($main['active_room']))
+                                                <span class="pill room-pill {{ ($main['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($main['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
+                                                    <span>🏫</span>{{ $main['active_room'] }}
+                                                </span>
+                                            @endif
+                                            @if (!empty($main['label']))
+                                                <span class="pill"><span>🔸</span>{{ $main['label'] }}</span>
+                                            @endif
+                                        </div>
+                                        @if($main['active_conflict'] ?? false)
+                                            <div class="conflict-hint">Конфликт: кабинет уже занят</div>
                                         @endif
-                                        <span class="cell-title emphasis">{{ $main['active_subject'] ?? '' }}</span>
-                                        @if(($main['replacement_subject'] ?? null) && ($main['is_replacement'] ?? false) && ($main['replacement_subject'] !== ($main['active_subject'] ?? null)))
-                                            <span class="text-danger ms-1">→ {{ $main['replacement_subject'] }}</span>
-                                        @endif
-                                    </div>
-                                    <div class="cell-meta">
-                                        @if (!empty($main['active_teacher']))
-                                            <span class="pill">
-                                                <span>👤</span>{{ $main['active_teacher'] }}
-                                        @if(
-                                            ($main['replacement_teacher'] ?? null)
-                                            && ($main['is_replacement'] ?? false)
-                                            && ($main['replacement_teacher'] !== ($main['active_teacher'] ?? null))
-                                        )
-                                            <span class="text-warning ms-1">→ {{ $main['replacement_teacher'] }}</span>
-                                        @endif
-                                            </span>
-                                        @endif
-                                        @if (!empty($main['active_room']))
-                                            <span class="pill room-pill {{ ($main['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($main['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
-                                                <span>🏫</span>{{ $main['active_room'] }}
-                                            </span>
-                                        @endif
-                                        @if (!empty($main['label']))
-                                            <span class="pill"><span>🔸</span>{{ $main['label'] }}</span>
-                                        @endif
-                                    </div>
-                                    @if($main['active_conflict'] ?? false)
-                                        <div class="conflict-hint">Конфликт: кабинет уже занят</div>
                                     @endif
-                                    @php $sub2 = $pair['sub2'] ?? []; @endphp
                                     @if($hasSubgroupsCurrentWeek)
                                         <div class="cell-line subpair-line">
                                             <span class="pill badge-sub soft">2</span>

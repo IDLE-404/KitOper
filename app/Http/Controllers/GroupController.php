@@ -146,6 +146,57 @@ class GroupController extends Controller
             ->with('success', 'Группа удалена.');
     }
 
+    public function finishYear(Request $request)
+    {
+        $course = CourseContext::normalize($request->integer('course') ?? 1);
+        $tables = CourseContext::tables($course);
+        $groupsTable = $tables['groups'];
+
+        $groups = DB::table($groupsTable)
+            ->select('id', 'group_name', 'group_number')
+            ->get();
+
+        $now = now();
+        $deleted = 0;
+        $updated = 0;
+
+        DB::transaction(function () use ($groups, $groupsTable, $now, &$deleted, &$updated) {
+            foreach ($groups as $group) {
+                $groupNumber = (int) ($group->group_number ?? 0);
+                if ($groupNumber < 100) {
+                    continue;
+                }
+
+                $firstDigit = intdiv($groupNumber, 100);
+                $tail = $groupNumber % 100;
+                $prefix = $this->groupPrefix((string) ($group->group_name ?? ''));
+
+                $maxYear = $prefix === 'ТЭ' ? 4 : 3;
+                if ($firstDigit >= $maxYear) {
+                    DB::table($groupsTable)->where('id', $group->id)->delete();
+                    $deleted++;
+                    continue;
+                }
+
+                $newNumber = ($firstDigit + 1) * 100 + $tail;
+                $newName = $this->replaceLastNumber((string) ($group->group_name ?? ''), $newNumber);
+
+                DB::table($groupsTable)
+                    ->where('id', $group->id)
+                    ->update([
+                        'group_number' => $newNumber,
+                        'group_name' => $newName,
+                        'updated_at' => $now,
+                    ]);
+                $updated++;
+            }
+        });
+
+        return redirect()
+            ->route('groups.index', ['course' => $course])
+            ->with('success', "Учебный год завершен: обновлено {$updated}, удалено {$deleted}.");
+    }
+
     protected function extractGroupNumber(string $groupName): ?int
     {
         if (!preg_match('/(\d{2,})/', $groupName, $matches)) {
@@ -153,5 +204,25 @@ class GroupController extends Controller
         }
 
         return (int) $matches[1];
+    }
+
+    private function groupPrefix(string $name): string
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return '';
+        }
+        $parts = preg_split('/[\\s\\-\\/]+/u', $name, -1, PREG_SPLIT_NO_EMPTY);
+        $prefix = $parts[0] ?? '';
+        return mb_strtoupper($prefix, 'UTF-8');
+    }
+
+    private function replaceLastNumber(string $name, int $number): string
+    {
+        if ($name === '') {
+            return (string) $number;
+        }
+        $updated = preg_replace('/(\\d+)(?!.*\\d)/u', (string) $number, $name);
+        return $updated ?: $name;
     }
 }

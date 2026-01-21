@@ -38,6 +38,7 @@ Route::prefix('first-course')->group(function () {
     Route::post('/groups', [GroupController::class, 'store'])->name('groups.store');
     Route::put('/groups/{id}', [GroupController::class, 'update'])->name('groups.update');
     Route::delete('/groups/{id}', [GroupController::class, 'destroy'])->name('groups.destroy');
+    Route::post('/groups/finish-year', [GroupController::class, 'finishYear'])->name('groups.finish_year');
     Route::get('/subjects', [SubjectController::class, 'index'])->name('subjects.index');
     Route::post('/subjects', [SubjectController::class, 'store'])->name('subjects.store');
     Route::put('/subjects/{id}', [SubjectController::class, 'update'])->name('subjects.update');

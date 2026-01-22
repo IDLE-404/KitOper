@@ -250,7 +250,7 @@
                                         <div class="mb-3">
                                             <div class="text-muted small mb-1">Числитель</div>
                                             <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#subj-{{ $dayKey }}-{{ $pair }}-a">
-                                            <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id]">
+                                            <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id]" data-teacher-target="#teach-{{ $dayKey }}-{{ $pair }}-a">
                                                 <option value="">Выберите предмет</option>
                                                 @foreach($subjects as $s)
                                                     <option value="{{ $s->id }}" @selected($rowA && $rowA->subject_id == $s->id)>{{ $s->title ?? ($s->name_ru ?? $s->subject_name) }}</option>
@@ -260,7 +260,7 @@
                                         <div>
                                             <div class="text-muted small mb-1">Знаменатель</div>
                                             <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#subj-{{ $dayKey }}-{{ $pair }}-a-den">
-                                            <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-a-den" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_denominator]">
+                                            <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-a-den" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_denominator]" data-teacher-target="#teach-{{ $dayKey }}-{{ $pair }}-a-den">
                                                 <option value="">Если предмет чередуется</option>
                                                 @foreach($subjects as $s)
                                                     <option value="{{ $s->id }}" @selected($rowA && ($rowA->subject_id_denominator ?? null) == $s->id)>{{ $s->title ?? ($s->name_ru ?? $s->subject_name) }}</option>
@@ -317,7 +317,7 @@
                                         <div class="mb-3">
                                             <div class="text-muted small mb-1">Числитель</div>
                                             <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#subj-{{ $dayKey }}-{{ $pair }}-b">
-                                            <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_second]">
+                                            <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_second]" data-teacher-target="#teach-{{ $dayKey }}-{{ $pair }}-b">
                                                 <option value="">Предмет подгруппы 2</option>
                                                 @foreach($subjects as $s)
                                                     <option value="{{ $s->id }}" @selected($rowB && $rowB->subject_id == $s->id)>{{ $s->title ?? ($s->name_ru ?? $s->subject_name) }}</option>
@@ -327,7 +327,7 @@
                                         <div>
                                             <div class="text-muted small mb-1">Знаменатель</div>
                                             <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#subj-{{ $dayKey }}-{{ $pair }}-b-den">
-                                            <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-b-den" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_second_denominator]">
+                                            <select class="select-soft filterable" id="subj-{{ $dayKey }}-{{ $pair }}-b-den" name="schedule[{{ $dayKey }}][{{ $pair }}][subject_id_second_denominator]" data-teacher-target="#teach-{{ $dayKey }}-{{ $pair }}-b-den">
                                                 <option value="">Если предмет чередуется</option>
                                                 @foreach($subjects as $s)
                                                     <option value="{{ $s->id }}" @selected($rowB && ($rowB->subject_id_denominator ?? null) == $s->id)>{{ $s->title ?? ($s->name_ru ?? $s->subject_name) }}</option>
@@ -535,26 +535,106 @@
 
     updateAddButtons();
 
+    const subjectTeacherMap = @json($teacherSubjectMap ?? []);
+    const selectOptionsMap = new Map();
+
+    document.querySelectorAll('select.filterable').forEach(selectEl => {
+        selectOptionsMap.set(selectEl, Array.from(selectEl.options).map(opt => ({
+            value: opt.value,
+            text: opt.text,
+        })));
+    });
+
+    const rebuildSelectOptions = (selectEl, allowedValues = null, term = '') => {
+        const options = selectOptionsMap.get(selectEl) || Array.from(selectEl.options).map(opt => ({
+            value: opt.value,
+            text: opt.text,
+        }));
+        const allowedSet = allowedValues && allowedValues.length ? new Set(allowedValues.map(String)) : null;
+        const previousValue = selectEl.value;
+        const search = term.toLowerCase();
+        selectEl.innerHTML = '';
+
+        let hasSelection = false;
+        options.forEach(opt => {
+            if (allowedSet && opt.value && !allowedSet.has(String(opt.value))) {
+                return;
+            }
+            if (search && !opt.text.toLowerCase().includes(search)) {
+                return;
+            }
+            const node = document.createElement('option');
+            node.value = opt.value;
+            node.text = opt.text;
+            if (opt.value === previousValue) {
+                node.selected = true;
+                hasSelection = true;
+            }
+            selectEl.appendChild(node);
+        });
+
+        if (!hasSelection && selectEl.options.length) {
+            selectEl.selectedIndex = 0;
+        }
+
+        if (allowedSet) {
+            selectEl.dataset.allowedValues = JSON.stringify(Array.from(allowedSet));
+        } else {
+            delete selectEl.dataset.allowedValues;
+        }
+    };
+
+    const getAllowedTeachers = (subjectId) => {
+        if (!subjectId) {
+            return null;
+        }
+        const allowed = subjectTeacherMap[subjectId];
+        if (!Array.isArray(allowed) || allowed.length === 0) {
+            return null;
+        }
+        return allowed.map(String);
+    };
+
+    document.querySelectorAll('select[data-teacher-target]').forEach(subjectSelect => {
+        const target = subjectSelect.dataset.teacherTarget;
+        const teacherSelect = document.querySelector(target);
+        if (!teacherSelect) return;
+
+        const applyFilter = () => {
+            const allowed = getAllowedTeachers(subjectSelect.value);
+            const filterInput = document.querySelector(`.filter-input[data-target="${target}"]`);
+            if (filterInput) {
+                filterInput.value = '';
+            }
+            rebuildSelectOptions(teacherSelect, allowed, '');
+        };
+
+        subjectSelect.addEventListener('change', applyFilter);
+        applyFilter();
+    });
+
     // Быстрый поиск по select
     const filterInputs = document.querySelectorAll('.filter-input');
     filterInputs.forEach(input => {
         const targetSelector = input.getAttribute('data-target');
         const selectEl = document.querySelector(targetSelector);
         if (!selectEl) return;
-        const originalOptions = Array.from(selectEl.options).map(opt => ({ value: opt.value, text: opt.text, selected: opt.selected }));
 
         input.addEventListener('input', () => {
             const term = input.value.toLowerCase();
-            selectEl.innerHTML = '';
-            originalOptions
-                .filter(opt => opt.text.toLowerCase().includes(term))
-                .forEach(opt => {
-                    const node = document.createElement('option');
-                    node.value = opt.value;
-                    node.text = opt.text;
-                    if (opt.selected) node.selected = true;
-                    selectEl.appendChild(node);
-                });
+            let allowedValues = null;
+            if (selectEl.dataset.allowedValues) {
+                try {
+                    allowedValues = JSON.parse(selectEl.dataset.allowedValues);
+                } catch (err) {
+                    allowedValues = null;
+                }
+            }
+            const previousValue = selectEl.value;
+            rebuildSelectOptions(selectEl, allowedValues, term);
+            if (selectEl.dataset.teacherTarget && selectEl.value !== previousValue) {
+                selectEl.dispatchEvent(new Event('change'));
+            }
         });
     });
 

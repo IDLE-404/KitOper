@@ -28,7 +28,7 @@ class CourseContext
     /**
      * Возвращает набор таблиц для курса.
      *
-     * @return array{groups:string,subjects:string,teachers:string,schedules:string,form_two_normatives:string,form_two_records:string}
+     * @return array{groups:string,subjects:string,teachers:string,schedules:string,form_two_normatives:string,form_two_records:string,teacher_subjects:string}
      */
     public static function tables(int $course): array
     {
@@ -42,6 +42,7 @@ class CourseContext
             'schedules' => "{$prefix}_course_schedules",
             'form_two_normatives' => $course === 1 ? 'form_two_normatives' : "{$prefix}_form_two_normatives",
             'form_two_records' => $course === 1 ? 'form_two_records' : "{$prefix}_form_two_records",
+            'teacher_subjects' => "{$prefix}_course_teacher_subjects",
         ];
     }
 

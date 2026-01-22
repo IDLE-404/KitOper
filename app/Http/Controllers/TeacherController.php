@@ -19,10 +19,39 @@ class TeacherController extends Controller
             ->orderBy('teacher_name')
             ->get();
 
+        $subjects = DB::table($tables['subjects'])
+            ->select('id', 'subject_name', 'name_ru', 'name_kz', 'module_title')
+            ->orderBy('module_title')
+            ->orderByRaw('COALESCE(name_ru, subject_name)')
+            ->get()
+            ->map(function ($row) use ($course) {
+                $name = $row->name_ru ?: ($row->name_kz ?: $row->subject_name);
+                $module = trim((string) ($row->module_title ?? ''));
+                $row->title = ($course !== 1 && $module !== '') ? trim($module . ' ' . $name) : $name;
+                return $row;
+            });
+        $subjectTitleMap = $subjects->pluck('title', 'id')->all();
+
+        $teacherSubjects = [];
+        $teacherSubjectTable = $tables['teacher_subjects'] ?? null;
+        if ($teacherSubjectTable && Schema::hasTable($teacherSubjectTable)) {
+            $pairs = DB::table($teacherSubjectTable)
+                ->select('teacher_id', 'subject_id')
+                ->whereIn('teacher_id', $teachers->pluck('id')->all())
+                ->get();
+            foreach ($pairs as $pair) {
+                $teacherId = (int) $pair->teacher_id;
+                $teacherSubjects[$teacherId][] = (int) $pair->subject_id;
+            }
+        }
+
         $hasInitials = Schema::hasColumn($tables['teachers'], 'initials');
 
         return view('teachers.index', [
             'teachers' => $teachers,
+            'subjects' => $subjects,
+            'subjectTitleMap' => $subjectTitleMap,
+            'teacherSubjects' => $teacherSubjects,
             'course' => $course,
             'hasInitials' => $hasInitials,
         ]);
@@ -37,6 +66,8 @@ class TeacherController extends Controller
         $data = $request->validate([
             'teacher_name' => 'required|string|max:255',
             'initials' => $hasInitials ? 'nullable|string|max:20' : 'nullable',
+            'subject_ids' => 'sometimes|array',
+            'subject_ids.*' => 'integer',
         ]);
 
         $payload = [
@@ -48,7 +79,9 @@ class TeacherController extends Controller
             $payload['initials'] = $this->resolveInitials($data['teacher_name'], $data['initials'] ?? null);
         }
 
-        DB::table($tables['teachers'])->insert($payload);
+        $teacherId = DB::table($tables['teachers'])->insertGetId($payload);
+        $subjectIds = $data['subject_ids'] ?? [];
+        $this->syncTeacherSubjects($tables, $teacherId, $subjectIds);
 
         return redirect()
             ->route('teachers.index', ['course' => $course])
@@ -64,6 +97,8 @@ class TeacherController extends Controller
         $data = $request->validate([
             'teacher_name' => 'required|string|max:255',
             'initials' => $hasInitials ? 'nullable|string|max:20' : 'nullable',
+            'subject_ids' => 'sometimes|array',
+            'subject_ids.*' => 'integer',
         ]);
 
         $payload = [
@@ -77,6 +112,8 @@ class TeacherController extends Controller
         DB::table($tables['teachers'])
             ->where('id', $id)
             ->update($payload);
+        $subjectIds = $data['subject_ids'] ?? [];
+        $this->syncTeacherSubjects($tables, $id, $subjectIds);
 
         return redirect()
             ->route('teachers.index', ['course' => $course])
@@ -130,5 +167,40 @@ class TeacherController extends Controller
         }
 
         return trim($initials);
+    }
+
+    private function syncTeacherSubjects(array $tables, int $teacherId, array $subjectIds): void
+    {
+        $teacherSubjectTable = $tables['teacher_subjects'] ?? null;
+        if (!$teacherSubjectTable || !Schema::hasTable($teacherSubjectTable)) {
+            return;
+        }
+
+        $subjectIds = array_values(array_unique(array_filter($subjectIds, fn($id) => $id !== null && $id !== '')));
+        if (count($subjectIds) > 0) {
+            $subjectIds = DB::table($tables['subjects'])
+                ->whereIn('id', $subjectIds)
+                ->pluck('id')
+                ->map(fn($id) => (int) $id)
+                ->all();
+        }
+
+        DB::table($teacherSubjectTable)
+            ->where('teacher_id', $teacherId)
+            ->delete();
+
+        if (empty($subjectIds)) {
+            return;
+        }
+
+        $now = now();
+        $rows = array_map(fn($subjectId) => [
+            'teacher_id' => $teacherId,
+            'subject_id' => $subjectId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], $subjectIds);
+
+        DB::table($teacherSubjectTable)->insert($rows);
     }
 }

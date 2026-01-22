@@ -104,6 +104,8 @@
     $expandLinkParams = ['course' => $course ?? 1];
     $requestedWeekStart = $requestedWeekStart ?? ($weekStart ?? null);
     $isFallbackWeek = $isFallbackWeek ?? false;
+    $fallbackWeekStart = $fallbackWeekStart ?? null;
+    $fallbackMode = $fallbackMode ?? null;
     if ($firstGroupId) {
         $expandLinkParams['group_id'] = $firstGroupId;
     }
@@ -128,7 +130,7 @@
                 </span>
                 @if($isFallbackWeek)
                     <div class="text-muted small mt-1">
-                        Для выбранной недели знаменателя нет расписания — показан числитель за {{ $weekStart ?? '—' }}.
+                        Для выбранной недели знаменателя нет расписания — использован шаблон за {{ $fallbackWeekStart ?? ($weekStart ?? '—') }}.
                     </div>
                 @endif
             </div>
@@ -147,7 +149,7 @@
         <a href="{{ route('practice.index', ['course' => $practiceCourse]) }}" class="btn-pill ghost">Практика</a>
         <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Форма 2</a>
         <a href="{{ route('holidays.index') }}" class="btn-pill ghost">Праздники</a>
-        <a href="{{ route('teachers.workload') }}" class="btn-pill ghost">Занятость преподавателей</a>
+        <a href="{{ route('teachers.workload', ['week_start' => $weekStart]) }}" class="btn-pill ghost">Занятость преподавателей</a>
         <a href="{{ route('groups.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Группы</a>
         <a href="{{ route('teachers.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Преподаватели</a>
         <a href="{{ route('subjects.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Предметы</a>

@@ -56,6 +56,27 @@
         padding: 16px 0;
         text-align: center;
     }
+    .subject-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 8px 12px;
+        max-height: none;
+        overflow: visible;
+        padding: 10px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #fff;
+    }
+    .subject-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+    }
+    .subject-item input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+    }
 </style>
 @endpush
 
@@ -95,10 +116,32 @@
         <form method="POST" action="{{ route('teachers.store') }}">
             @csrf
             <input type="hidden" name="course" value="{{ $course ?? 1 }}">
+            @php
+                $selectedCreateSubjects = old('subject_ids', []);
+            @endphp
             <div class="form-row">
                 <div class="form-field">
                     <label for="teacherName">ФИО преподавателя</label>
                     <input id="teacherName" name="teacher_name" class="search-input w-100" required value="{{ old('teacher_name') }}" placeholder="Например: Иванова И.Н.">
+                </div>
+                <div class="form-field">
+                    <label for="teacherSubjects">Предметы</label>
+                    <div class="subject-picker" id="subjectPickerCreate">
+                        <div class="subject-list">
+                            @forelse($subjects as $subject)
+                                @php
+                                    $subjectId = $subject->id;
+                                    $subjectLabel = $subject->title ?? $subject->subject_name;
+                                @endphp
+                                <label class="subject-item">
+                                    <input type="checkbox" name="subject_ids[]" value="{{ $subjectId }}" @checked(in_array($subjectId, $selectedCreateSubjects))>
+                                    <span>{{ $subjectLabel }}</span>
+                                </label>
+                            @empty
+                                <div class="text-muted">Нет доступных предметов</div>
+                            @endforelse
+                        </div>
+                    </div>
                 </div>
                 <div class="form-field form-field--actions">
                     <button type="submit" class="btn-pill primary">Добавить</button>
@@ -120,16 +163,26 @@
                         @if($hasInitials)
                             <th>Инициалы</th>
                         @endif
+                        <th>Предметы</th>
                         <th class="text-end">Действия</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($teachers as $teacher)
+                        @php
+                            $assigned = $teacherSubjects[$teacher->id] ?? [];
+                            $assignedTitles = array_values(array_filter(array_map(
+                                fn($id) => $subjectTitleMap[$id] ?? null,
+                                $assigned
+                            )));
+                            $assignedLabel = $assignedTitles ? implode(', ', $assignedTitles) : '—';
+                        @endphp
                         <tr data-name="{{ mb_strtolower($teacher->teacher_name ?? '') }}">
                             <td>{{ $teacher->teacher_name ?? '—' }}</td>
                             @if($hasInitials)
                                 <td>{{ $teacher->initials ?? '—' }}</td>
                             @endif
+                            <td>{{ $assignedLabel }}</td>
                             <td class="text-end">
                                 <div class="table-actions">
                                     <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editTeacher{{ $teacher->id }}">Редактировать</button>
@@ -166,9 +219,31 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                     </div>
                     <div class="modal-body">
+                        @php
+                            $selectedSubjects = old('subject_ids', $teacherSubjects[$teacher->id] ?? []);
+                        @endphp
                         <div class="mb-3">
                             <label class="form-label">ФИО преподавателя</label>
                             <input name="teacher_name" class="form-control" required value="{{ old('teacher_name', $teacher->teacher_name) }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Предметы</label>
+                            <div class="subject-picker" id="subjectPicker{{ $teacher->id }}">
+                                <div class="subject-list">
+                                    @forelse($subjects as $subject)
+                                        @php
+                                            $subjectId = $subject->id;
+                                            $subjectLabel = $subject->title ?? $subject->subject_name;
+                                        @endphp
+                                        <label class="subject-item">
+                                            <input type="checkbox" name="subject_ids[]" value="{{ $subjectId }}" @checked(in_array($subjectId, $selectedSubjects))>
+                                            <span>{{ $subjectLabel }}</span>
+                                        </label>
+                                    @empty
+                                        <div class="text-muted">Нет доступных предметов</div>
+                                    @endforelse
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -202,5 +277,6 @@
             row.style.display = name.includes(query) ? '' : 'none';
         });
     });
+
 </script>
 @endpush

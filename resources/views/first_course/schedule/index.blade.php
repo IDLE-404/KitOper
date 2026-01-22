@@ -419,6 +419,7 @@
         const subjectGroupTypes = @json($subjectGroupTypes ?? []);
         const groupLocalePreference = @json($groupLocalePreference ?? []);
         const teachers = @json($teachers ?? []);
+        const teacherSubjectMap = @json($teacherSubjectMap ?? []);
 
     const modal = document.getElementById('pairModal');
     const overlay = document.getElementById('modalOverlay');
@@ -490,6 +491,109 @@
         replacementSubject1Den,
         replacementSubject2Den,
     ].filter(Boolean);
+
+    const teacherSelects = [
+        teacher1,
+        teacher2,
+        teacher1Den,
+        teacher2Den,
+        replacementTeacher1,
+        replacementTeacher2,
+        replacementTeacher1Den,
+        replacementTeacher2Den,
+    ].filter(Boolean);
+
+    const teacherOptionsMap = new Map();
+    teacherSelects.forEach((select) => {
+        if (!select) return;
+        select.dataset.role = 'teacher';
+        teacherOptionsMap.set(select, Array.from(select.options).map(opt => ({
+            value: opt.value,
+            text: opt.text,
+        })));
+    });
+
+    const rebuildTeacherOptions = (selectEl, allowedValues = null, term = '') => {
+        const options = teacherOptionsMap.get(selectEl) || Array.from(selectEl.options).map(opt => ({
+            value: opt.value,
+            text: opt.text,
+        }));
+        const allowedSet = allowedValues && allowedValues.length ? new Set(allowedValues.map(String)) : null;
+        const previousValue = selectEl.value;
+        const search = term.toLowerCase();
+        selectEl.innerHTML = '';
+
+        let hasSelection = false;
+        options.forEach(opt => {
+            if (allowedSet && opt.value && !allowedSet.has(String(opt.value))) {
+                return;
+            }
+            if (search && !opt.text.toLowerCase().includes(search)) {
+                return;
+            }
+            const node = document.createElement('option');
+            node.value = opt.value;
+            node.text = opt.text;
+            if (opt.value === previousValue) {
+                node.selected = true;
+                hasSelection = true;
+            }
+            selectEl.appendChild(node);
+        });
+
+        if (!hasSelection && selectEl.options.length) {
+            selectEl.selectedIndex = 0;
+        }
+
+        if (allowedSet) {
+            selectEl.dataset.allowedValues = JSON.stringify(Array.from(allowedSet));
+        } else {
+            delete selectEl.dataset.allowedValues;
+        }
+    };
+
+    const getAllowedTeachers = (subjectId) => {
+        if (!subjectId) {
+            return null;
+        }
+        const allowed = teacherSubjectMap[subjectId];
+        if (!Array.isArray(allowed) || allowed.length === 0) {
+            return null;
+        }
+        return allowed.map(String);
+    };
+
+    const teacherLinks = [
+        { subject: subject1, teacher: teacher1 },
+        { subject: subject1Den, teacher: teacher1Den },
+        { subject: subject2, teacher: teacher2 },
+        { subject: subject2Den, teacher: teacher2Den },
+        { subject: replacementSubject1, teacher: replacementTeacher1, fallbackSubject: subject1 },
+        { subject: replacementSubject2, teacher: replacementTeacher2, fallbackSubject: subject2 },
+        { subject: replacementSubject1Den, teacher: replacementTeacher1Den, fallbackSubject: subject1Den },
+        { subject: replacementSubject2Den, teacher: replacementTeacher2Den, fallbackSubject: subject2Den },
+    ].filter(link => link.subject && link.teacher);
+
+    const applyTeacherFilter = (link) => {
+        const subjectId = link.subject.value || link.fallbackSubject?.value;
+        const allowed = getAllowedTeachers(subjectId);
+        const searchInput = document.querySelector(`.search-field[data-target="${link.teacher.id}"]`);
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        rebuildTeacherOptions(link.teacher, allowed, '');
+    };
+
+    const applyAllTeacherFilters = () => {
+        teacherLinks.forEach(applyTeacherFilter);
+    };
+
+    teacherLinks.forEach(link => {
+        link.subject.addEventListener('change', () => applyTeacherFilter(link));
+        if (link.fallbackSubject) {
+            link.fallbackSubject.addEventListener('change', () => applyTeacherFilter(link));
+        }
+    });
 
     const applySubjectFilter = (groupId) => {
         const useKazakh = groupLocalePreference[String(groupId)] === true;
@@ -614,6 +718,7 @@
         room2Den.value = data.denRoom2 || '';
 
         applySubjectFilter(data.group);
+        applyAllTeacherFilters();
 
         toggleSub2.checked = data.hasSub2 === '1';
         sub2CardNum.classList.toggle('d-none', !toggleSub2.checked);
@@ -681,6 +786,7 @@
             data.day,
             data.lesson
         );
+        refreshAvailability();
 
         overlay.classList.add('show');
         modal.classList.add('show');
@@ -690,6 +796,111 @@
         overlay.classList.remove('show');
         modal.classList.remove('show');
     };
+
+    const availabilityUrl = @json(route('first.schedule.availability'));
+    const availabilityNotes = new Map();
+    document.querySelectorAll('.availability-note[data-status-for]').forEach(note => {
+        availabilityNotes.set(note.dataset.statusFor, note);
+    });
+
+    const setAvailabilityNote = (targetId, status, message) => {
+        const note = availabilityNotes.get(targetId);
+        if (!note) {
+            return;
+        }
+        note.textContent = message || '';
+        note.classList.remove('is-free', 'is-busy');
+        if (status === 'free') {
+            note.classList.add('is-free');
+        } else if (status === 'busy') {
+            note.classList.add('is-busy');
+        }
+    };
+
+    const debounce = (fn, wait = 350) => {
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn(...args), wait);
+        };
+    };
+
+    const buildAvailabilityParams = (field) => {
+        const weekStart = weekStartHidden?.value;
+        const day = hiddenDay?.value;
+        const lesson = hiddenLesson?.value;
+        const type = field.dataset.type;
+        const mode = field.dataset.mode;
+        if (!weekStart || !day || !lesson || !type || !mode) {
+            return null;
+        }
+        const params = new URLSearchParams();
+        params.set('week_start', weekStart);
+        params.set('day_key', day);
+        params.set('lesson_number', lesson);
+        params.set('mode', mode);
+        params.set('type', type);
+        const courseValue = form.querySelector('input[name="course"]')?.value;
+        if (courseValue) {
+            params.set('course', courseValue);
+        }
+        if (type === 'teacher') {
+            params.set('teacher_id', field.value || '');
+        } else if (type === 'room') {
+            params.set('room', field.value || '');
+        }
+        return params;
+    };
+
+    const requestAvailability = async (field) => {
+        if (field.disabled) {
+            return;
+        }
+        const params = buildAvailabilityParams(field);
+        if (!params) {
+            return;
+        }
+        const targetId = field.id;
+        if (!targetId) {
+            return;
+        }
+        if (!field.value) {
+            setAvailabilityNote(targetId, '', '');
+            return;
+        }
+        try {
+            const response = await fetch(`${availabilityUrl}?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
+            if (!response.ok) {
+                setAvailabilityNote(targetId, 'busy', 'Нет данных');
+                return;
+            }
+            const payload = await response.json();
+            setAvailabilityNote(targetId, payload.status, payload.message);
+        } catch (error) {
+            setAvailabilityNote(targetId, 'busy', 'Нет данных');
+        }
+    };
+
+    const debouncedRoomCheck = debounce(requestAvailability, 400);
+
+    const bindAvailabilityListeners = () => {
+        modal.querySelectorAll('.availability-check').forEach(field => {
+            if (field.dataset.type === 'room') {
+                field.addEventListener('input', () => debouncedRoomCheck(field));
+                field.addEventListener('blur', () => requestAvailability(field));
+            } else {
+                field.addEventListener('change', () => requestAvailability(field));
+            }
+        });
+    };
+
+    const refreshAvailability = () => {
+        modal.querySelectorAll('.availability-check').forEach(field => {
+            requestAvailability(field);
+        });
+    };
+
+    bindAvailabilityListeners();
 
     toggleSub2.addEventListener('change', () => {
         sub2CardNum.classList.toggle('d-none', !toggleSub2.checked);
@@ -786,6 +997,18 @@
 
         input.addEventListener('input', () => {
             const term = input.value.toLowerCase();
+            if (select.dataset.role === 'teacher') {
+                let allowedValues = null;
+                if (select.dataset.allowedValues) {
+                    try {
+                        allowedValues = JSON.parse(select.dataset.allowedValues);
+                    } catch (err) {
+                        allowedValues = null;
+                    }
+                }
+                rebuildTeacherOptions(select, allowedValues, term);
+                return;
+            }
             Array.from(select.options).forEach(option => {
                 if (!option.value) {
                     option.hidden = false;
@@ -1020,6 +1243,17 @@
     font-weight: 600;
     margin-bottom: 8px;
 }
+.availability-note {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #64748b;
+}
+.availability-note.is-free {
+    color: #15803d;
+}
+.availability-note.is-busy {
+    color: #b91c1c;
+}
 .form-grid.compact {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
@@ -1120,16 +1354,18 @@
                         <div>
                             <label class="form-label">Преподаватель</label>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher1">
-                            <select class="form-select" name="teacher_id" id="modalTeacher1">
+                            <select class="form-select availability-check" name="teacher_id" id="modalTeacher1" data-type="teacher" data-mode="numerator">
                                 <option value="">—</option>
                                 @foreach($teachers as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
                                 @endforeach
                             </select>
+                            <div class="availability-note" data-status-for="modalTeacher1"></div>
                         </div>
                         <div>
                             <label class="form-label">Кабинет</label>
-                            <input type="text" class="form-control" name="room_id" id="modalRoom1" placeholder="101">
+                            <input type="text" class="form-control availability-check" name="room_id" id="modalRoom1" placeholder="101" data-type="room" data-mode="numerator">
+                            <div class="availability-note" data-status-for="modalRoom1"></div>
                         </div>
                     </div>
                     <div class="mt-2">
@@ -1142,12 +1378,13 @@
                         <div id="replacementBlock1" class="replacement-card flex-grow-1 d-none">
                             <label class="form-label">Заменяющий (подгр. 1)</label>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск заменяющего преподавателя" data-target="modalReplacementTeacher1">
-                            <select class="form-select mb-2" name="replacement_teacher_id_1" id="modalReplacementTeacher1">
+                            <select class="form-select mb-2 availability-check" name="replacement_teacher_id_1" id="modalReplacementTeacher1" data-type="teacher" data-mode="numerator">
                                 <option value="">— преподаватель</option>
                                 @foreach($teachers as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
                                 @endforeach
                             </select>
+                            <div class="availability-note" data-status-for="modalReplacementTeacher1"></div>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета замены" data-target="modalReplacementSubject1">
                             <select class="form-select mb-2" name="replacement_subject_id_1" id="modalReplacementSubject1">
                                 <option value="">— предмет</option>
@@ -1176,16 +1413,18 @@
                         <div>
                             <label class="form-label">Преподаватель</label>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher2">
-                            <select class="form-select" name="teacher_id_2" id="modalTeacher2">
+                            <select class="form-select availability-check" name="teacher_id_2" id="modalTeacher2" data-type="teacher" data-mode="numerator">
                                 <option value="">—</option>
                                 @foreach($teachers as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
                                 @endforeach
                             </select>
+                            <div class="availability-note" data-status-for="modalTeacher2"></div>
                         </div>
                         <div>
                             <label class="form-label">Кабинет</label>
-                            <input type="text" class="form-control" name="room_id_2" id="modalRoom2" placeholder="102">
+                            <input type="text" class="form-control availability-check" name="room_id_2" id="modalRoom2" placeholder="102" data-type="room" data-mode="numerator">
+                            <div class="availability-note" data-status-for="modalRoom2"></div>
                         </div>
                     </div>
                     <input type="hidden" name="is_absent_2" id="modalAbsent2Hidden" value="0">
@@ -1197,12 +1436,13 @@
                     <div id="replacementBlock2" class="replacement-card flex-grow-1 d-none">
                         <label class="form-label">Заменяющий (подгр. 2)</label>
                         <input type="search" class="form-control mb-2 search-field" placeholder="Поиск заменяющего преподавателя" data-target="modalReplacementTeacher2">
-                        <select class="form-select mb-2" name="replacement_teacher_id_2" id="modalReplacementTeacher2">
+                        <select class="form-select mb-2 availability-check" name="replacement_teacher_id_2" id="modalReplacementTeacher2" data-type="teacher" data-mode="numerator">
                             <option value="">— преподаватель</option>
                             @foreach($teachers as $id => $title)
                                 <option value="{{ $id }}">{{ $title }}</option>
                             @endforeach
                         </select>
+                        <div class="availability-note" data-status-for="modalReplacementTeacher2"></div>
                         <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета замены" data-target="modalReplacementSubject2">
                         <select class="form-select mb-2" name="replacement_subject_id_2" id="modalReplacementSubject2">
                             <option value="">— предмет</option>
@@ -1237,16 +1477,18 @@
                         <div>
                             <label class="form-label">Преподаватель</label>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher1Den">
-                            <select class="form-select" name="den_teacher_id" id="modalTeacher1Den">
+                            <select class="form-select availability-check" name="den_teacher_id" id="modalTeacher1Den" data-type="teacher" data-mode="denominator">
                                 <option value="">—</option>
                                 @foreach($teachers as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
                                 @endforeach
                             </select>
+                            <div class="availability-note" data-status-for="modalTeacher1Den"></div>
                         </div>
                         <div>
                             <label class="form-label">Кабинет</label>
-                            <input type="text" class="form-control" name="den_room_id" id="modalRoom1Den" placeholder="101">
+                            <input type="text" class="form-control availability-check" name="den_room_id" id="modalRoom1Den" placeholder="101" data-type="room" data-mode="denominator">
+                            <div class="availability-note" data-status-for="modalRoom1Den"></div>
                         </div>
                     </div>
                     <div class="mt-2">
@@ -1257,12 +1499,13 @@
                         <div id="replacementBlock1Den" class="replacement-card flex-grow-1 d-none">
                             <label class="form-label">Заменяющий (подгр. 1, знаменатель)</label>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск заменяющего преподавателя" data-target="modalReplacementTeacher1Den">
-                            <select class="form-select mb-2" name="replacement_teacher_id_1_den" id="modalReplacementTeacher1Den">
+                            <select class="form-select mb-2 availability-check" name="replacement_teacher_id_1_den" id="modalReplacementTeacher1Den" data-type="teacher" data-mode="denominator">
                                 <option value="">— преподаватель</option>
                                 @foreach($teachers as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
                                 @endforeach
                             </select>
+                            <div class="availability-note" data-status-for="modalReplacementTeacher1Den"></div>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета замены" data-target="modalReplacementSubject1Den">
                             <select class="form-select mb-2" name="replacement_subject_id_1_den" id="modalReplacementSubject1Den">
                                 <option value="">— предмет</option>
@@ -1290,16 +1533,18 @@
                         <div>
                             <label class="form-label">Преподаватель</label>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher2Den">
-                            <select class="form-select" name="den_teacher_id_2" id="modalTeacher2Den">
+                            <select class="form-select availability-check" name="den_teacher_id_2" id="modalTeacher2Den" data-type="teacher" data-mode="denominator">
                                 <option value="">—</option>
                                 @foreach($teachers as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
                                 @endforeach
                             </select>
+                            <div class="availability-note" data-status-for="modalTeacher2Den"></div>
                         </div>
                         <div>
                             <label class="form-label">Кабинет</label>
-                            <input type="text" class="form-control" name="den_room_id_2" id="modalRoom2Den" placeholder="102">
+                            <input type="text" class="form-control availability-check" name="den_room_id_2" id="modalRoom2Den" placeholder="102" data-type="room" data-mode="denominator">
+                            <div class="availability-note" data-status-for="modalRoom2Den"></div>
                         </div>
                     </div>
                     <div class="mt-2">
@@ -1310,12 +1555,13 @@
                         <div id="replacementBlock2Den" class="replacement-card flex-grow-1 d-none">
                             <label class="form-label">Заменяющий (подгр. 2, знаменатель)</label>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск заменяющего преподавателя" data-target="modalReplacementTeacher2Den">
-                            <select class="form-select mb-2" name="replacement_teacher_id_2_den" id="modalReplacementTeacher2Den">
+                            <select class="form-select mb-2 availability-check" name="replacement_teacher_id_2_den" id="modalReplacementTeacher2Den" data-type="teacher" data-mode="denominator">
                                 <option value="">— преподаватель</option>
                                 @foreach($teachers as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
                                 @endforeach
                             </select>
+                            <div class="availability-note" data-status-for="modalReplacementTeacher2Den"></div>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск предмета замены" data-target="modalReplacementSubject2Den">
                             <select class="form-select mb-2" name="replacement_subject_id_2_den" id="modalReplacementSubject2Den">
                                 <option value="">— предмет</option>

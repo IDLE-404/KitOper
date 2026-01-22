@@ -148,7 +148,8 @@ class FormTwoService
             $useKazakh,
             $ruOrder,
             $kzOrder,
-            $kzOrderWithGlobal
+            $kzOrderWithGlobal,
+            $course
         )
             ?? ($useKazakh ? $kzOrder : $ruOrder);
 
@@ -1020,24 +1021,43 @@ class FormTwoService
     protected function sortRows(array $rows, array $preferredOrder): array
     {
         $rows = array_values($rows);
-        usort($rows, function (array $a, array $b) use ($preferredOrder) {
+        $orderNormalized = [];
+        foreach ($preferredOrder as $idx => $name) {
+            $orderNormalized[$this->normalizeOrderName($name)] = $idx;
+        }
+
+        usort($rows, function (array $a, array $b) use ($preferredOrder, $orderNormalized) {
             $posA = array_search($a['subject_name'], $preferredOrder, true);
             $posB = array_search($b['subject_name'], $preferredOrder, true);
-            $posA = $posA === false ? PHP_INT_MAX : $posA;
-            $posB = $posB === false ? PHP_INT_MAX : $posB;
+            if ($posA === false) {
+                $posA = $orderNormalized[$this->normalizeOrderName($a['subject_name'] ?? '')] ?? PHP_INT_MAX;
+            }
+            if ($posB === false) {
+                $posB = $orderNormalized[$this->normalizeOrderName($b['subject_name'] ?? '')] ?? PHP_INT_MAX;
+            }
 
             if ($posA !== $posB) {
                 return $posA <=> $posB;
             }
 
-            if ($a['subject_name'] !== $b['subject_name']) {
-                return $a['subject_name'] <=> $b['subject_name'];
+            if (($a['subject_name'] ?? '') !== ($b['subject_name'] ?? '')) {
+                return ($a['subject_name'] ?? '') <=> ($b['subject_name'] ?? '');
             }
 
             return ($a['teacher_name'] ?? '') <=> ($b['teacher_name'] ?? '');
         });
 
         return $rows;
+    }
+
+    protected function normalizeOrderName(string $value): string
+    {
+        $value = trim($value);
+        $value = preg_replace('/\\s+/u', ' ', $value);
+        $value = preg_replace('/^(?:ООМ|ПМ|БМ|РО|PO)\\s*\\d+(?:\\.\\d+)?\\s+/iu', '', $value);
+        $value = rtrim($value, '. ');
+        $value = str_replace(['ё', 'Ё'], ['е', 'Е'], $value);
+        return mb_strtolower($value);
     }
 
     protected function filterRowsByActivity(array $rows, array $days): array
@@ -1091,8 +1111,13 @@ class FormTwoService
                     $nullRow = $subjectRows[$nullIndex];
                     $target['total_hours'] = max((int) ($target['total_hours'] ?? 0), (int) ($nullRow['total_hours'] ?? 0));
                     $target['hours_per_class'] = $target['hours_per_class'] ?? $nullRow['hours_per_class'] ?? 2;
-                    $target['hours_left_start'] = max((int) ($target['hours_left_start'] ?? 0), (int) ($nullRow['hours_left_start'] ?? 0));
-                    $target['hours_left'] = max((int) ($target['hours_left'] ?? 0), (int) ($nullRow['hours_left'] ?? 0));
+                    $target['hours_left_start'] = max(
+                        (int) ($target['hours_left_start'] ?? 0),
+                        (int) ($nullRow['hours_left_start'] ?? 0)
+                    );
+                    $used = (int) ($target['used_hours_total'] ?? 0);
+                    $bonus = (int) ($target['bonus_hours_total'] ?? 0);
+                    $target['hours_left'] = max(0, (int) $target['hours_left_start'] - ($used - $bonus));
                     $subjectRows[$targetIndex] = $target;
                 }
                 unset($subjectRows[$nullIndex]);
@@ -1176,7 +1201,8 @@ class FormTwoService
         bool $useKazakh,
         array $ruOrder,
         array $kzOrder,
-        array $kzOrderWithGlobal
+        array $kzOrderWithGlobal,
+        int $course
     ): ?array
     {
         $name = trim($groupName);
@@ -1192,6 +1218,14 @@ class FormTwoService
 
         $special15 = ['М', 'СИБ', 'АҚЖ'];
         $special16 = ['ПО', 'БҚЕ', 'ТЭ'];
+
+        if ($course === 2 && !$useKazakh) {
+            foreach ($tokens as $token) {
+                if ($this->tokenMatchesPrefix($token, ['СИБ'])) {
+                    return $this->sibCourse2Order();
+                }
+            }
+        }
 
         if ($useKazakh) {
             $order15 = $kzOrder;
@@ -1228,5 +1262,25 @@ class FormTwoService
         }
 
         return false;
+    }
+
+    protected function sibCourse2Order(): array
+    {
+        return [
+            'Укреплять здоровье и соблюдать принципы здорового образа жизни.',
+            'Владеть основами информационно-коммуникационных технологий.',
+            'Использовать услуги информационно-справочных и интерактивных веб-порталов.',
+            'Владеть основными вопросами в области экономической теории.',
+            'Анализировать и оценивать экономические процессы, происходящие на предприятии.',
+            'Производить монтаж сетевого и серверного оборудования, систем видеонабледния и систем контроля управления данными.',
+            'Конфигурировать сетевые сервисы и сетевое оборудование.',
+            'Обеспечивать информационную безопасность.',
+            'Интегрировать облачную инфраструктуры с сервисами предприятия.',
+            'Автоматизировать задачи обслуживания информационных систем.',
+            'Разрабатывать скрипты для автоматизации задач администрирования.',
+            'Администрировать базы данных.',
+            'Администрировать Web-ресурсы.',
+            'Создавать системные приложения.',
+        ];
     }
 }

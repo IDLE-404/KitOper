@@ -152,6 +152,10 @@
     .availability-note.is-busy {
         color: #b91c1c;
     }
+    .conflict-highlight td {
+        background: #fef2f2 !important;
+        box-shadow: inset 0 0 0 1px #fecaca;
+    }
 </style>
 @endpush
 
@@ -775,41 +779,117 @@
         return params;
     };
 
-    const requestAvailability = async (field) => {
+    const fetchAvailability = async (field) => {
         const params = buildAvailabilityParams(field);
         if (!params) {
-            return;
+            return null;
         }
         const targetId = field.id;
         if (!targetId) {
-            return;
+            return null;
         }
         if (!field.value) {
-            setAvailabilityNote(targetId, '', '');
-            return;
+            return null;
         }
         try {
             const response = await fetch(`${availabilityUrl}?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
             if (!response.ok) {
-                setAvailabilityNote(targetId, 'busy', 'Нет данных');
-                return;
+                return { status: 'busy', message: 'Нет данных' };
             }
-            const payload = await response.json();
-            setAvailabilityNote(targetId, payload.status, payload.message);
+            return await response.json();
         } catch (error) {
-            setAvailabilityNote(targetId, 'busy', 'Нет данных');
+            return { status: 'busy', message: 'Нет данных' };
         }
+    };
+
+    const requestAvailability = async (field) => {
+        const targetId = field.id;
+        if (!targetId) {
+            return null;
+        }
+        if (!field.value) {
+            setAvailabilityNote(targetId, '', '');
+            return null;
+        }
+        const payload = await fetchAvailability(field);
+        if (!payload) {
+            setAvailabilityNote(targetId, '', '');
+            return null;
+        }
+        setAvailabilityNote(targetId, payload.status, payload.message);
+        return payload;
     };
 
     const debouncedRoomCheck = debounce(requestAvailability, 400);
 
+    const clearConflictForField = (field) => {
+        const day = field.dataset.day;
+        const pair = field.dataset.pair;
+        if (!day || !pair) {
+            return;
+        }
+        document
+            .querySelectorAll(`tr.pair-row[data-day="${day}"][data-pair="${pair}"], tr.subgroup-row[data-day="${day}"][data-pair="${pair}"]`)
+            .forEach(row => row.classList.remove('conflict-highlight'));
+    };
+
     document.querySelectorAll('.availability-check').forEach(field => {
         if (field.dataset.type === 'room') {
-            field.addEventListener('input', () => debouncedRoomCheck(field));
+            field.addEventListener('input', () => {
+                clearConflictForField(field);
+                debouncedRoomCheck(field);
+            });
             field.addEventListener('blur', () => requestAvailability(field));
         } else {
-            field.addEventListener('change', () => requestAvailability(field));
+            field.addEventListener('change', () => {
+                clearConflictForField(field);
+                requestAvailability(field);
+            });
         }
+    });
+
+    const weekForm = document.getElementById('weekForm');
+    weekForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const fields = Array.from(document.querySelectorAll('.availability-check'))
+            .filter(field => !field.disabled && !!field.value);
+
+        if (fields.length === 0) {
+            weekForm.submit();
+            return;
+        }
+
+        const results = await Promise.all(fields.map(async (field) => ({
+            field,
+            payload: await requestAvailability(field),
+        })));
+
+        let firstConflict = null;
+        results.forEach(({ field, payload }) => {
+            if (!payload || payload.status !== 'busy') {
+                return;
+            }
+            const day = field.dataset.day;
+            const pair = field.dataset.pair;
+            if (!day || !pair) {
+                return;
+            }
+            const rows = document.querySelectorAll(
+                `tr.pair-row[data-day="${day}"][data-pair="${pair}"], tr.subgroup-row[data-day="${day}"][data-pair="${pair}"]`
+            );
+            rows.forEach(row => row.classList.add('conflict-highlight'));
+            if (!firstConflict) {
+                firstConflict = rows[0] || null;
+            }
+        });
+
+        if (firstConflict) {
+            firstConflict.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
+        weekForm.submit();
     });
 </script>
 @endpush

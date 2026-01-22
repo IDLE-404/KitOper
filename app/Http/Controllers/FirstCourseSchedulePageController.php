@@ -92,6 +92,21 @@ class FirstCourseSchedulePageController extends Controller
         $teacherDisplay = DB::table($tables['teachers'])
             ->select('id', DB::raw('COALESCE(initials, teacher_name) as display_name'))
             ->pluck('display_name', 'id');
+        $teacherSubjectMap = [];
+        $teacherSubjectTable = $tables['teacher_subjects'] ?? null;
+        if ($teacherSubjectTable && Schema::hasTable($teacherSubjectTable)) {
+            $pairs = DB::table($teacherSubjectTable)
+                ->select('subject_id', 'teacher_id')
+                ->get();
+            foreach ($pairs as $pair) {
+                $subjectId = (int) $pair->subject_id;
+                $teacherId = (int) $pair->teacher_id;
+                $teacherSubjectMap[$subjectId][] = $teacherId;
+            }
+            foreach ($teacherSubjectMap as $subjectId => $teacherIds) {
+                $teacherSubjectMap[$subjectId] = array_values(array_unique($teacherIds));
+            }
+        }
 
         $groupsQuery = DB::table($tables['groups'])->select('id', 'group_name');
         if (Schema::hasColumn($tables['groups'], 'group_type')) {
@@ -432,6 +447,7 @@ class FirstCourseSchedulePageController extends Controller
             'holidayWeekDates' => $holidayWeekDates ?? [],
             'practiceMap' => $practiceMap,
             'groupLocalePreference' => $groupLocalePreference,
+            'teacherSubjectMap' => $teacherSubjectMap,
         ]);
     }
 

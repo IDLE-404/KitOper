@@ -49,10 +49,10 @@ class TeacherWorkloadController extends Controller
             }
 
             $subjects = DB::table($tables['subjects'])
-                ->select('id', 'subject_name', 'name_ru', 'module_title')
+                ->select('id', 'subject_name', 'name_ru', 'name_kz', 'module_title')
                 ->get()
                 ->mapWithKeys(function ($row) {
-                    $title = $row->name_ru ?: $row->subject_name;
+                    $title = $row->name_ru ?: ($row->name_kz ?: $row->subject_name);
                     return [$row->id => ['title' => $title, 'module' => $row->module_title]];
                 })
                 ->all();
@@ -97,6 +97,7 @@ class TeacherWorkloadController extends Controller
                         'group' => $groupName,
                         'group_id' => (int) ($row->group_id ?? 0),
                         'course' => $course,
+                        'subgroup' => $subgroup,
                     ];
                 }
             }

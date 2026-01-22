@@ -22,6 +22,7 @@ Route::delete('/holidays/{holiday}', [HolidayController::class, 'destroy'])->nam
 Route::prefix('first-course')->group(function () {
     Route::get('/schedule', [FirstCourseSchedulePageController::class, 'index'])->name('first.schedule.index');
     Route::get('/schedule/week', [FirstCourseSchedulePageController::class, 'week'])->name('first.schedule.week');
+    Route::get('/schedule/availability', [FirstCourseSchedulePageController::class, 'availability'])->name('first.schedule.availability');
     Route::post('/schedule/week', [FirstCourseSchedulePageController::class, 'weekSave'])->name('first.schedule.week.save');
     Route::post('/schedule/expand-semester', [FirstCourseSchedulePageController::class, 'expandSemester'])->name('first.schedule.semester.expand');
     Route::post('/schedule/update-pair', [FirstCourseSchedulePageController::class, 'updatePair'])->name('first.schedule.pair.update');

@@ -821,6 +821,166 @@ class FirstCourseSchedulePageController extends Controller
     }
 
     /**
+     * Проверка занятости преподавателей и кабинетов в реальном времени.
+     */
+    public function availability(Request $request)
+    {
+        $data = $request->validate([
+            'week_start' => 'required|date',
+            'day_key' => 'required|string',
+            'lesson_number' => 'required|integer|min:1|max:7',
+            'mode' => 'nullable|in:numerator,denominator',
+            'type' => 'required|in:teacher,room',
+            'teacher_id' => 'nullable|integer',
+            'room' => 'nullable|string',
+            'course' => 'nullable|integer|min:1|max:4',
+        ]);
+
+        $dayMap = [
+            'mon' => 'Понедельник',
+            'tue' => 'Вторник',
+            'wed' => 'Среда',
+            'thu' => 'Четверг',
+            'fri' => 'Пятница',
+        ];
+
+        $course = CourseContext::normalize($data['course'] ?? 1);
+        $tables = CourseContext::tables($course);
+        $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
+        $dayKey = $data['day_key'] ?? '';
+        $studyDay = $dayMap[$dayKey] ?? $dayKey;
+        $lessonNumber = (int) $data['lesson_number'];
+        $mode = ($data['mode'] ?? 'numerator') === 'denominator' ? 'denominator' : 'numerator';
+
+        if ($data['type'] === 'room') {
+            $room = $this->normalizeRoomString($data['room'] ?? null);
+            if (!$room) {
+                return response()->json(['status' => '', 'message' => '']);
+            }
+
+            $conflict = $this->roomBusyInTable(
+                $room,
+                $mode,
+                $studyDay,
+                $lessonNumber,
+                $weekStart,
+                $tables['schedules'],
+                null,
+                $tables['groups'] ?? null
+            );
+
+            if (!$conflict) {
+                foreach ([1, 2, 3, 4] as $courseCheck) {
+                    if ($courseCheck === $course) {
+                        continue;
+                    }
+                    $courseTables = CourseContext::tables($courseCheck);
+                    $scheduleTable = $courseTables['schedules'] ?? null;
+                    if (!$scheduleTable || !Schema::hasTable($scheduleTable)) {
+                        continue;
+                    }
+                    $conflict = $this->roomBusyInTable(
+                        $room,
+                        $mode,
+                        $studyDay,
+                        $lessonNumber,
+                        $weekStart,
+                        $scheduleTable,
+                        null,
+                        $courseTables['groups'] ?? null
+                    );
+                    if ($conflict) {
+                        $groupName = $conflict['group_name'] ?? 'другой группы';
+                        $label = $this->formatCourseGroupLabel($courseCheck, $groupName);
+                        return response()->json([
+                            'status' => 'busy',
+                            'message' => 'Кабинет занят у ' . $label,
+                        ]);
+                    }
+                }
+            }
+
+            if ($conflict) {
+                $groupName = $conflict['group_name'] ?? 'другой группы';
+                return response()->json([
+                    'status' => 'busy',
+                    'message' => 'Кабинет занят у группы ' . $groupName,
+                ]);
+            }
+
+            return response()->json(['status' => 'free', 'message' => 'Свободно']);
+        }
+
+        $teacherId = (int) ($data['teacher_id'] ?? 0);
+        if (!$teacherId) {
+            return response()->json(['status' => '', 'message' => '']);
+        }
+
+        $conflict = $this->teacherBusyInTable(
+            $teacherId,
+            $mode,
+            $studyDay,
+            $lessonNumber,
+            $weekStart,
+            $tables['schedules'],
+            $tables['groups'] ?? null
+        );
+
+        if ($conflict) {
+            $subjectTitles = $this->subjectTitlesByIds([$conflict['subject_id'] ?? null], $tables['subjects'] ?? null);
+            $subjectTitle = $this->subjectTitleFromMap($conflict['subject_id'] ?? null, $subjectTitles);
+            $groupName = $conflict['group_name'] ?? 'другой группы';
+            $subgroupLabel = $conflict['subgroup_label'] ?? 'без подгруппы';
+            return response()->json([
+                'status' => 'busy',
+                'message' => sprintf('Преподаватель занят у группы %s (%s, %s)', $groupName, $subgroupLabel, $subjectTitle),
+            ]);
+        }
+
+        $teacherNames = $this->teacherNamesByIds([$teacherId], $tables['teachers'] ?? null);
+        $normalizedNames = $this->normalizeNames($teacherNames);
+        if (!empty($normalizedNames)) {
+            foreach ([1, 2, 3, 4] as $courseCheck) {
+                if ($courseCheck === $course) {
+                    continue;
+                }
+                $courseTables = CourseContext::tables($courseCheck);
+                if (!Schema::hasTable($courseTables['schedules']) || !Schema::hasTable($courseTables['teachers'])) {
+                    continue;
+                }
+                $matchingTeacherIds = $this->teacherIdsByNames($courseTables['teachers'], $normalizedNames);
+                if (empty($matchingTeacherIds)) {
+                    continue;
+                }
+                foreach ($matchingTeacherIds as $matchingId) {
+                    $conflict = $this->teacherBusyInTable(
+                        (int) $matchingId,
+                        $mode,
+                        $studyDay,
+                        $lessonNumber,
+                        $weekStart,
+                        $courseTables['schedules'],
+                        $courseTables['groups'] ?? null
+                    );
+                    if ($conflict) {
+                        $subjectTitles = $this->subjectTitlesByIds([$conflict['subject_id'] ?? null], $courseTables['subjects'] ?? null);
+                        $subjectTitle = $this->subjectTitleFromMap($conflict['subject_id'] ?? null, $subjectTitles);
+                        $groupName = $conflict['group_name'] ?? 'другой группы';
+                        $label = $this->formatCourseGroupLabel($courseCheck, $groupName);
+                        $subgroupLabel = $conflict['subgroup_label'] ?? 'без подгруппы';
+                        return response()->json([
+                            'status' => 'busy',
+                            'message' => sprintf('Преподаватель занят: %s (%s, %s)', $label, $subgroupLabel, $subjectTitle),
+                        ]);
+                    }
+                }
+            }
+        }
+
+        return response()->json(['status' => 'free', 'message' => 'Свободно']);
+    }
+
+    /**
      * Развернуть расписание одной недели на весь семестр.
      */
     public function expandSemester(Request $request, SemesterScheduleService $semesterService)
@@ -1848,6 +2008,69 @@ class FirstCourseSchedulePageController extends Controller
                         'mode' => $mode,
                         'study_day' => $studyDay,
                         'lesson_number' => $lessonNumber,
+                    ];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    protected function teacherBusyInTable(
+        int $teacherId,
+        string $mode,
+        string $studyDay,
+        int $lessonNumber,
+        ?Carbon $weekStart,
+        string $table,
+        ?string $groupTable = null
+    ): ?array {
+        if (!Schema::hasTable($table)) {
+            return null;
+        }
+
+        $rows = DB::table($table)
+            ->where('study_day', $studyDay)
+            ->where('lesson_number', $lessonNumber)
+            ->when($weekStart, fn ($q) => $q->whereDate('week_start', $weekStart->toDateString()))
+            ->get();
+
+        foreach ($rows as $row) {
+            $hasDenominator = ($row->subject_id_denominator ?? null)
+                || ($row->teacher_id_denominator ?? null)
+                || ($row->room_id_denominator ?? null)
+                || ($row->subject_id_denominator_2 ?? null)
+                || ($row->teacher_id_denominator_2 ?? null)
+                || ($row->room_id_denominator_2 ?? null);
+
+            $modes = $hasDenominator ? ['numerator'] : ['numerator', 'denominator'];
+            $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? '2' : '1';
+
+            $teacherNum1 = $subgroupFlag === '1' ? ($row->teacher_id ?? null) : null;
+            $teacherNum2 = ($row->teacher_id_2 ?? null) ?: ($subgroupFlag === '2' ? ($row->teacher_id ?? null) : null);
+            $teacherDen1 = $subgroupFlag === '1' ? ($row->teacher_id_denominator ?? null) : null;
+            $teacherDen2 = ($row->teacher_id_denominator_2 ?? null) ?: ($subgroupFlag === '2' ? ($row->teacher_id_denominator ?? null) : null);
+
+            $rowSlots = [];
+            foreach ($modes as $m) {
+                $rowSlots[] = ['teacher' => $teacherNum1, 'mode' => $m];
+                $rowSlots[] = ['teacher' => $teacherNum2, 'mode' => $m];
+            }
+            $rowSlots[] = ['teacher' => $teacherDen1, 'mode' => 'denominator'];
+            $rowSlots[] = ['teacher' => $teacherDen2, 'mode' => 'denominator'];
+
+            foreach ($rowSlots as $rowSlot) {
+                $rowTeacher = (int) ($rowSlot['teacher'] ?? 0);
+                if (!$rowTeacher) {
+                    continue;
+                }
+                if ($rowTeacher === $teacherId && $rowSlot['mode'] === $mode) {
+                    $groupId = (int) ($row->group_id ?? 0);
+                    return [
+                        'group_id' => $groupId,
+                        'group_name' => $this->groupNameById($groupId, $groupTable),
+                        'subject_id' => $this->resolveSubjectIdForTeacherRow($row, $teacherId),
+                        'subgroup_label' => $this->resolveSubgroupLabelForTeacherRow($row, $teacherId),
                     ];
                 }
             }

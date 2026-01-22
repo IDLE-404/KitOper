@@ -141,6 +141,17 @@
         font-size: 0.8rem;
         color: #7c2d12;
     }
+    .availability-note {
+        margin-top: 6px;
+        font-size: 0.75rem;
+        color: #64748b;
+    }
+    .availability-note.is-free {
+        color: #15803d;
+    }
+    .availability-note.is-busy {
+        color: #b91c1c;
+    }
 </style>
 @endpush
 
@@ -272,32 +283,36 @@
                                         <div class="mb-3">
                                             <div class="text-muted small mb-1">Числитель</div>
                                             <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-a">
-                                            <select class="select-soft filterable" id="teach-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id]">
+                                            <select class="select-soft filterable availability-check" id="teach-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id]" data-type="teacher" data-mode="numerator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
                                                 <option value="">Выберите преподавателя</option>
                                                 @foreach($teachers as $t)
                                                     <option value="{{ $t->id }}" @selected($rowA && $rowA->teacher_id == $t->id)>{{ $t->teacher_name }}</option>
                                                 @endforeach
                                             </select>
+                                            <div class="availability-note" data-status-for="teach-{{ $dayKey }}-{{ $pair }}-a"></div>
                                         </div>
                                         <div>
                                             <div class="text-muted small mb-1">Знаменатель</div>
                                             <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-a-den">
-                                            <select class="select-soft filterable" id="teach-{{ $dayKey }}-{{ $pair }}-a-den" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_denominator]">
+                                            <select class="select-soft filterable availability-check" id="teach-{{ $dayKey }}-{{ $pair }}-a-den" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_denominator]" data-type="teacher" data-mode="denominator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
                                                 <option value="">Можно выбрать другого преподавателя</option>
                                                 @foreach($teachers as $t)
                                                     <option value="{{ $t->id }}" @selected($rowA && ($rowA->teacher_id_denominator ?? null) == $t->id)>{{ $t->teacher_name }}</option>
                                                 @endforeach
                                             </select>
+                                            <div class="availability-note" data-status-for="teach-{{ $dayKey }}-{{ $pair }}-a-den"></div>
                                         </div>
                                     </td>
                                     <td>
                                         <div class="mb-3">
                                             <div class="text-muted small mb-1">Числитель</div>
-                                            <input type="text" class="input-soft" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id]" value="{{ $rowA->room_id ?? '' }}" placeholder="Каб. 301">
+                                            <input type="text" class="input-soft availability-check" id="room-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id]" value="{{ $rowA->room_id ?? '' }}" placeholder="Каб. 301" data-type="room" data-mode="numerator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                            <div class="availability-note" data-status-for="room-{{ $dayKey }}-{{ $pair }}-a"></div>
                                         </div>
                                         <div>
                                             <div class="text-muted small mb-1">Знаменатель</div>
-                                            <input type="text" class="input-soft" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_denominator]" value="{{ $rowA->room_id_denominator ?? '' }}" placeholder="Если аудитория меняется">
+                                            <input type="text" class="input-soft availability-check" id="room-{{ $dayKey }}-{{ $pair }}-a-den" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_denominator]" value="{{ $rowA->room_id_denominator ?? '' }}" placeholder="Если аудитория меняется" data-type="room" data-mode="denominator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                            <div class="availability-note" data-status-for="room-{{ $dayKey }}-{{ $pair }}-a-den"></div>
                                         </div>
                                     </td>
                                     <td>
@@ -339,32 +354,36 @@
                                         <div class="mb-3">
                                             <div class="text-muted small mb-1">Числитель</div>
                                             <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-b">
-                                            <select class="select-soft filterable" id="teach-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_second]">
+                                            <select class="select-soft filterable availability-check" id="teach-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_second]" data-type="teacher" data-mode="numerator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
                                                 <option value="">Преподаватель 2 (опционально)</option>
                                                 @foreach($teachers as $t)
                                                     <option value="{{ $t->id }}" @selected($rowB && $rowB->teacher_id == $t->id)>{{ $t->teacher_name }}</option>
                                                 @endforeach
                                             </select>
+                                            <div class="availability-note" data-status-for="teach-{{ $dayKey }}-{{ $pair }}-b"></div>
                                         </div>
                                         <div>
                                             <div class="text-muted small mb-1">Знаменатель</div>
                                             <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-b-den">
-                                            <select class="select-soft filterable" id="teach-{{ $dayKey }}-{{ $pair }}-b-den" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_second_denominator]">
+                                            <select class="select-soft filterable availability-check" id="teach-{{ $dayKey }}-{{ $pair }}-b-den" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_second_denominator]" data-type="teacher" data-mode="denominator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
                                                 <option value="">Можно выбрать другого преподавателя</option>
                                                 @foreach($teachers as $t)
                                                     <option value="{{ $t->id }}" @selected($rowB && ($rowB->teacher_id_denominator ?? null) == $t->id)>{{ $t->teacher_name }}</option>
                                                 @endforeach
                                             </select>
+                                            <div class="availability-note" data-status-for="teach-{{ $dayKey }}-{{ $pair }}-b-den"></div>
                                         </div>
                                     </td>
                                     <td>
                                         <div class="mb-3">
                                             <div class="text-muted small mb-1">Числитель</div>
-                                            <input type="text" class="input-soft" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_second]" value="{{ $rowB->room_id ?? '' }}" placeholder="Каб. 302">
+                                            <input type="text" class="input-soft availability-check" id="room-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_second]" value="{{ $rowB->room_id ?? '' }}" placeholder="Каб. 302" data-type="room" data-mode="numerator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                            <div class="availability-note" data-status-for="room-{{ $dayKey }}-{{ $pair }}-b"></div>
                                         </div>
                                         <div>
                                             <div class="text-muted small mb-1">Знаменатель</div>
-                                            <input type="text" class="input-soft" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_second_denominator]" value="{{ $rowB->room_id_denominator ?? '' }}" placeholder="Если аудитория меняется">
+                                            <input type="text" class="input-soft availability-check" id="room-{{ $dayKey }}-{{ $pair }}-b-den" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_second_denominator]" value="{{ $rowB->room_id_denominator ?? '' }}" placeholder="Если аудитория меняется" data-type="room" data-mode="denominator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                            <div class="availability-note" data-status-for="room-{{ $dayKey }}-{{ $pair }}-b-den"></div>
                                         </div>
                                     </td>
                                     <td class="text-muted">Подгруппа 2</td>
@@ -699,5 +718,98 @@
             applyWeekStart(isoDate);
         });
     }
+
+    const availabilityUrl = @json(route('first.schedule.availability'));
+    const availabilityNotes = new Map();
+
+    document.querySelectorAll('.availability-note[data-status-for]').forEach(note => {
+        availabilityNotes.set(note.dataset.statusFor, note);
+    });
+
+    const setAvailabilityNote = (targetId, status, message) => {
+        const note = availabilityNotes.get(targetId);
+        if (!note) {
+            return;
+        }
+        note.textContent = message || '';
+        note.classList.remove('is-free', 'is-busy');
+        if (status === 'free') {
+            note.classList.add('is-free');
+        } else if (status === 'busy') {
+            note.classList.add('is-busy');
+        }
+    };
+
+    const debounce = (fn, wait = 350) => {
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn(...args), wait);
+        };
+    };
+
+    const buildAvailabilityParams = (field) => {
+        const weekStart = weekStartInput?.value;
+        const courseInput = document.querySelector('input[name="course"]');
+        const type = field.dataset.type;
+        const mode = field.dataset.mode;
+        const dayKey = field.dataset.day;
+        const pair = field.dataset.pair;
+        if (!weekStart || !type || !mode || !dayKey || !pair) {
+            return null;
+        }
+        const params = new URLSearchParams();
+        if (courseInput?.value) {
+            params.set('course', courseInput.value);
+        }
+        params.set('week_start', weekStart);
+        params.set('day_key', dayKey);
+        params.set('lesson_number', pair);
+        params.set('mode', mode);
+        params.set('type', type);
+        if (type === 'teacher') {
+            params.set('teacher_id', field.value || '');
+        } else if (type === 'room') {
+            params.set('room', field.value || '');
+        }
+        return params;
+    };
+
+    const requestAvailability = async (field) => {
+        const params = buildAvailabilityParams(field);
+        if (!params) {
+            return;
+        }
+        const targetId = field.id;
+        if (!targetId) {
+            return;
+        }
+        if (!field.value) {
+            setAvailabilityNote(targetId, '', '');
+            return;
+        }
+        try {
+            const response = await fetch(`${availabilityUrl}?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
+            if (!response.ok) {
+                setAvailabilityNote(targetId, 'busy', 'Нет данных');
+                return;
+            }
+            const payload = await response.json();
+            setAvailabilityNote(targetId, payload.status, payload.message);
+        } catch (error) {
+            setAvailabilityNote(targetId, 'busy', 'Нет данных');
+        }
+    };
+
+    const debouncedRoomCheck = debounce(requestAvailability, 400);
+
+    document.querySelectorAll('.availability-check').forEach(field => {
+        if (field.dataset.type === 'room') {
+            field.addEventListener('input', () => debouncedRoomCheck(field));
+            field.addEventListener('blur', () => requestAvailability(field));
+        } else {
+            field.addEventListener('change', () => requestAvailability(field));
+        }
+    });
 </script>
 @endpush

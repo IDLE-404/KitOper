@@ -172,6 +172,7 @@
                 {{ session('success') }}
             </div>
         @endif
+        <div class="alert alert-danger mb-3 d-none" id="weekConflictAlert" role="alert"></div>
 
         <form action="{{ route('first.schedule.week.save') }}" method="POST" id="weekForm">
             @csrf
@@ -755,6 +756,7 @@
     const buildAvailabilityParams = (field) => {
         const weekStart = weekStartInput?.value;
         const courseInput = document.querySelector('input[name="course"]');
+        const groupInput = document.getElementById('groupSelect');
         const type = field.dataset.type;
         const mode = field.dataset.mode;
         const dayKey = field.dataset.day;
@@ -765,6 +767,9 @@
         const params = new URLSearchParams();
         if (courseInput?.value) {
             params.set('course', courseInput.value);
+        }
+        if (groupInput?.value) {
+            params.set('group_id', groupInput.value);
         }
         params.set('week_start', weekStart);
         params.set('day_key', dayKey);
@@ -849,8 +854,13 @@
     });
 
     const weekForm = document.getElementById('weekForm');
+    const weekConflictAlert = document.getElementById('weekConflictAlert');
     weekForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
+        if (weekConflictAlert) {
+            weekConflictAlert.textContent = '';
+            weekConflictAlert.classList.add('d-none');
+        }
 
         const fields = Array.from(document.querySelectorAll('.availability-check'))
             .filter(field => !field.disabled && !!field.value);
@@ -866,6 +876,7 @@
         })));
 
         let firstConflict = null;
+        let firstConflictMessage = '';
         results.forEach(({ field, payload }) => {
             if (!payload || payload.status !== 'busy') {
                 return;
@@ -881,11 +892,18 @@
             rows.forEach(row => row.classList.add('conflict-highlight'));
             if (!firstConflict) {
                 firstConflict = rows[0] || null;
+                firstConflictMessage = payload.message || 'Есть конфликт по занятости.';
             }
         });
 
         if (firstConflict) {
             firstConflict.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (weekConflictAlert) {
+                weekConflictAlert.textContent = firstConflictMessage;
+                weekConflictAlert.classList.remove('d-none');
+            } else if (firstConflictMessage) {
+                alert(firstConflictMessage);
+            }
             return;
         }
 

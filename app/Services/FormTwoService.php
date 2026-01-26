@@ -47,17 +47,19 @@ class FormTwoService
             $useKazakh = (bool) preg_match('/[ҚқӘәҢңӨөҰұҮүІіҺһҒғ]/u', (string) $groupName);
         }
         $hasSubgroups = (bool) ($groupRow->has_subgroups ?? false);
-        $includeModule = $course !== 1;
         $subjectNames = DB::table($tables['subjects'])
             ->select('id', 'subject_name', 'name_ru', 'name_kz', 'module_title')
             ->orderByRaw('COALESCE(name_ru, subject_name)')
             ->get()
-            ->mapWithKeys(function ($row) use ($includeModule, $useKazakh) {
+            ->mapWithKeys(function ($row) use ($course, $useKazakh) {
                 $name = $useKazakh
                     ? ($row->name_kz ?: ($row->name_ru ?: $row->subject_name))
                     : ($row->name_ru ?: ($row->name_kz ?: $row->subject_name));
-                $module = trim((string) ($row->module_title ?? ''));
-                $title = ($includeModule && $module !== '') ? trim($module . ' ' . $name) : $name;
+                if ($course !== 1) {
+                    $title = $this->formatSecondCourseTitle((string) ($row->subject_name ?? ''), $name);
+                } else {
+                    $title = $name;
+                }
                 return [$row->id => $title];
             });
 
@@ -170,12 +172,29 @@ class FormTwoService
             true
         );
         $allowedOrder = $preferredOrder;
-        $mainReport['rows'] = array_values(array_filter($mainReport['rows'], function (array $row) use ($allowedOrder): bool {
-            return in_array($row['subject_name'] ?? '', $allowedOrder, true);
+        $allowedNormalized = [];
+        foreach ($allowedOrder as $name) {
+            $key = $this->normalizeOrderName($name);
+            if ($key !== '') {
+                $allowedNormalized[$key] = true;
+            }
+        }
+        $mainReport['rows'] = array_values(array_filter($mainReport['rows'], function (array $row) use ($allowedOrder, $allowedNormalized): bool {
+            $subjectName = $row['subject_name'] ?? '';
+            if (in_array($subjectName, $allowedOrder, true)) {
+                return true;
+            }
+            $key = $this->normalizeOrderName($subjectName);
+            return $key !== '' && isset($allowedNormalized[$key]);
         }));
         $mainReport['rows'] = $this->collapseNullTeacherRows($mainReport['rows']);
-        $mainReport['replacement_rows'] = array_values(array_filter($mainReport['replacement_rows'], function (array $row) use ($allowedOrder): bool {
-            return in_array($row['subject_name'] ?? '', $allowedOrder, true);
+        $mainReport['replacement_rows'] = array_values(array_filter($mainReport['replacement_rows'], function (array $row) use ($allowedOrder, $allowedNormalized): bool {
+            $subjectName = $row['subject_name'] ?? '';
+            if (in_array($subjectName, $allowedOrder, true)) {
+                return true;
+            }
+            $key = $this->normalizeOrderName($subjectName);
+            return $key !== '' && isset($allowedNormalized[$key]);
         }));
         $mainReport['totals'] = $this->calculateTotals($mainReport['rows'], $days);
 
@@ -208,8 +227,13 @@ class FormTwoService
             );
             // В подвоении показываем только строки с активностью в текущем месяце.
             $filteredSubgroupTwoRows = $this->filterRowsByActivity($subgroupTwoReport['rows'], $days);
-            $filteredSubgroupTwoRows = array_values(array_filter($filteredSubgroupTwoRows, function (array $row) use ($allowedOrder): bool {
-                return in_array($row['subject_name'] ?? '', $allowedOrder, true);
+            $filteredSubgroupTwoRows = array_values(array_filter($filteredSubgroupTwoRows, function (array $row) use ($allowedOrder, $allowedNormalized): bool {
+                $subjectName = $row['subject_name'] ?? '';
+                if (in_array($subjectName, $allowedOrder, true)) {
+                    return true;
+                }
+                $key = $this->normalizeOrderName($subjectName);
+                return $key !== '' && isset($allowedNormalized[$key]);
             }));
             $subgroupTwoRows = $this->applyFirstCourseSubgroupTwoTemplate(
                 $filteredSubgroupTwoRows,
@@ -218,6 +242,15 @@ class FormTwoService
                 $teachers,
                 $days,
                 $useKazakh,
+                $course
+            );
+            $subgroupTwoRows = $this->applySecondCourseSubgroupTwoTemplate(
+                $subgroupTwoRows,
+                $normatives,
+                $subjectNames,
+                $teachers,
+                $days,
+                (string) ($groupRow->group_name ?? ''),
                 $course
             );
             $report['subgroup_two_rows'] = $subgroupTwoRows;
@@ -1054,10 +1087,32 @@ class FormTwoService
     {
         $value = trim($value);
         $value = preg_replace('/\\s+/u', ' ', $value);
-        $value = preg_replace('/^(?:ООМ|ПМ|БМ|РО|PO)\\s*\\d+(?:\\.\\d+)?\\s+/iu', '', $value);
+        $value = preg_replace('/^(?:ООМ|ПМ|БМ|РО|PO)\\s*\\d+(?:\\.\\d+)?\\.?\\s+/iu', '', $value);
         $value = rtrim($value, '. ');
+        $value = str_ireplace('видеонабледния', 'видеонаблюдения', $value);
         $value = str_replace(['ё', 'Ё'], ['е', 'Е'], $value);
         return mb_strtolower($value);
+    }
+
+    protected function formatSecondCourseTitle(string $subjectName, string $fallbackName): string
+    {
+        $subjectName = trim($subjectName);
+        $fallbackName = trim($fallbackName);
+        if ($subjectName === '' && $fallbackName === '') {
+            return '';
+        }
+
+        $code = null;
+        if (preg_match('/^(РО|PO)\\s*\\d+(?:\\.\\d+)?/iu', $subjectName, $matches) === 1) {
+            $code = mb_strtoupper($matches[0], 'UTF-8');
+        }
+
+        $name = $fallbackName !== '' ? $fallbackName : $subjectName;
+        if ($code === null) {
+            return $name;
+        }
+
+        return rtrim($code, '. ') . '. ' . ltrim($name, '. ');
     }
 
     protected function filterRowsByActivity(array $rows, array $days): array
@@ -1196,6 +1251,88 @@ class FormTwoService
         return $result;
     }
 
+    protected function applySecondCourseSubgroupTwoTemplate(
+        array $rows,
+        Collection $normatives,
+        Collection $subjectNames,
+        Collection $teachers,
+        array $days,
+        string $groupName,
+        int $course
+    ): array {
+        if ($course !== 2) {
+            return $rows;
+        }
+
+        $upper = mb_strtoupper(trim($groupName), 'UTF-8');
+        if ($upper === '') {
+            return $rows;
+        }
+
+        $isSib = mb_strpos($upper, 'СИБ') !== false;
+        $isAkzh = mb_strpos($upper, 'АКЖ') !== false || mb_strpos($upper, 'АҚЖ') !== false;
+        if (!$isSib && !$isAkzh) {
+            return $rows;
+        }
+
+        $desiredSubjects = $isSib
+            ? [
+                'Укреплять здоровье и соблюдать принципы здорового образа жизни',
+                'Конфигурировать сетевые сервисы и сетевое оборудование',
+            ]
+            : [
+                'Денсаулықты нығайту және салауатты өмір салты қағидаттарын сақтау',
+                'Желілік қызметтер мен желілік жабдықты конфигурациялау',
+            ];
+
+        $bySubject = [];
+        foreach ($rows as $row) {
+            $name = $row['subject_name'] ?? '';
+            if ($name !== '') {
+                $bySubject[$this->normalizeOrderName($name)] = $row;
+            }
+        }
+
+        $subjectIdByName = [];
+        foreach ($subjectNames->all() as $id => $name) {
+            $key = $this->normalizeOrderName((string) $name);
+            if ($key !== '') {
+                $subjectIdByName[$key] = (int) $id;
+            }
+        }
+
+        $normMap = $this->buildNormativeLookup($normatives);
+        $result = $rows;
+
+        foreach ($desiredSubjects as $subjectName) {
+            $key = $this->normalizeOrderName($subjectName);
+            if ($key === '') {
+                continue;
+            }
+            if (!empty($bySubject[$key])) {
+                continue;
+            }
+
+            $subjectId = $subjectIdByName[$key] ?? null;
+            if (!$subjectId) {
+                continue;
+            }
+
+            $norm = $this->matchNormative($normMap, (int) $subjectId, null);
+            $result[] = $this->emptyRow(
+                (int) $subjectId,
+                null,
+                (int) ($norm['total_hours'] ?? 0),
+                (int) ($norm['hours_per_class'] ?? 2),
+                $days,
+                $subjectNames,
+                $teachers
+            );
+        }
+
+        return $result;
+    }
+
     protected function resolveSpecialtyOrder(
         string $groupName,
         bool $useKazakh,
@@ -1223,6 +1360,13 @@ class FormTwoService
             foreach ($tokens as $token) {
                 if ($this->tokenMatchesPrefix($token, ['СИБ'])) {
                     return $this->sibCourse2Order();
+                }
+            }
+        }
+        if ($course === 2 && $useKazakh) {
+            foreach ($tokens as $token) {
+                if ($this->tokenMatchesPrefix($token, ['АКЖ', 'АҚЖ'])) {
+                    return $this->sibCourse2OrderKz();
                 }
             }
         }
@@ -1267,20 +1411,40 @@ class FormTwoService
     protected function sibCourse2Order(): array
     {
         return [
-            'Укреплять здоровье и соблюдать принципы здорового образа жизни.',
-            'Владеть основами информационно-коммуникационных технологий.',
-            'Использовать услуги информационно-справочных и интерактивных веб-порталов.',
-            'Владеть основными вопросами в области экономической теории.',
-            'Анализировать и оценивать экономические процессы, происходящие на предприятии.',
-            'Производить монтаж сетевого и серверного оборудования, систем видеонабледния и систем контроля управления данными.',
-            'Конфигурировать сетевые сервисы и сетевое оборудование.',
-            'Обеспечивать информационную безопасность.',
-            'Интегрировать облачную инфраструктуры с сервисами предприятия.',
-            'Автоматизировать задачи обслуживания информационных систем.',
-            'Разрабатывать скрипты для автоматизации задач администрирования.',
-            'Администрировать базы данных.',
-            'Администрировать Web-ресурсы.',
-            'Создавать системные приложения.',
+            'Укреплять здоровье и соблюдать принципы здорового образа жизни',
+            'Владеть основами информационно-коммуникационных технологий',
+            'Использовать услуги информационно-справочных и интерактивных веб-порталов',
+            'Владеть основными вопросами в области экономической теории',
+            'Анализировать и оценивать экономические процессы, происходящие на предприятии',
+            'Производить монтаж сетевого и серверного оборудования, систем видеонабледния и систем контроля управления данными',
+            'Конфигурировать сетевые сервисы и сетевое оборудование',
+            'Обеспечивать информационную безопасность',
+            'Интегрировать облачную инфраструктуры с сервисами предприятия',
+            'Автоматизировать задачи обслуживания информационных систем',
+            'Разрабатывать скрипты для автоматизации задач администрирования',
+            'Администрировать базы данных',
+            'Администрировать Web-ресурсы',
+            'Создавать системные приложения',
+        ];
+    }
+
+    protected function sibCourse2OrderKz(): array
+    {
+        return [
+            'Денсаулықты нығайту және салауатты өмір салты қағидаттарын сақтау',
+            'Ақпараттық-коммуникациялық технологиялар негіздерін меңгеру',
+            'Ақпараттық, анықтамалық және интерактивті веб-порталдардың қызметтерін пайдалану',
+            'Экономикалық теория саласындағы негізгі мәселелерді білу',
+            'Кәсіпорында болып жатқан экономикалық процестерді талдау және бағалау',
+            'Желілік және серверлік жабдықтарды, бейнебақылау жүйелерін және деректерді кешенді басқару жүйелерін монтаждауды жүргізу',
+            'Желілік қызметтер мен желілік жабдықты конфигурациялау',
+            'Ақпараттық қауіпсіздікті қамтамасыз ету',
+            'Бұлтты инфрақұрылымдарды кәсіпорын қызметтерімен біріктіру',
+            'Ақпараттық жүйеге техникалық қызмет көрсету тапсырмаларын автоматтандыру',
+            'Әкімшілік тапсырмаларын автоматтандыру үшін сценарийлерді әзірлеу',
+            'Мәліметтер базасын басқару',
+            'Веб-ресурстарды басқару',
+            'Жүйелік қолданбаларды құру',
         ];
     }
 }

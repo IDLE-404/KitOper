@@ -50,6 +50,18 @@ class ScheduleToFormTwoSyncService
             return;
         }
 
+        $rowsByKey = [];
+        foreach ($rows as $row) {
+            $dayName = $row->study_day ?? null;
+            $lessonNumber = $row->lesson_number ?? null;
+            if (!$dayName || !$lessonNumber) {
+                continue;
+            }
+            $key = $dayName . '|' . (int) $lessonNumber;
+            $subKey = in_array($row->subgroup ?? null, ['2', 'B'], true) ? '2' : '1';
+            $rowsByKey[$key][$subKey] = $row;
+        }
+
         $payload = [];
 
         foreach ($rows as $row) {
@@ -64,6 +76,9 @@ class ScheduleToFormTwoSyncService
                 continue;
             }
 
+            $pairKey = $dayName . '|' . $lessonNumber;
+            $pairRows = $rowsByKey[$pairKey] ?? [];
+
             foreach ($this->subgroupsForRow($row) as $subgroup) {
                 $payload = array_merge($payload, $this->syncSubgroup(
                     $row,
@@ -72,7 +87,8 @@ class ScheduleToFormTwoSyncService
                     $classDate,
                     $groupId,
                     $lessonNumber,
-                    $course
+                    $course,
+                    $subgroup === 2 ? ($pairRows['1'] ?? null) : null
                 ));
             }
         }
@@ -105,7 +121,8 @@ class ScheduleToFormTwoSyncService
         Carbon $classDate,
         int $groupId,
         int $lessonNumber,
-        int $course
+        int $course,
+        ?object $fallbackRow = null
     ): array {
         $isSub2 = $subgroup === 2;
         $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? 2 : 1;
@@ -130,6 +147,12 @@ class ScheduleToFormTwoSyncService
         $roomDen = $isSub2
             ? ($row->room_id_denominator_2 ?? null)
             : ($row->room_id_denominator ?? null);
+
+        if ($isSub2 && !$subjectDen && !$teacherDen && !$roomDen && $fallbackRow) {
+            $subjectDen = $fallbackRow->subject_id_denominator ?? null;
+            $teacherDen = $fallbackRow->teacher_id_denominator ?? null;
+            $roomDen = $fallbackRow->room_id_denominator ?? null;
+        }
 
         $hasDenominator = $subjectDen || $teacherDen || $roomDen;
         $useDenominator = $hasDenominator && $weekMode === 'denominator';

@@ -46,6 +46,26 @@ class TeacherController extends Controller
         }
 
         $hasInitials = Schema::hasColumn($tables['teachers'], 'initials');
+        $duplicateInitials = [];
+        if ($hasInitials) {
+            $duplicateInitials = DB::table($tables['teachers'])
+                ->select('initials')
+                ->whereNotNull('initials')
+                ->where('initials', '<>', '')
+                ->groupBy('initials')
+                ->havingRaw('COUNT(*) > 1')
+                ->pluck('initials')
+                ->all();
+        }
+        if (Schema::hasTable('rooms')) {
+            $roomsQuery = DB::table('rooms');
+            if (Schema::hasColumn('rooms', 'is_active')) {
+                $roomsQuery->where('is_active', true);
+            }
+            $rooms = $roomsQuery->orderBy('code')->get();
+        } else {
+            $rooms = collect();
+        }
 
         return view('teachers.index', [
             'teachers' => $teachers,
@@ -54,6 +74,8 @@ class TeacherController extends Controller
             'teacherSubjects' => $teacherSubjects,
             'course' => $course,
             'hasInitials' => $hasInitials,
+            'rooms' => $rooms,
+            'duplicateInitials' => $duplicateInitials,
         ]);
     }
 
@@ -63,11 +85,13 @@ class TeacherController extends Controller
         $tables = CourseContext::tables($course);
         $hasInitials = Schema::hasColumn($tables['teachers'], 'initials');
 
+        $hasDefaultRoom = Schema::hasColumn($tables['teachers'], 'default_room_id');
         $data = $request->validate([
             'teacher_name' => 'required|string|max:255',
             'initials' => $hasInitials ? 'nullable|string|max:20' : 'nullable',
             'subject_ids' => 'sometimes|array',
             'subject_ids.*' => 'integer',
+            'default_room_id' => ($hasDefaultRoom && Schema::hasTable('rooms')) ? 'nullable|integer|exists:rooms,id' : 'nullable',
         ]);
 
         $payload = [
@@ -77,6 +101,15 @@ class TeacherController extends Controller
         ];
         if ($hasInitials) {
             $payload['initials'] = $this->resolveInitials($data['teacher_name'], $data['initials'] ?? null);
+            if ($payload['initials'] && $this->teacherWithInitialsExists($tables['teachers'], $payload['initials'])) {
+                return redirect()
+                    ->route('teachers.index', ['course' => $course])
+                    ->withErrors(['teacher_name' => 'Похоже, такой преподаватель уже есть (по инициалам). Откройте и отредактируйте существующую запись.'])
+                    ->withInput();
+            }
+        }
+        if ($hasDefaultRoom && !empty($data['default_room_id'])) {
+            $payload['default_room_id'] = (int) $data['default_room_id'];
         }
 
         $teacherId = DB::table($tables['teachers'])->insertGetId($payload);
@@ -94,11 +127,13 @@ class TeacherController extends Controller
         $tables = CourseContext::tables($course);
         $hasInitials = Schema::hasColumn($tables['teachers'], 'initials');
 
+        $hasDefaultRoom = Schema::hasColumn($tables['teachers'], 'default_room_id');
         $data = $request->validate([
             'teacher_name' => 'required|string|max:255',
             'initials' => $hasInitials ? 'nullable|string|max:20' : 'nullable',
             'subject_ids' => 'sometimes|array',
             'subject_ids.*' => 'integer',
+            'default_room_id' => ($hasDefaultRoom && Schema::hasTable('rooms')) ? 'nullable|integer|exists:rooms,id' : 'nullable',
         ]);
 
         $payload = [
@@ -107,6 +142,15 @@ class TeacherController extends Controller
         ];
         if ($hasInitials) {
             $payload['initials'] = $this->resolveInitials($data['teacher_name'], $data['initials'] ?? null);
+            if ($payload['initials'] && $this->teacherWithInitialsExists($tables['teachers'], $payload['initials'], $id)) {
+                return redirect()
+                    ->route('teachers.index', ['course' => $course])
+                    ->withErrors(['teacher_name' => 'Похоже, такой преподаватель уже есть (по инициалам). Откройте и отредактируйте существующую запись.'])
+                    ->withInput();
+            }
+        }
+        if ($hasDefaultRoom) {
+            $payload['default_room_id'] = !empty($data['default_room_id']) ? (int) $data['default_room_id'] : null;
         }
 
         DB::table($tables['teachers'])
@@ -167,6 +211,16 @@ class TeacherController extends Controller
         }
 
         return trim($initials);
+    }
+
+    private function teacherWithInitialsExists(string $table, string $initials, ?int $excludeId = null): bool
+    {
+        $query = DB::table($table)
+            ->where('initials', $initials);
+        if ($excludeId) {
+            $query->where('id', '<>', $excludeId);
+        }
+        return $query->exists();
     }
 
     private function syncTeacherSubjects(array $tables, int $teacherId, array $subjectIds): void

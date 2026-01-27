@@ -74,6 +74,22 @@
         text-align: center;
         margin-top: 0.15rem;
     }
+    .pair-absence {
+        background: #fee2e2;
+        border-color: #fca5a5;
+    }
+    .absence-note {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.75rem;
+        color: #b91c1c;
+        margin-left: 8px;
+        padding: 2px 6px;
+        background: #fee2e2;
+        border-radius: 999px;
+        white-space: nowrap;
+    }
 </style>
 @endpush
 
@@ -99,6 +115,10 @@
         $dayDetails[$dayInfo['name']] = $dayInfo;
     }
     $days = array_keys($dayDetails);
+    $dayFilter = $dayFilter ?? null;
+    $isDayView = $isDayView ?? false;
+    $dayKey = $dayKey ?? null;
+    $daysToShow = $dayFilter ? [$dayFilter] : $days;
     $itemsByGroup = $schedule ?? [];
     $firstGroupId = count($itemsByGroup) ? array_key_first($itemsByGroup) : null;
     $expandLinkParams = ['course' => $course ?? 1];
@@ -115,7 +135,9 @@
     <div class="header-row">
         <div>
             <h1 class="page-title">Расписание — {{ $course ?? 1 }} курс</h1>
-            <p class="page-subtitle">Компактный обзор по всем группам</p>
+            <p class="page-subtitle">
+                {{ $isDayView ? ('Только ' . ($dayFilter ?? 'день недели')) : 'Компактный обзор по всем группам' }}
+            </p>
             <div class="mt-2 d-flex align-items-center gap-2">
                 <label class="text-muted small mb-0">Курс:</label>
                 <select id="courseSelect" class="search-input" style="width:auto;">
@@ -123,6 +145,16 @@
                         <option value="{{ $c }}" @selected(($course ?? 1) == $c)>{{ $c }}</option>
                     @endfor
                 </select>
+                @if($isDayView)
+                    <label class="text-muted small mb-0 ms-2">День:</label>
+                    <select id="daySelect" class="search-input" style="width:auto;">
+                        @foreach($weekDays as $dayInfo)
+                            <option value="{{ $dayInfo['key'] ?? $dayInfo['name'] }}" @selected(($dayKey ?? '') === ($dayInfo['key'] ?? ''))>
+                                {{ $dayInfo['name'] ?? 'День' }}
+                            </option>
+                        @endforeach
+                    </select>
+                @endif
             </div>
             <div class="mt-2">
                 <span class="pill {{ ($weekMode ?? 'num') === 'den' ? 'primary' : 'soft' }}">
@@ -141,6 +173,15 @@
         <button type="button" class="btn-pill ghost" id="weekStartApply">Показать неделю</button>
         <button type="button" class="btn-pill ghost" id="weekNext">Следующая неделя</button>
         <button type="button" class="btn-pill ghost" id="weekPrev">Предыдущая неделя</button>
+        @if($isDayView)
+            <a href="{{ route('first.schedule.index', ['course' => $course ?? 1, 'week_start' => $requestedWeekStart ?? null]) }}" class="btn-pill ghost">Неделя</a>
+        @else
+            @php $defaultDayKey = $weekDays[0]['key'] ?? 'mon'; @endphp
+            <a href="{{ route('first.schedule.day', ['course' => $course ?? 1, 'week_start' => $requestedWeekStart ?? null, 'day' => $dayKey ?? $defaultDayKey]) }}" class="btn-pill ghost">День</a>
+        @endif
+        @if($isDayView)
+            <button type="button" class="btn-pill primary" id="autoAssignRoomsDayBtn">Подставить кабинеты на день</button>
+        @endif
         <a href="{{ route('first.schedule.week', ['course' => $course ?? 1]) }}" class="btn-pill primary">Редактор недели</a>
         <a href="{{ route('first.schedule.week', $expandLinkParams) }}#semesterExpandSection" class="btn-pill ghost">Развернуть семестр</a>
         @php
@@ -153,6 +194,8 @@
         <a href="{{ route('groups.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Группы</a>
         <a href="{{ route('teachers.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Преподаватели</a>
         <a href="{{ route('subjects.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Предметы</a>
+        <a href="{{ route('rooms.index') }}" class="btn-pill ghost">Кабинеты</a>
+        <a href="{{ route('teacher_absences.index') }}" class="btn-pill ghost">Отсутствия</a>
     </div>
 </div>
     @if(!empty($weeklyHolidays))
@@ -183,7 +226,7 @@
                         <div class="grid-cell col-head">Пара {{ $i }}</div>
                     @endfor
                 </div>
-                @foreach($days as $day)
+                @foreach($daysToShow as $day)
                     @php
                         $dayInfo = $dayDetails[$day] ?? [];
                         $holidayMeta = $dayInfo['holiday'] ?? null;
@@ -224,10 +267,14 @@
                                 } elseif (($pair['sub1']['is_absent'] ?? false) || ($pair['sub2']['is_absent'] ?? false)) {
                                     $pairStatus = 'pair-sick';
                                 }
+                                if (!empty($main['absence_type']) || !empty($sub2['absence_type'])) {
+                                    $pairStatus = 'pair-absence';
+                                }
                             @endphp
                             <div class="grid-cell pair-cell {{ $hasLesson ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}{{ $holidayMeta ? ' holiday-cell' : '' }}"
                                  data-group="{{ $groupId }}"
                                  data-day="{{ $day }}"
+                                 data-day-key="{{ $dayDetails[$day]['key'] ?? '' }}"
                                  data-lesson="{{ $i }}">
                                 @if($hasPractice)
                                     <div class="practice-label" title="Практика">
@@ -323,6 +370,11 @@
                                                 <span class="text-warning ms-1">→ {{ $main['replacement_teacher'] }}</span>
                                             @endif
                                                 </span>
+                                                @if(!empty($main['absence_type']))
+                                                    <span class="absence-note">
+                                                        {{ $absenceLabels[$main['absence_type']] ?? $main['absence_type'] }}
+                                                    </span>
+                                                @endif
                                             @endif
                                             @if (!empty($main['active_room']))
                                                 <span class="pill room-pill {{ ($main['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($main['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
@@ -362,6 +414,11 @@
                                                 <span class="text-warning ms-1">→ {{ $sub2['replacement_teacher'] }}</span>
                                             @endif
                                                 </span>
+                                                @if(!empty($sub2['absence_type']))
+                                                    <span class="absence-note">
+                                                        {{ $absenceLabels[$sub2['absence_type']] ?? $sub2['absence_type'] }}
+                                                    </span>
+                                                @endif
                                             @endif
                                             @if (!empty($sub2['active_room']))
                                                 <span class="pill room-pill {{ ($sub2['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($sub2['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
@@ -398,12 +455,22 @@
         const targetGroupId = params.get('group_id');
         const targetDay = params.get('day');
         const targetLesson = params.get('lesson');
+        const weekDays = @json($weekDays ?? []);
+        const dayKeyMap = {};
+        weekDays.forEach((dayInfo) => {
+            if (dayInfo && dayInfo.key) {
+                dayKeyMap[dayInfo.key] = dayInfo.name;
+            }
+        });
 
         if (targetGroupId && targetDay && targetLesson) {
+            const targetDayName = dayKeyMap[targetDay] || targetDay;
             const groupCard = document.getElementById(`group-${targetGroupId}`);
             if (groupCard) {
                 const targetCell = groupCard.querySelector(
-                    `.pair-cell[data-group="${targetGroupId}"][data-day="${targetDay}"][data-lesson="${targetLesson}"]`
+                    `.pair-cell[data-group="${targetGroupId}"][data-day="${targetDayName}"][data-lesson="${targetLesson}"]`
+                ) || groupCard.querySelector(
+                    `.pair-cell[data-group="${targetGroupId}"][data-day-key="${targetDay}"][data-lesson="${targetLesson}"]`
                 );
                 if (targetCell) {
                     targetCell.classList.add('highlighted');
@@ -420,6 +487,18 @@
         const groupLocalePreference = @json($groupLocalePreference ?? []);
         const teachers = @json($teachers ?? []);
         const teacherSubjectMap = @json($teacherSubjectMap ?? []);
+        const freeTeachersUrl = @json(route('first.schedule.free_teachers'));
+        const freeRoomsUrl = @json(route('first.schedule.free_rooms'));
+        const autoAssignRoomsDayUrl = @json(route('first.schedule.auto_assign_rooms_day'));
+        const initialDayKey = @json($dayKey ?? null);
+        const roomsList = @json(($rooms ?? collect())->values()->all());
+        const absenceLabels = @json($absenceLabels ?? []);
+        const dayKeyByName = {};
+        weekDays.forEach((dayInfo) => {
+            if (dayInfo && dayInfo.name && dayInfo.key) {
+                dayKeyByName[dayInfo.name] = dayInfo.key;
+            }
+        });
 
     const modal = document.getElementById('pairModal');
     const overlay = document.getElementById('modalOverlay');
@@ -502,12 +581,27 @@
         replacementTeacher1Den,
         replacementTeacher2Den,
     ].filter(Boolean);
+    const roomSelects = [
+        room1,
+        room2,
+        room1Den,
+        room2Den,
+    ].filter(Boolean);
 
     const teacherOptionsMap = new Map();
     teacherSelects.forEach((select) => {
         if (!select) return;
         select.dataset.role = 'teacher';
         teacherOptionsMap.set(select, Array.from(select.options).map(opt => ({
+            value: opt.value,
+            text: opt.text,
+        })));
+    });
+    const roomOptionsMap = new Map();
+    roomSelects.forEach((select) => {
+        if (!select) return;
+        select.dataset.role = 'room';
+        roomOptionsMap.set(select, Array.from(select.options).map(opt => ({
             value: opt.value,
             text: opt.text,
         })));
@@ -563,6 +657,47 @@
         return allowed.map(String);
     };
 
+    const getFreeTeachersForSelect = (select) => {
+        if (!select || !select.dataset.freeTeachers) {
+            return null;
+        }
+        try {
+            const parsed = JSON.parse(select.dataset.freeTeachers);
+            return Array.isArray(parsed) ? parsed.map(String) : null;
+        } catch (e) {
+            return null;
+        }
+    };
+
+    const rebuildRoomOptions = (selectEl, allowedValues = null) => {
+        const options = roomOptionsMap.get(selectEl) || Array.from(selectEl.options).map(opt => ({
+            value: opt.value,
+            text: opt.text,
+        }));
+        const allowedSet = allowedValues && allowedValues.length ? new Set(allowedValues.map(String)) : null;
+        const previousValue = selectEl.value;
+        selectEl.innerHTML = '';
+
+        let hasSelection = false;
+        options.forEach(opt => {
+            if (allowedSet && opt.value && !allowedSet.has(String(opt.value))) {
+                return;
+            }
+            const node = document.createElement('option');
+            node.value = opt.value;
+            node.text = opt.text;
+            if (opt.value === previousValue) {
+                node.selected = true;
+                hasSelection = true;
+            }
+            selectEl.appendChild(node);
+        });
+
+        if (!hasSelection && selectEl.options.length) {
+            selectEl.selectedIndex = 0;
+        }
+    };
+
     const teacherLinks = [
         { subject: subject1, teacher: teacher1 },
         { subject: subject1Den, teacher: teacher1Den },
@@ -576,7 +711,16 @@
 
     const applyTeacherFilter = (link) => {
         const subjectId = link.subject.value || link.fallbackSubject?.value;
-        const allowed = getAllowedTeachers(subjectId);
+        let allowed = getAllowedTeachers(subjectId);
+        const freeTeachers = getFreeTeachersForSelect(link.teacher);
+        if (freeTeachers) {
+            if (allowed) {
+                const freeSet = new Set(freeTeachers.map(String));
+                allowed = allowed.filter((id) => freeSet.has(String(id)));
+            } else {
+                allowed = freeTeachers;
+            }
+        }
         const searchInput = document.querySelector(`.search-field[data-target="${link.teacher.id}"]`);
         if (searchInput) {
             searchInput.value = '';
@@ -588,11 +732,217 @@
         teacherLinks.forEach(applyTeacherFilter);
     };
 
+    const freeTeacherCache = new Map();
+    const buildFreeTeacherKey = (dayKey, lesson, mode, groupId) => `${dayKey}|${lesson}|${mode}|${groupId || ''}`;
+
+    const fetchFreeTeachersForSlot = async (dayKey, lesson, mode, groupId) => {
+        if (!dayKey || !lesson) {
+            return null;
+        }
+        const key = buildFreeTeacherKey(dayKey, lesson, mode, groupId);
+        if (freeTeacherCache.has(key)) {
+            return freeTeacherCache.get(key);
+        }
+        const params = new URLSearchParams();
+        params.set('week_start', weekStartPicker?.value || weekStartHidden?.value || '');
+        params.set('day_key', dayKey);
+        params.set('lesson_number', lesson);
+        params.set('mode', mode || 'numerator');
+        if (courseSelect?.value) {
+            params.set('course', courseSelect.value);
+        }
+        if (groupId) {
+            params.set('group_id', groupId);
+        }
+
+        try {
+            const response = await fetch(`${freeTeachersUrl}?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
+            if (!response.ok) {
+                return null;
+            }
+            const payload = await response.json();
+            freeTeacherCache.set(key, payload);
+            return payload;
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const setTeacherFreeList = (select, freeTeachers, absentMap) => {
+        if (!select) return;
+        if (Array.isArray(freeTeachers)) {
+            const currentValue = select.value ? String(select.value) : '';
+            const normalized = freeTeachers.map(String);
+            if (currentValue && !normalized.includes(currentValue)) {
+                normalized.push(currentValue);
+            }
+            select.dataset.freeTeachers = JSON.stringify(normalized);
+        } else {
+            delete select.dataset.freeTeachers;
+        }
+        if (absentMap && typeof absentMap === 'object') {
+            select.dataset.absentTeachers = JSON.stringify(absentMap);
+        } else {
+            delete select.dataset.absentTeachers;
+        }
+    };
+
+    const updateTeacherAbsenceState = (select) => {
+        if (!select) return;
+        let absentMap = null;
+        if (select.dataset.absentTeachers) {
+            try {
+                absentMap = JSON.parse(select.dataset.absentTeachers);
+            } catch (e) {
+                absentMap = null;
+            }
+        }
+        const selected = select.value;
+        const type = selected && absentMap ? absentMap[selected] : null;
+        select.classList.toggle('teacher-absent', !!type);
+    };
+
+    const refreshModalFreeTeachers = async () => {
+        const dayName = hiddenDay?.value || '';
+        const dayKey = dayKeyByName[dayName] || dayName;
+        const lesson = hiddenLesson?.value || '';
+        const groupId = hiddenGroup?.value || '';
+        if (!dayKey || !lesson) {
+            return;
+        }
+        const payloadNum = await fetchFreeTeachersForSlot(dayKey, lesson, 'numerator', groupId);
+        const payloadDen = await fetchFreeTeachersForSlot(dayKey, lesson, 'denominator', groupId);
+
+        teacherSelects.forEach((select) => {
+            const mode = select.dataset.mode || 'numerator';
+            const payload = mode === 'denominator' ? payloadDen : payloadNum;
+            if (!payload) {
+                setTeacherFreeList(select, null, null);
+                return;
+            }
+            setTeacherFreeList(select, payload.free || null, payload.absent || null);
+        });
+
+        applyAllTeacherFilters();
+        teacherSelects.forEach(updateTeacherAbsenceState);
+        await refreshModalFreeRooms();
+    };
+
+    const fetchFreeRoomsForSlot = async (dayKey, lesson, mode, groupId, teacherId) => {
+        if (!dayKey || !lesson) {
+            return null;
+        }
+        const params = new URLSearchParams();
+        params.set('week_start', weekStartPicker?.value || weekStartHidden?.value || '');
+        params.set('day_key', dayKey);
+        params.set('lesson_number', lesson);
+        params.set('mode', mode || 'numerator');
+        if (courseSelect?.value) {
+            params.set('course', courseSelect.value);
+        }
+        if (groupId) {
+            params.set('group_id', groupId);
+        }
+        if (teacherId) {
+            params.set('teacher_id', teacherId);
+        }
+        try {
+            const response = await fetch(`${freeRoomsUrl}?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
+            if (!response.ok) {
+                return null;
+            }
+            return await response.json();
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const refreshModalFreeRooms = async () => {
+        const dayName = hiddenDay?.value || '';
+        const dayKey = dayKeyByName[dayName] || dayName;
+        const lesson = hiddenLesson?.value || '';
+        const groupId = hiddenGroup?.value || '';
+        if (!dayKey || !lesson) {
+            return;
+        }
+
+        for (const select of roomSelects) {
+            const mode = select.dataset.mode || 'numerator';
+            const teacherTarget = select.dataset.teacherTarget || '';
+            const teacherSelect = teacherTarget ? document.querySelector(teacherTarget) : null;
+            const teacherId = teacherSelect?.value || '';
+            const payload = await fetchFreeRoomsForSlot(dayKey, lesson, mode, groupId, teacherId);
+
+            if (!payload || !Array.isArray(payload.rooms)) {
+                const fallback = roomsList.map((r) => String(r.code));
+                rebuildRoomOptions(select, fallback);
+                continue;
+            }
+
+            const freeCodes = payload.rooms
+                .map((room) => String(room.code ?? '').trim())
+                .filter((code) => code !== '');
+            const currentValue = select.value ? String(select.value) : '';
+            if (currentValue && !freeCodes.includes(currentValue)) {
+                freeCodes.push(currentValue);
+            }
+            rebuildRoomOptions(select, freeCodes);
+        }
+    };
+
+    const suggestRoomForSlot = async ({ roomInput, teacherSelect, mode, force = false }) => {
+        if (!roomInput || !teacherSelect) {
+            return;
+        }
+        if (!force && roomInput.value) {
+            return;
+        }
+        const dayName = hiddenDay?.value || '';
+        const dayKey = dayKeyByName[dayName] || dayName;
+        const lesson = hiddenLesson?.value || '';
+        const groupId = hiddenGroup?.value || '';
+        const resolvedMode = mode || teacherSelect.dataset.mode || 'numerator';
+        const teacherId = teacherSelect.value || '';
+        if (!teacherId) {
+            return;
+        }
+        const payload = await fetchFreeRoomsForSlot(dayKey, lesson, resolvedMode, groupId, teacherId);
+        const suggested = payload?.suggested;
+        if (suggested) {
+            roomInput.value = suggested;
+            roomInput.dispatchEvent(new Event('input'));
+        }
+    };
+
+    const suggestRoomForTeacher = async (teacherSelect) => {
+        const roomTarget = teacherSelect.dataset.roomTarget;
+        if (!roomTarget) return;
+        const roomInput = document.querySelector(roomTarget);
+        await suggestRoomForSlot({ roomInput, teacherSelect, mode: teacherSelect.dataset.mode || 'numerator', force: false });
+    };
+
     teacherLinks.forEach(link => {
         link.subject.addEventListener('change', () => applyTeacherFilter(link));
         if (link.fallbackSubject) {
             link.fallbackSubject.addEventListener('change', () => applyTeacherFilter(link));
         }
+    });
+
+    teacherSelects.forEach((select) => {
+        select.addEventListener('change', () => {
+            updateTeacherAbsenceState(select);
+            suggestRoomForTeacher(select);
+            refreshModalFreeRooms();
+        });
+    });
+
+    document.querySelectorAll('.js-suggest-room').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const roomInput = document.querySelector(btn.dataset.roomTarget || '');
+            const teacherSelect = document.querySelector(btn.dataset.teacherTarget || '');
+            const mode = btn.dataset.mode || teacherSelect?.dataset.mode || 'numerator';
+            await suggestRoomForSlot({ roomInput, teacherSelect, mode, force: true });
+        });
     });
 
     const applySubjectFilter = (groupId) => {
@@ -786,6 +1136,7 @@
             data.day,
             data.lesson
         );
+        refreshModalFreeTeachers();
         refreshAvailability();
 
         overlay.classList.add('show');
@@ -829,6 +1180,7 @@
         const weekStart = weekStartHidden?.value;
         const day = hiddenDay?.value;
         const lesson = hiddenLesson?.value;
+        const groupId = hiddenGroup?.value;
         const type = field.dataset.type;
         const mode = field.dataset.mode;
         if (!weekStart || !day || !lesson || !type || !mode) {
@@ -843,6 +1195,9 @@
         const courseValue = form.querySelector('input[name="course"]')?.value;
         if (courseValue) {
             params.set('course', courseValue);
+        }
+        if (groupId) {
+            params.set('group_id', groupId);
         }
         if (type === 'teacher') {
             params.set('teacher_id', field.value || '');
@@ -1085,6 +1440,9 @@
     const weekPrev = document.getElementById('weekPrev');
     const applyWeekStart = (value) => {
         const params = new URLSearchParams(window.location.search);
+        if (daySelect) {
+            params.set('day', daySelect.value);
+        }
         if (value) {
             params.set('week_start', value);
         } else {
@@ -1139,9 +1497,73 @@
         courseSelect.addEventListener('change', () => {
             const params = new URLSearchParams(window.location.search);
             params.set('course', courseSelect.value);
+            if (daySelect) {
+                params.set('day', daySelect.value);
+            }
             window.location.search = params.toString();
         });
     }
+
+    const daySelect = document.getElementById('daySelect');
+    if (daySelect) {
+        daySelect.addEventListener('change', () => {
+            const params = new URLSearchParams(window.location.search);
+            params.set('day', daySelect.value);
+            window.location.search = params.toString();
+        });
+    }
+
+    const autoAssignRoomsDayBtn = document.getElementById('autoAssignRoomsDayBtn');
+    autoAssignRoomsDayBtn?.addEventListener('click', async () => {
+        const dayKey = daySelect?.value || initialDayKey;
+        const weekStart = weekStartPicker?.value || weekStartHidden?.value || '';
+        const course = courseSelect?.value || '1';
+
+        if (!dayKey || !weekStart) {
+            alert('Не удалось определить день или начало недели');
+            return;
+        }
+
+        if (!confirm('Подставить свободные кабинеты для всех групп на выбранный день?')) {
+            return;
+        }
+
+        autoAssignRoomsDayBtn.disabled = true;
+        const originalText = autoAssignRoomsDayBtn.textContent;
+        autoAssignRoomsDayBtn.textContent = 'Подстановка...';
+
+        try {
+            const res = await fetch(autoAssignRoomsDayUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({
+                    week_start: weekStart,
+                    day_key: dayKey,
+                    course: Number(course),
+                }),
+            });
+
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(payload.message || 'Не удалось подставить кабинеты');
+                return;
+            }
+
+            const updated = Number(payload.updated || 0);
+            const skipped = Number(payload.skipped || 0);
+            alert(`Готово. Обновлено: ${updated}. Пропущено: ${skipped}.`);
+            window.location.reload();
+        } catch (e) {
+            alert('Ошибка сети при подстановке кабинетов');
+        } finally {
+            autoAssignRoomsDayBtn.disabled = false;
+            autoAssignRoomsDayBtn.textContent = originalText;
+        }
+    });
 });
 </script>
 @endpush
@@ -1179,6 +1601,10 @@
     opacity: 1;
     pointer-events: all;
     transform: translate(-50%, -50%) scale(1);
+}
+.teacher-absent {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.2);
 }
 .subgroup-grid {
     display: grid;
@@ -1354,7 +1780,7 @@
                         <div>
                             <label class="form-label">Преподаватель</label>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher1">
-                            <select class="form-select availability-check" name="teacher_id" id="modalTeacher1" data-type="teacher" data-mode="numerator">
+                            <select class="form-select availability-check" name="teacher_id" id="modalTeacher1" data-type="teacher" data-mode="numerator" data-room-target="#modalRoom1">
                                 <option value="">—</option>
                                 @foreach($teachers as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
@@ -1364,7 +1790,21 @@
                         </div>
                         <div>
                             <label class="form-label">Кабинет</label>
-                            <input type="text" class="form-control availability-check" name="room_id" id="modalRoom1" placeholder="101" data-type="room" data-mode="numerator">
+                            <select class="form-select availability-check" name="room_id" id="modalRoom1" data-type="room" data-mode="numerator" data-teacher-target="#modalTeacher1">
+                                <option value="">—</option>
+                                @foreach(($rooms ?? collect()) as $room)
+                                    <option value="{{ $room->code }}">{{ $room->code }}</option>
+                                @endforeach
+                            </select>
+                            <button
+                                type="button"
+                                class="btn btn-outline-secondary btn-sm mt-2 js-suggest-room"
+                                data-teacher-target="#modalTeacher1"
+                                data-room-target="#modalRoom1"
+                                data-mode="numerator"
+                            >
+                                Подставить свободный
+                            </button>
                             <div class="availability-note" data-status-for="modalRoom1"></div>
                         </div>
                     </div>
@@ -1413,7 +1853,7 @@
                         <div>
                             <label class="form-label">Преподаватель</label>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher2">
-                            <select class="form-select availability-check" name="teacher_id_2" id="modalTeacher2" data-type="teacher" data-mode="numerator">
+                            <select class="form-select availability-check" name="teacher_id_2" id="modalTeacher2" data-type="teacher" data-mode="numerator" data-room-target="#modalRoom2">
                                 <option value="">—</option>
                                 @foreach($teachers as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
@@ -1423,7 +1863,21 @@
                         </div>
                         <div>
                             <label class="form-label">Кабинет</label>
-                            <input type="text" class="form-control availability-check" name="room_id_2" id="modalRoom2" placeholder="102" data-type="room" data-mode="numerator">
+                            <select class="form-select availability-check" name="room_id_2" id="modalRoom2" data-type="room" data-mode="numerator" data-teacher-target="#modalTeacher2">
+                                <option value="">—</option>
+                                @foreach(($rooms ?? collect()) as $room)
+                                    <option value="{{ $room->code }}">{{ $room->code }}</option>
+                                @endforeach
+                            </select>
+                            <button
+                                type="button"
+                                class="btn btn-outline-secondary btn-sm mt-2 js-suggest-room"
+                                data-teacher-target="#modalTeacher2"
+                                data-room-target="#modalRoom2"
+                                data-mode="numerator"
+                            >
+                                Подставить свободный
+                            </button>
                             <div class="availability-note" data-status-for="modalRoom2"></div>
                         </div>
                     </div>
@@ -1477,7 +1931,7 @@
                         <div>
                             <label class="form-label">Преподаватель</label>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher1Den">
-                            <select class="form-select availability-check" name="den_teacher_id" id="modalTeacher1Den" data-type="teacher" data-mode="denominator">
+                            <select class="form-select availability-check" name="den_teacher_id" id="modalTeacher1Den" data-type="teacher" data-mode="denominator" data-room-target="#modalRoom1Den">
                                 <option value="">—</option>
                                 @foreach($teachers as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
@@ -1487,7 +1941,21 @@
                         </div>
                         <div>
                             <label class="form-label">Кабинет</label>
-                            <input type="text" class="form-control availability-check" name="den_room_id" id="modalRoom1Den" placeholder="101" data-type="room" data-mode="denominator">
+                            <select class="form-select availability-check" name="den_room_id" id="modalRoom1Den" data-type="room" data-mode="denominator" data-teacher-target="#modalTeacher1Den">
+                                <option value="">—</option>
+                                @foreach(($rooms ?? collect()) as $room)
+                                    <option value="{{ $room->code }}">{{ $room->code }}</option>
+                                @endforeach
+                            </select>
+                            <button
+                                type="button"
+                                class="btn btn-outline-secondary btn-sm mt-2 js-suggest-room"
+                                data-teacher-target="#modalTeacher1Den"
+                                data-room-target="#modalRoom1Den"
+                                data-mode="denominator"
+                            >
+                                Подставить свободный
+                            </button>
                             <div class="availability-note" data-status-for="modalRoom1Den"></div>
                         </div>
                     </div>
@@ -1533,7 +2001,7 @@
                         <div>
                             <label class="form-label">Преподаватель</label>
                             <input type="search" class="form-control mb-2 search-field" placeholder="Поиск преподавателя" data-target="modalTeacher2Den">
-                            <select class="form-select availability-check" name="den_teacher_id_2" id="modalTeacher2Den" data-type="teacher" data-mode="denominator">
+                            <select class="form-select availability-check" name="den_teacher_id_2" id="modalTeacher2Den" data-type="teacher" data-mode="denominator" data-room-target="#modalRoom2Den">
                                 <option value="">—</option>
                                 @foreach($teachers as $id => $title)
                                     <option value="{{ $id }}">{{ $title }}</option>
@@ -1543,7 +2011,21 @@
                         </div>
                         <div>
                             <label class="form-label">Кабинет</label>
-                            <input type="text" class="form-control availability-check" name="den_room_id_2" id="modalRoom2Den" placeholder="102" data-type="room" data-mode="denominator">
+                            <select class="form-select availability-check" name="den_room_id_2" id="modalRoom2Den" data-type="room" data-mode="denominator" data-teacher-target="#modalTeacher2Den">
+                                <option value="">—</option>
+                                @foreach(($rooms ?? collect()) as $room)
+                                    <option value="{{ $room->code }}">{{ $room->code }}</option>
+                                @endforeach
+                            </select>
+                            <button
+                                type="button"
+                                class="btn btn-outline-secondary btn-sm mt-2 js-suggest-room"
+                                data-teacher-target="#modalTeacher2Den"
+                                data-room-target="#modalRoom2Den"
+                                data-mode="denominator"
+                            >
+                                Подставить свободный
+                            </button>
                             <div class="availability-note" data-status-for="modalRoom2Den"></div>
                         </div>
                     </div>

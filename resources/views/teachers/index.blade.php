@@ -56,6 +56,20 @@
         padding: 16px 0;
         text-align: center;
     }
+    .teacher-duplicate td {
+        background: #fff7ed;
+    }
+    .duplicate-badge {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #9a3412;
+        background: #ffedd5;
+        border: 1px solid #fed7aa;
+    }
     .subject-list {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -111,6 +125,20 @@
         </div>
     @endif
 
+    @php
+        $duplicateInitialsSet = [];
+        foreach (($duplicateInitials ?? []) as $dup) {
+            $key = mb_strtolower(trim((string) $dup));
+            if ($key !== '') {
+                $duplicateInitialsSet[$key] = true;
+            }
+        }
+        $isDuplicateTeacher = function ($teacher) use ($duplicateInitialsSet) {
+            $initials = mb_strtolower(trim((string) ($teacher->initials ?? '')));
+            return $initials !== '' && isset($duplicateInitialsSet[$initials]);
+        };
+    @endphp
+
     <div class="panel-card mb-4">
         <div class="panel-title">Добавить преподавателя</div>
         <form method="POST" action="{{ route('teachers.store') }}">
@@ -124,6 +152,19 @@
                     <label for="teacherName">ФИО преподавателя</label>
                     <input id="teacherName" name="teacher_name" class="search-input w-100" required value="{{ old('teacher_name') }}" placeholder="Например: Иванова И.Н.">
                 </div>
+                @if(!empty($rooms) && $rooms->count())
+                    <div class="form-field">
+                        <label for="defaultRoom">Закрепленный кабинет</label>
+                        <select id="defaultRoom" name="default_room_id" class="search-input w-100">
+                            <option value="">— не задан</option>
+                            @foreach($rooms as $room)
+                                <option value="{{ $room->id }}" @selected(old('default_room_id') == $room->id)>
+                                    {{ $room->code }} — {{ $room->title ?? 'без названия' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
                 <div class="form-field">
                     <label for="teacherSubjects">Предметы</label>
                     <div class="subject-picker" id="subjectPickerCreate">
@@ -176,9 +217,15 @@
                                 $assigned
                             )));
                             $assignedLabel = $assignedTitles ? implode(', ', $assignedTitles) : '—';
+                            $isDuplicate = $isDuplicateTeacher($teacher);
                         @endphp
-                        <tr data-name="{{ mb_strtolower($teacher->teacher_name ?? '') }}">
-                            <td>{{ $teacher->teacher_name ?? '—' }}</td>
+                        <tr data-name="{{ mb_strtolower($teacher->teacher_name ?? '') }}" class="{{ $isDuplicate ? 'teacher-duplicate' : '' }}">
+                            <td>
+                                {{ $teacher->teacher_name ?? '—' }}
+                                @if($isDuplicate)
+                                    <span class="duplicate-badge">Дубль по инициалам</span>
+                                @endif
+                            </td>
                             @if($hasInitials)
                                 <td>{{ $teacher->initials ?? '—' }}</td>
                             @endif
@@ -226,6 +273,19 @@
                             <label class="form-label">ФИО преподавателя</label>
                             <input name="teacher_name" class="form-control" required value="{{ old('teacher_name', $teacher->teacher_name) }}">
                         </div>
+                        @if(!empty($rooms) && $rooms->count())
+                            <div class="mb-3">
+                                <label class="form-label">Закрепленный кабинет</label>
+                                <select name="default_room_id" class="form-select">
+                                    <option value="">— не задан</option>
+                                    @foreach($rooms as $room)
+                                        <option value="{{ $room->id }}" @selected(($teacher->default_room_id ?? null) == $room->id)>
+                                            {{ $room->code }} — {{ $room->title ?? 'без названия' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endif
                         <div class="mb-3">
                             <label class="form-label">Предметы</label>
                             <div class="subject-picker" id="subjectPicker{{ $teacher->id }}">

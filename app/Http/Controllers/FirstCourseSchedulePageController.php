@@ -9,6 +9,7 @@ use App\Services\FormTwoService;
 use App\Services\SemesterScheduleService;
 use App\Services\PracticeService;
 use App\Support\CourseContext;
+use App\Support\TeacherAbsenceTypes;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -92,6 +93,14 @@ class FirstCourseSchedulePageController extends Controller
         $teacherDisplay = DB::table($tables['teachers'])
             ->select('id', DB::raw('COALESCE(initials, teacher_name) as display_name'))
             ->pluck('display_name', 'id');
+        $rooms = collect();
+        if (Schema::hasTable('rooms')) {
+            $roomsQuery = DB::table('rooms')->select('id', 'code', 'type');
+            if (Schema::hasColumn('rooms', 'is_active')) {
+                $roomsQuery->where('is_active', true);
+            }
+            $rooms = $roomsQuery->orderBy('code')->get();
+        }
         $teacherSubjectMap = [];
         $teacherSubjectTable = $tables['teacher_subjects'] ?? null;
         if ($teacherSubjectTable && Schema::hasTable($teacherSubjectTable)) {
@@ -142,6 +151,7 @@ class FirstCourseSchedulePageController extends Controller
         }
 
         $days = $this->buildWeekDays($weekStart);
+        $absenceMap = $this->teacherAbsenceMapForDays($days);
         $weeklyHolidays = collect($days)->pluck('holiday')->filter()->values()->all();
         $holidayWeekDates = [];
         foreach ($days as $day) {
@@ -394,6 +404,16 @@ class FirstCourseSchedulePageController extends Controller
                         $pair[$key]['replacement_comment'] = $replacementComment;
                         $pair[$key]['replacement_subject_id'] = $replacementSubjectId;
                         $pair[$key]['replacement_subject'] = $replacementSubjectName;
+                        $activeTeacherId = $replacementFlag && $replacementTeacherId ? $replacementTeacherId : $originalTeacherId;
+                        $dayAbsences = $absenceMap[$day] ?? [];
+                        $absenceType = null;
+                        if ($originalTeacherId && isset($dayAbsences[$originalTeacherId])) {
+                            $absenceType = $dayAbsences[$originalTeacherId];
+                        } elseif ($activeTeacherId && isset($dayAbsences[$activeTeacherId])) {
+                            $absenceType = $dayAbsences[$activeTeacherId];
+                        }
+                        $pair[$key]['absence_type'] = $absenceType;
+                        $pair[$key]['absence_teacher_id'] = $absenceType ? ($originalTeacherId ?: $activeTeacherId) : null;
                         $pair[$key]['teacher_conflict'] = !empty($teacherConflictGroups);
                         $pair[$key]['teacher_conflict_groups'] = $teacherConflictGroups;
                     }
@@ -427,6 +447,18 @@ class FirstCourseSchedulePageController extends Controller
         }
 
         // teacherConflicts is merged above and already applied in the per-pair loop.
+        $dayFilter = null;
+        $dayKey = request()->get('day');
+        if ($dayKey) {
+            foreach ($days as $dayInfo) {
+                if (($dayInfo['key'] ?? null) === $dayKey || ($dayInfo['name'] ?? null) === $dayKey) {
+                    $dayFilter = $dayInfo['name'] ?? null;
+                    $dayKey = $dayInfo['key'] ?? $dayKey;
+                    break;
+                }
+            }
+        }
+        $isDayView = (bool) $dayFilter;
 
         return view('first_course.schedule.index', [
             'schedule' => $schedule,
@@ -448,7 +480,29 @@ class FirstCourseSchedulePageController extends Controller
             'practiceMap' => $practiceMap,
             'groupLocalePreference' => $groupLocalePreference,
             'teacherSubjectMap' => $teacherSubjectMap,
+            'rooms' => $rooms,
+            'dayFilter' => $dayFilter,
+            'dayKey' => $dayKey,
+            'isDayView' => $isDayView,
+            'absenceLabels' => TeacherAbsenceTypes::labels(),
         ]);
+    }
+
+    public function day()
+    {
+        if (!request()->filled('day')) {
+            $weekday = (int) now()->isoWeekday(); // 1=Mon ... 7=Sun
+            $dayKey = match (true) {
+                $weekday === 2 => 'tue',
+                $weekday === 3 => 'wed',
+                $weekday === 4 => 'thu',
+                $weekday === 5 => 'fri',
+                $weekday === 6 => 'sat',
+                default => 'mon',
+            };
+            request()->merge(['day' => $dayKey]);
+        }
+        return $this->index();
     }
 
     protected function resolveSubjectTitle(array $subjects, ?int $subjectId, bool $useKazakh, bool $includeModule): ?string
@@ -520,6 +574,14 @@ class FirstCourseSchedulePageController extends Controller
         }
         $subjects = $subjectsQuery->get();
         $teachers = DB::table(CourseContext::tables(1)['teachers'])->get();
+        $rooms = collect();
+        if (Schema::hasTable('rooms')) {
+            $roomsQuery = DB::table('rooms')->select('id', 'code', 'type');
+            if (Schema::hasColumn('rooms', 'is_active')) {
+                $roomsQuery->where('is_active', true);
+            }
+            $rooms = $roomsQuery->orderBy('code')->get();
+        }
         $groupLocalePreference = [];
         foreach ($groups as $group) {
             $groupLocalePreference[$group->id] = $this->resolveGroupIsKazakh($group);
@@ -539,6 +601,7 @@ class FirstCourseSchedulePageController extends Controller
             'teachers' => $teachers,
             'days' => $days,
             'groupLocalePreference' => $groupLocalePreference,
+            'rooms' => $rooms,
         ]);
     }
 
@@ -553,18 +616,18 @@ class FirstCourseSchedulePageController extends Controller
             'group_id'      => 'required|integer',
             'subject_id'    => 'nullable|integer',
             'teacher_id'    => 'nullable|integer',
-            'room_id'       => 'nullable|integer',
+            'room_id'       => 'nullable|string|max:50',
             'has_subgroups'     => 'sometimes|boolean',
             'subject_id_second' => 'required_if:has_subgroups,1|integer|nullable',
             'teacher_id_second' => 'nullable|integer',
-            'room_id_second'    => 'nullable|integer',
+            'room_id_second'    => 'nullable|string|max:50',
             'has_denominator'   => 'sometimes|boolean',
             'subject_id_denominator' => 'nullable|integer',
             'teacher_id_denominator' => 'nullable|integer',
-            'room_id_denominator'    => 'nullable|integer',
+            'room_id_denominator'    => 'nullable|string|max:50',
             'subject_id_second_denominator' => 'nullable|integer',
             'teacher_id_second_denominator' => 'nullable|integer',
-            'room_id_second_denominator'    => 'nullable|integer',
+            'room_id_second_denominator'    => 'nullable|string|max:50',
         ]);
 
         $hasSubgroups = $request->boolean('has_subgroups');
@@ -750,6 +813,14 @@ class FirstCourseSchedulePageController extends Controller
                 return $row;
             });
         $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get();
+        $rooms = collect();
+        if (Schema::hasTable('rooms')) {
+            $roomsQuery = DB::table('rooms')->select('id', 'code', 'type');
+            if (Schema::hasColumn('rooms', 'is_active')) {
+                $roomsQuery->where('is_active', true);
+            }
+            $rooms = $roomsQuery->orderBy('code')->get();
+        }
         $teacherSubjectMap = [];
         $teacherSubjectTable = $tables['teacher_subjects'] ?? null;
         if ($teacherSubjectTable && Schema::hasTable($teacherSubjectTable)) {
@@ -851,6 +922,7 @@ class FirstCourseSchedulePageController extends Controller
             'weekStart' => $weekStart->toDateString(),
             'course' => $course,
             'weeklyHolidays' => $holidayDaysOfWeek,
+            'rooms' => $rooms,
         ]);
     }
 
@@ -877,6 +949,14 @@ class FirstCourseSchedulePageController extends Controller
             'wed' => 'Среда',
             'thu' => 'Четверг',
             'fri' => 'Пятница',
+        ];
+        $dayOffset = [
+            'Понедельник' => 0,
+            'Вторник' => 1,
+            'Среда' => 2,
+            'Четверг' => 3,
+            'Пятница' => 4,
+            'Суббота' => 5,
         ];
 
         $course = CourseContext::normalize($data['course'] ?? 1);
@@ -953,6 +1033,18 @@ class FirstCourseSchedulePageController extends Controller
             return response()->json(['status' => '', 'message' => '']);
         }
 
+        $classDate = isset($dayOffset[$studyDay])
+            ? $weekStart->copy()->addDays($dayOffset[$studyDay])
+            : $weekStart->copy();
+        $absenceType = $this->teacherAbsenceTypeForDate($teacherId, $classDate);
+        if ($absenceType) {
+            $label = TeacherAbsenceTypes::labels()[$absenceType] ?? $absenceType;
+            return response()->json([
+                'status' => 'busy',
+                'message' => 'Преподаватель отсутствует (' . $label . ')',
+            ]);
+        }
+
         $conflict = $this->teacherBusyInTable(
             $teacherId,
             $mode,
@@ -1016,6 +1108,413 @@ class FirstCourseSchedulePageController extends Controller
         }
 
         return response()->json(['status' => 'free', 'message' => 'Свободно']);
+    }
+
+    public function freeTeachers(Request $request)
+    {
+        $data = $request->validate([
+            'week_start' => 'required|date',
+            'day_key' => 'required|string',
+            'lesson_number' => 'required|integer|min:1|max:7',
+            'mode' => 'nullable|in:numerator,denominator',
+            'course' => 'nullable|integer|min:1|max:4',
+            'group_id' => 'nullable|integer',
+        ]);
+
+        $dayMap = [
+            'mon' => 'Понедельник',
+            'tue' => 'Вторник',
+            'wed' => 'Среда',
+            'thu' => 'Четверг',
+            'fri' => 'Пятница',
+            'sat' => 'Суббота',
+        ];
+        $dayOffset = [
+            'Понедельник' => 0,
+            'Вторник' => 1,
+            'Среда' => 2,
+            'Четверг' => 3,
+            'Пятница' => 4,
+            'Суббота' => 5,
+        ];
+
+        $course = CourseContext::normalize($data['course'] ?? 1);
+        $tables = CourseContext::tables($course);
+        $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
+        $dayKey = $data['day_key'];
+        $studyDay = $dayMap[$dayKey] ?? $dayKey;
+        if (!isset($dayOffset[$studyDay])) {
+            return response()->json(['message' => 'Некорректный день недели'], 422);
+        }
+        $lessonNumber = (int) $data['lesson_number'];
+        $mode = ($data['mode'] ?? 'numerator') === 'denominator' ? 'denominator' : 'numerator';
+        $excludeGroupId = $data['group_id'] ?? null;
+
+        $classDate = $weekStart->copy()->addDays($dayOffset[$studyDay]);
+        $absences = $this->teacherAbsencesForDate($classDate);
+        $absentIds = array_map('intval', array_keys($absences));
+
+        $occupied = [];
+        foreach ([1, 2, 3, 4] as $courseCheck) {
+            $courseTables = CourseContext::tables($courseCheck);
+            $scheduleTable = $courseTables['schedules'] ?? null;
+            if (!$scheduleTable || !Schema::hasTable($scheduleTable)) {
+                continue;
+            }
+            $occupied = array_merge(
+                $occupied,
+                $this->occupiedTeachersForSlot(
+                    $scheduleTable,
+                    $studyDay,
+                    $lessonNumber,
+                    $weekStart,
+                    $mode,
+                    $courseCheck === $course ? $excludeGroupId : null
+                )
+            );
+        }
+
+        $occupied = array_values(array_unique(array_filter(array_map('intval', $occupied))));
+        $teacherIds = DB::table($tables['teachers'])->pluck('id')->map(fn($id) => (int) $id)->all();
+        $free = array_values(array_diff($teacherIds, $occupied, $absentIds));
+
+        return response()->json([
+            'free' => $free,
+            'occupied' => $occupied,
+            'absent' => $absences,
+        ]);
+    }
+
+    public function freeRooms(Request $request)
+    {
+        $data = $request->validate([
+            'week_start' => 'required|date',
+            'day_key' => 'required|string',
+            'lesson_number' => 'required|integer|min:1|max:7',
+            'mode' => 'nullable|in:numerator,denominator',
+            'course' => 'nullable|integer|min:1|max:4',
+            'group_id' => 'nullable|integer',
+            'room_type' => 'nullable|string|in:standard,computer,lab',
+            'teacher_id' => 'nullable|integer',
+        ]);
+
+        if (!Schema::hasTable('rooms')) {
+            return response()->json(['rooms' => [], 'suggested' => null]);
+        }
+        $hasRoomIsActive = Schema::hasColumn('rooms', 'is_active');
+
+        $dayMap = [
+            'mon' => 'Понедельник',
+            'tue' => 'Вторник',
+            'wed' => 'Среда',
+            'thu' => 'Четверг',
+            'fri' => 'Пятница',
+            'sat' => 'Суббота',
+        ];
+        $dayOffset = [
+            'Понедельник' => 0,
+            'Вторник' => 1,
+            'Среда' => 2,
+            'Четверг' => 3,
+            'Пятница' => 4,
+            'Суббота' => 5,
+        ];
+
+        $course = CourseContext::normalize($data['course'] ?? 1);
+        $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
+        $dayKey = $data['day_key'];
+        $studyDay = $dayMap[$dayKey] ?? $dayKey;
+        if (!isset($dayOffset[$studyDay])) {
+            return response()->json(['message' => 'Некорректный день недели'], 422);
+        }
+        $lessonNumber = (int) $data['lesson_number'];
+        $mode = ($data['mode'] ?? 'numerator') === 'denominator' ? 'denominator' : 'numerator';
+        $excludeGroupId = $data['group_id'] ?? null;
+
+        $roomsQuery = DB::table('rooms')->select('id', 'code', 'type', 'title');
+        if ($hasRoomIsActive) {
+            $roomsQuery->where('is_active', true);
+        }
+        if (!empty($data['room_type'])) {
+            $roomsQuery->where('type', $data['room_type']);
+        }
+        $rooms = $roomsQuery->orderBy('code')->get();
+
+        $occupied = [];
+        foreach ([1, 2, 3, 4] as $courseCheck) {
+            $courseTables = CourseContext::tables($courseCheck);
+            $scheduleTable = $courseTables['schedules'] ?? null;
+            if (!$scheduleTable || !Schema::hasTable($scheduleTable)) {
+                continue;
+            }
+            $occupied = array_merge(
+                $occupied,
+                $this->occupiedRoomsForSlot(
+                    $scheduleTable,
+                    $studyDay,
+                    $lessonNumber,
+                    $weekStart,
+                    $mode,
+                    $courseCheck === $course ? $excludeGroupId : null
+                )
+            );
+        }
+
+        $occupiedSet = [];
+        foreach ($occupied as $roomCode) {
+            $roomCode = $this->normalizeRoomString($roomCode);
+            if ($roomCode !== null) {
+                $occupiedSet[$roomCode] = true;
+            }
+        }
+
+        $freeRooms = $rooms->filter(function ($room) use ($occupiedSet) {
+            $code = $this->normalizeRoomString($room->code ?? null);
+            return $code !== null && !isset($occupiedSet[$code]);
+        })->values();
+
+        $suggested = null;
+        $teacherId = (int) ($data['teacher_id'] ?? 0);
+        if ($teacherId) {
+            $defaultRoomId = DB::table('teachers')->where('id', $teacherId)->value('default_room_id');
+            if ($defaultRoomId) {
+                $defaultCodeQuery = DB::table('rooms')->where('id', $defaultRoomId);
+                if ($hasRoomIsActive) {
+                    $defaultCodeQuery->where('is_active', true);
+                }
+                $defaultCode = $defaultCodeQuery->value('code');
+                $defaultCode = $this->normalizeRoomString($defaultCode);
+                if ($defaultCode && !isset($occupiedSet[$defaultCode])) {
+                    $suggested = $defaultCode;
+                }
+            }
+        }
+
+        if (!$suggested && $freeRooms->count()) {
+            $suggested = $this->normalizeRoomString($freeRooms->first()->code ?? null);
+        }
+
+        return response()->json([
+            'rooms' => $freeRooms,
+            'suggested' => $suggested,
+        ]);
+    }
+
+    /**
+     * Массово подставить свободные кабинеты для выбранного дня и курса.
+     * Учитывает занятость кабинетов во всех курсах.
+     */
+    public function autoAssignRoomsDay(Request $request)
+    {
+        $data = $request->validate([
+            'week_start' => 'required|date',
+            'day_key' => 'required|string',
+            'course' => 'nullable|integer|min:1|max:4',
+        ]);
+
+        if (!Schema::hasTable('rooms')) {
+            return response()->json([
+                'updated' => 0,
+                'skipped' => 0,
+                'message' => 'Таблица кабинетов не найдена',
+            ], 422);
+        }
+        $hasRoomIsActive = Schema::hasColumn('rooms', 'is_active');
+
+        $dayMap = [
+            'mon' => 'Понедельник',
+            'tue' => 'Вторник',
+            'wed' => 'Среда',
+            'thu' => 'Четверг',
+            'fri' => 'Пятница',
+            'sat' => 'Суббота',
+        ];
+
+        $course = CourseContext::normalize($data['course'] ?? 1);
+        $tables = CourseContext::tables($course);
+        if (!Schema::hasTable($tables['schedules'])) {
+            return response()->json([
+                'updated' => 0,
+                'skipped' => 0,
+                'message' => 'Таблица расписания не найдена для курса',
+            ], 422);
+        }
+
+        $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
+        $dayKey = $data['day_key'] ?? '';
+        $studyDay = $dayMap[$dayKey] ?? $dayKey;
+        if (!in_array($studyDay, $dayMap, true)) {
+            return response()->json([
+                'updated' => 0,
+                'skipped' => 0,
+                'message' => 'Некорректный день недели',
+            ], 422);
+        }
+
+        /** @var ScheduleToFormTwoSyncService $syncService */
+        $syncService = app(ScheduleToFormTwoSyncService::class);
+        $mode = $syncService->resolveWeekMode($weekStart, $course);
+        $hasDenominatorSub2Column = Schema::hasColumn($tables['schedules'], 'room_id_denominator_2');
+
+        $roomsQuery = DB::table('rooms')->select('id', 'code');
+        if ($hasRoomIsActive) {
+            $roomsQuery->where('is_active', true);
+        }
+        $rooms = $roomsQuery->orderBy('code')->get();
+        $roomCodes = $rooms
+            ->map(fn ($room) => $this->normalizeRoomString($room->code ?? null))
+            ->filter()
+            ->values()
+            ->all();
+        if (!$roomCodes) {
+            return response()->json([
+                'updated' => 0,
+                'skipped' => 0,
+                'message' => 'Нет доступных кабинетов',
+            ], 422);
+        }
+
+        $defaultRoomCodesByTeacher = [];
+        if (Schema::hasColumn('teachers', 'default_room_id')) {
+            $defaultRoomCodesQuery = DB::table('teachers as t')
+                ->leftJoin('rooms as r', 'r.id', '=', 't.default_room_id')
+                ->select('t.id', 'r.code')
+                ->whereNotNull('t.default_room_id');
+            if ($hasRoomIsActive) {
+                $defaultRoomCodesQuery->where('r.is_active', true);
+            }
+            $defaultRoomCodesByTeacher = $defaultRoomCodesQuery
+                ->get()
+                ->mapWithKeys(function ($row) {
+                    $code = $this->normalizeRoomString($row->code ?? null);
+                    return $code ? [(int) $row->id => $code] : [];
+                })
+                ->all();
+        }
+
+        $rows = DB::table($tables['schedules'])
+            ->whereDate('week_start', $weekStart->toDateString())
+            ->where('study_day', $studyDay)
+            ->orderBy('lesson_number')
+            ->orderBy('group_id')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return response()->json([
+                'updated' => 0,
+                'skipped' => 0,
+                'message' => 'Нет записей расписания на выбранный день',
+            ]);
+        }
+
+        // Предварительно соберём занятость по слотам с учётом всех курсов.
+        $occupiedBySlot = [];
+        foreach ($rows->pluck('lesson_number')->unique()->values() as $lessonNumber) {
+            $lessonNumber = (int) $lessonNumber;
+            $occupied = [];
+            foreach ([1, 2, 3, 4] as $courseCheck) {
+                $courseTables = CourseContext::tables($courseCheck);
+                $scheduleTable = $courseTables['schedules'] ?? null;
+                if (!$scheduleTable || !Schema::hasTable($scheduleTable)) {
+                    continue;
+                }
+                $occupied = array_merge(
+                    $occupied,
+                    $this->occupiedRoomsForSlot(
+                        $scheduleTable,
+                        $studyDay,
+                        $lessonNumber,
+                        $weekStart,
+                        $mode,
+                        null
+                    )
+                );
+            }
+
+            $occupiedSet = [];
+            foreach ($occupied as $roomCode) {
+                $roomCode = $this->normalizeRoomString($roomCode);
+                if ($roomCode !== null) {
+                    $occupiedSet[$roomCode] = true;
+                }
+            }
+            $occupiedBySlot[$lessonNumber] = $occupiedSet;
+        }
+
+        $updated = 0;
+        $skipped = 0;
+
+        DB::transaction(function () use (
+            $rows,
+            $mode,
+            $tables,
+            $roomCodes,
+            $defaultRoomCodesByTeacher,
+            $hasDenominatorSub2Column,
+            &$occupiedBySlot,
+            &$updated,
+            &$skipped
+        ) {
+            foreach ($rows as $row) {
+                $lessonNumber = (int) ($row->lesson_number ?? 0);
+                if ($lessonNumber < 1) {
+                    $skipped++;
+                    continue;
+                }
+
+                $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? '2' : '1';
+                $targetField = $mode === 'denominator'
+                    ? ($subgroupFlag === '2' && $hasDenominatorSub2Column ? 'room_id_denominator_2' : 'room_id_denominator')
+                    : 'room_id';
+
+                $currentRoom = $this->normalizeRoomString($row->{$targetField} ?? null);
+                if ($currentRoom) {
+                    $skipped++;
+                    continue;
+                }
+
+                $occupiedSet = $occupiedBySlot[$lessonNumber] ?? [];
+
+                $teacherId = (int) ($row->teacher_id ?? 0);
+                $candidate = null;
+                if ($teacherId && isset($defaultRoomCodesByTeacher[$teacherId])) {
+                    $defaultCode = $defaultRoomCodesByTeacher[$teacherId];
+                    if (!isset($occupiedSet[$defaultCode])) {
+                        $candidate = $defaultCode;
+                    }
+                }
+
+                if (!$candidate) {
+                    foreach ($roomCodes as $code) {
+                        if (!isset($occupiedSet[$code])) {
+                            $candidate = $code;
+                            break;
+                        }
+                    }
+                }
+
+                if (!$candidate) {
+                    $skipped++;
+                    continue;
+                }
+
+                DB::table($tables['schedules'])
+                    ->where('id', $row->id)
+                    ->update([
+                        $targetField => $candidate,
+                        'updated_at' => now(),
+                    ]);
+
+                $occupiedBySlot[$lessonNumber][$candidate] = true;
+                $updated++;
+            }
+        });
+
+        return response()->json([
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'mode' => $mode,
+        ]);
     }
 
     /**
@@ -1867,7 +2366,7 @@ class FirstCourseSchedulePageController extends Controller
             }
         });
 
-        $sync->syncWeek($groupId, $weekStart, $weekStart, null, $course);
+        $sync->syncWeekWithAlternation($groupId, $weekStart, $course);
 
         return response()->json(['message' => 'Пара обновлена']);
     }
@@ -2101,14 +2600,22 @@ class FirstCourseSchedulePageController extends Controller
             $teacherNum2 = ($row->teacher_id_2 ?? null) ?: ($subgroupFlag === '2' ? ($row->teacher_id ?? null) : null);
             $teacherDen1 = $subgroupFlag === '1' ? ($row->teacher_id_denominator ?? null) : null;
             $teacherDen2 = ($row->teacher_id_denominator_2 ?? null) ?: ($subgroupFlag === '2' ? ($row->teacher_id_denominator ?? null) : null);
+            $replacementNum1 = !empty($row->is_replacement_1_num) ? ($row->replacement_teacher_id_1_num ?? null) : null;
+            $replacementNum2 = !empty($row->is_replacement_2_num) ? ($row->replacement_teacher_id_2_num ?? null) : null;
+            $replacementDen1 = !empty($row->is_replacement_1_den) ? ($row->replacement_teacher_id_1_den ?? null) : null;
+            $replacementDen2 = !empty($row->is_replacement_2_den) ? ($row->replacement_teacher_id_2_den ?? null) : null;
 
             $rowSlots = [];
             foreach ($modes as $m) {
                 $rowSlots[] = ['teacher' => $teacherNum1, 'mode' => $m];
                 $rowSlots[] = ['teacher' => $teacherNum2, 'mode' => $m];
+                $rowSlots[] = ['teacher' => $replacementNum1, 'mode' => $m];
+                $rowSlots[] = ['teacher' => $replacementNum2, 'mode' => $m];
             }
             $rowSlots[] = ['teacher' => $teacherDen1, 'mode' => 'denominator'];
             $rowSlots[] = ['teacher' => $teacherDen2, 'mode' => 'denominator'];
+            $rowSlots[] = ['teacher' => $replacementDen1, 'mode' => 'denominator'];
+            $rowSlots[] = ['teacher' => $replacementDen2, 'mode' => 'denominator'];
 
             foreach ($rowSlots as $rowSlot) {
                 $rowTeacher = (int) ($rowSlot['teacher'] ?? 0);
@@ -2128,6 +2635,192 @@ class FirstCourseSchedulePageController extends Controller
         }
 
         return null;
+    }
+
+    protected function occupiedTeachersForSlot(
+        string $table,
+        string $studyDay,
+        int $lessonNumber,
+        ?Carbon $weekStart,
+        string $mode,
+        ?int $excludeGroupId = null
+    ): array {
+        if (!Schema::hasTable($table)) {
+            return [];
+        }
+
+        $rows = DB::table($table)
+            ->where('study_day', $studyDay)
+            ->where('lesson_number', $lessonNumber)
+            ->when($weekStart, fn ($q) => $q->whereDate('week_start', $weekStart->toDateString()))
+            ->when($excludeGroupId, fn ($q) => $q->where('group_id', '<>', $excludeGroupId))
+            ->get();
+
+        $occupied = [];
+        foreach ($rows as $row) {
+            $hasDenominator = ($row->subject_id_denominator ?? null)
+                || ($row->teacher_id_denominator ?? null)
+                || ($row->room_id_denominator ?? null)
+                || ($row->subject_id_denominator_2 ?? null)
+                || ($row->teacher_id_denominator_2 ?? null)
+                || ($row->room_id_denominator_2 ?? null);
+
+            $modes = $hasDenominator ? ['numerator'] : ['numerator', 'denominator'];
+            $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? '2' : '1';
+
+            $teacherNum1 = $subgroupFlag === '1' ? ($row->teacher_id ?? null) : null;
+            $teacherNum2 = ($row->teacher_id_2 ?? null) ?: ($subgroupFlag === '2' ? ($row->teacher_id ?? null) : null);
+            $teacherDen1 = $subgroupFlag === '1' ? ($row->teacher_id_denominator ?? null) : null;
+            $teacherDen2 = ($row->teacher_id_denominator_2 ?? null) ?: ($subgroupFlag === '2' ? ($row->teacher_id_denominator ?? null) : null);
+            $replacementNum1 = !empty($row->is_replacement_1_num) ? ($row->replacement_teacher_id_1_num ?? null) : null;
+            $replacementNum2 = !empty($row->is_replacement_2_num) ? ($row->replacement_teacher_id_2_num ?? null) : null;
+            $replacementDen1 = !empty($row->is_replacement_1_den) ? ($row->replacement_teacher_id_1_den ?? null) : null;
+            $replacementDen2 = !empty($row->is_replacement_2_den) ? ($row->replacement_teacher_id_2_den ?? null) : null;
+
+            if (in_array($mode, $modes, true)) {
+                foreach ([$teacherNum1, $teacherNum2, $replacementNum1, $replacementNum2] as $teacherId) {
+                    if ($teacherId) {
+                        $occupied[] = (int) $teacherId;
+                    }
+                }
+            }
+            if ($mode === 'denominator') {
+                foreach ([$teacherDen1, $teacherDen2, $replacementDen1, $replacementDen2] as $teacherId) {
+                    if ($teacherId) {
+                        $occupied[] = (int) $teacherId;
+                    }
+                }
+            }
+        }
+
+        return $occupied;
+    }
+
+    protected function occupiedRoomsForSlot(
+        string $table,
+        string $studyDay,
+        int $lessonNumber,
+        ?Carbon $weekStart,
+        string $mode,
+        ?int $excludeGroupId = null
+    ): array {
+        if (!Schema::hasTable($table)) {
+            return [];
+        }
+
+        $rows = DB::table($table)
+            ->where('study_day', $studyDay)
+            ->where('lesson_number', $lessonNumber)
+            ->when($weekStart, fn ($q) => $q->whereDate('week_start', $weekStart->toDateString()))
+            ->when($excludeGroupId, fn ($q) => $q->where('group_id', '<>', $excludeGroupId))
+            ->get();
+
+        $occupied = [];
+        foreach ($rows as $row) {
+            $hasDenominator = ($row->subject_id_denominator ?? null)
+                || ($row->teacher_id_denominator ?? null)
+                || ($row->room_id_denominator ?? null)
+                || ($row->subject_id_denominator_2 ?? null)
+                || ($row->teacher_id_denominator_2 ?? null)
+                || ($row->room_id_denominator_2 ?? null);
+
+            $modes = $hasDenominator ? ['numerator'] : ['numerator', 'denominator'];
+            $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? '2' : '1';
+
+            $roomNum1 = $subgroupFlag === '1' ? ($row->room_id ?? null) : null;
+            $roomNum2 = ($row->room_id_2 ?? null) ?: ($subgroupFlag === '2' ? ($row->room_id ?? null) : null);
+            $roomDen1 = $subgroupFlag === '1' ? ($row->room_id_denominator ?? null) : null;
+            $roomDen2 = ($row->room_id_denominator_2 ?? null) ?: ($subgroupFlag === '2' ? ($row->room_id_denominator ?? null) : null);
+
+            if (in_array($mode, $modes, true)) {
+                foreach ([$roomNum1, $roomNum2] as $room) {
+                    $room = $this->normalizeRoomString($room);
+                    if ($room !== null) {
+                        $occupied[] = $room;
+                    }
+                }
+            }
+            if ($mode === 'denominator') {
+                foreach ([$roomDen1, $roomDen2] as $room) {
+                    $room = $this->normalizeRoomString($room);
+                    if ($room !== null) {
+                        $occupied[] = $room;
+                    }
+                }
+            }
+        }
+
+        return $occupied;
+    }
+
+    protected function teacherAbsenceTypeForDate(int $teacherId, Carbon $date): ?string
+    {
+        if (!Schema::hasTable('teacher_absences')) {
+            return null;
+        }
+
+        return DB::table('teacher_absences')
+            ->where('teacher_id', $teacherId)
+            ->whereDate('start_date', '<=', $date->toDateString())
+            ->whereDate('end_date', '>=', $date->toDateString())
+            ->value('type');
+    }
+
+    protected function teacherAbsencesForDate(Carbon $date): array
+    {
+        if (!Schema::hasTable('teacher_absences')) {
+            return [];
+        }
+
+        return DB::table('teacher_absences')
+            ->whereDate('start_date', '<=', $date->toDateString())
+            ->whereDate('end_date', '>=', $date->toDateString())
+            ->pluck('type', 'teacher_id')
+            ->toArray();
+    }
+
+    protected function teacherAbsenceMapForDays(array $days): array
+    {
+        if (!Schema::hasTable('teacher_absences')) {
+            return [];
+        }
+
+        $dates = array_values(array_filter(array_map(
+            fn ($day) => $day['date'] ?? null,
+            $days
+        )));
+        if (empty($dates)) {
+            return [];
+        }
+
+        $startDate = min($dates);
+        $endDate = max($dates);
+
+        $absences = DB::table('teacher_absences')
+            ->whereDate('start_date', '<=', $endDate)
+            ->whereDate('end_date', '>=', $startDate)
+            ->get();
+
+        $map = [];
+        foreach ($absences as $absence) {
+            $absenceStart = Carbon::parse($absence->start_date);
+            $absenceEnd = Carbon::parse($absence->end_date);
+            foreach ($days as $dayInfo) {
+                $date = $dayInfo['date'] ?? null;
+                if (!$date) {
+                    continue;
+                }
+                $dayDate = Carbon::parse($date);
+                if ($dayDate->gte($absenceStart) && $dayDate->lte($absenceEnd)) {
+                    $dayName = $dayInfo['name'] ?? null;
+                    if ($dayName) {
+                        $map[$dayName][$absence->teacher_id] = $absence->type;
+                    }
+                }
+            }
+        }
+
+        return $map;
     }
 
     /**
@@ -2168,6 +2861,20 @@ class FirstCourseSchedulePageController extends Controller
 
         $occupiedByMode = [];
         $pairLabel = sprintf('%s, пара %d', $studyDay, $lessonNumber);
+        $absenceDate = null;
+        if ($weekStart) {
+            $dayOffset = [
+                'Понедельник' => 0,
+                'Вторник' => 1,
+                'Среда' => 2,
+                'Четверг' => 3,
+                'Пятница' => 4,
+                'Суббота' => 5,
+            ];
+            if (isset($dayOffset[$studyDay])) {
+                $absenceDate = $weekStart->copy()->addDays($dayOffset[$studyDay]);
+            }
+        }
         foreach ($slots as $slot) {
             $teacherId = $slot['id'] ?? null;
             if (!$teacherId) {
@@ -2236,6 +2943,20 @@ class FirstCourseSchedulePageController extends Controller
                         $subjectTitle
                     ),
                 ]);
+            }
+
+            if ($absenceDate) {
+                $absenceType = $this->teacherAbsenceTypeForDate((int) $teacherId, $absenceDate);
+                if ($absenceType) {
+                    $label = TeacherAbsenceTypes::labels()[$absenceType] ?? $absenceType;
+                    throw ValidationException::withMessages([
+                        'teacher_id' => sprintf(
+                            'Преподаватель отсутствует (%s) на %s',
+                            $label,
+                            $pairLabel
+                        ),
+                    ]);
+                }
             }
         }
 

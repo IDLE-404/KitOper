@@ -49,6 +49,10 @@
         align-items: center;
         gap: 8px;
     }
+    .teacher-absent {
+        border-color: #f87171 !important;
+        box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.2);
+    }
     .btn-expand {
         margin-top: 24px;
         background: #2563eb;
@@ -288,7 +292,7 @@
                                         <div class="mb-3">
                                             <div class="text-muted small mb-1">Числитель</div>
                                             <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-a">
-                                            <select class="select-soft filterable availability-check" id="teach-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id]" data-type="teacher" data-mode="numerator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                            <select class="select-soft filterable availability-check" id="teach-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id]" data-type="teacher" data-mode="numerator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" data-room-target="#room-{{ $dayKey }}-{{ $pair }}-a">
                                                 <option value="">Выберите преподавателя</option>
                                                 @foreach($teachers as $t)
                                                     <option value="{{ $t->id }}" @selected($rowA && $rowA->teacher_id == $t->id)>{{ $t->teacher_name }}</option>
@@ -299,7 +303,7 @@
                                         <div>
                                             <div class="text-muted small mb-1">Знаменатель</div>
                                             <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-a-den">
-                                            <select class="select-soft filterable availability-check" id="teach-{{ $dayKey }}-{{ $pair }}-a-den" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_denominator]" data-type="teacher" data-mode="denominator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                            <select class="select-soft filterable availability-check" id="teach-{{ $dayKey }}-{{ $pair }}-a-den" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_denominator]" data-type="teacher" data-mode="denominator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" data-room-target="#room-{{ $dayKey }}-{{ $pair }}-a-den">
                                                 <option value="">Можно выбрать другого преподавателя</option>
                                                 @foreach($teachers as $t)
                                                     <option value="{{ $t->id }}" @selected($rowA && ($rowA->teacher_id_denominator ?? null) == $t->id)>{{ $t->teacher_name }}</option>
@@ -311,12 +315,22 @@
                                     <td>
                                         <div class="mb-3">
                                             <div class="text-muted small mb-1">Числитель</div>
-                                            <input type="text" class="input-soft availability-check" id="room-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id]" value="{{ $rowA->room_id ?? '' }}" placeholder="Каб. 301" data-type="room" data-mode="numerator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                            <select class="select-soft availability-check" id="room-{{ $dayKey }}-{{ $pair }}-a" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id]" data-type="room" data-mode="numerator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" data-teacher-target="#teach-{{ $dayKey }}-{{ $pair }}-a">
+                                                <option value="">—</option>
+                                                @foreach(($rooms ?? collect()) as $room)
+                                                    <option value="{{ $room->code }}" @selected(($rowA->room_id ?? null) == $room->code)>{{ $room->code }}</option>
+                                                @endforeach
+                                            </select>
                                             <div class="availability-note" data-status-for="room-{{ $dayKey }}-{{ $pair }}-a"></div>
                                         </div>
                                         <div>
                                             <div class="text-muted small mb-1">Знаменатель</div>
-                                            <input type="text" class="input-soft availability-check" id="room-{{ $dayKey }}-{{ $pair }}-a-den" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_denominator]" value="{{ $rowA->room_id_denominator ?? '' }}" placeholder="Если аудитория меняется" data-type="room" data-mode="denominator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                            <select class="select-soft availability-check" id="room-{{ $dayKey }}-{{ $pair }}-a-den" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_denominator]" data-type="room" data-mode="denominator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" data-teacher-target="#teach-{{ $dayKey }}-{{ $pair }}-a-den">
+                                                <option value="">—</option>
+                                                @foreach(($rooms ?? collect()) as $room)
+                                                    <option value="{{ $room->code }}" @selected(($rowA->room_id_denominator ?? null) == $room->code)>{{ $room->code }}</option>
+                                                @endforeach
+                                            </select>
                                             <div class="availability-note" data-status-for="room-{{ $dayKey }}-{{ $pair }}-a-den"></div>
                                         </div>
                                     </td>
@@ -359,7 +373,7 @@
                                         <div class="mb-3">
                                             <div class="text-muted small mb-1">Числитель</div>
                                             <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-b">
-                                            <select class="select-soft filterable availability-check" id="teach-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_second]" data-type="teacher" data-mode="numerator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                            <select class="select-soft filterable availability-check" id="teach-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_second]" data-type="teacher" data-mode="numerator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" data-room-target="#room-{{ $dayKey }}-{{ $pair }}-b">
                                                 <option value="">Преподаватель 2 (опционально)</option>
                                                 @foreach($teachers as $t)
                                                     <option value="{{ $t->id }}" @selected($rowB && $rowB->teacher_id == $t->id)>{{ $t->teacher_name }}</option>
@@ -370,7 +384,7 @@
                                         <div>
                                             <div class="text-muted small mb-1">Знаменатель</div>
                                             <input type="search" class="input-soft mb-2 filter-input" placeholder="Поиск" data-target="#teach-{{ $dayKey }}-{{ $pair }}-b-den">
-                                            <select class="select-soft filterable availability-check" id="teach-{{ $dayKey }}-{{ $pair }}-b-den" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_second_denominator]" data-type="teacher" data-mode="denominator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                            <select class="select-soft filterable availability-check" id="teach-{{ $dayKey }}-{{ $pair }}-b-den" name="schedule[{{ $dayKey }}][{{ $pair }}][teacher_id_second_denominator]" data-type="teacher" data-mode="denominator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" data-room-target="#room-{{ $dayKey }}-{{ $pair }}-b-den">
                                                 <option value="">Можно выбрать другого преподавателя</option>
                                                 @foreach($teachers as $t)
                                                     <option value="{{ $t->id }}" @selected($rowB && ($rowB->teacher_id_denominator ?? null) == $t->id)>{{ $t->teacher_name }}</option>
@@ -382,12 +396,22 @@
                                     <td>
                                         <div class="mb-3">
                                             <div class="text-muted small mb-1">Числитель</div>
-                                            <input type="text" class="input-soft availability-check" id="room-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_second]" value="{{ $rowB->room_id ?? '' }}" placeholder="Каб. 302" data-type="room" data-mode="numerator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                            <select class="select-soft availability-check" id="room-{{ $dayKey }}-{{ $pair }}-b" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_second]" data-type="room" data-mode="numerator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" data-teacher-target="#teach-{{ $dayKey }}-{{ $pair }}-b">
+                                                <option value="">—</option>
+                                                @foreach(($rooms ?? collect()) as $room)
+                                                    <option value="{{ $room->code }}" @selected(($rowB->room_id ?? null) == $room->code)>{{ $room->code }}</option>
+                                                @endforeach
+                                            </select>
                                             <div class="availability-note" data-status-for="room-{{ $dayKey }}-{{ $pair }}-b"></div>
                                         </div>
                                         <div>
                                             <div class="text-muted small mb-1">Знаменатель</div>
-                                            <input type="text" class="input-soft availability-check" id="room-{{ $dayKey }}-{{ $pair }}-b-den" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_second_denominator]" value="{{ $rowB->room_id_denominator ?? '' }}" placeholder="Если аудитория меняется" data-type="room" data-mode="denominator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                            <select class="select-soft availability-check" id="room-{{ $dayKey }}-{{ $pair }}-b-den" name="schedule[{{ $dayKey }}][{{ $pair }}][room_id_second_denominator]" data-type="room" data-mode="denominator" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" data-teacher-target="#teach-{{ $dayKey }}-{{ $pair }}-b-den">
+                                                <option value="">—</option>
+                                                @foreach(($rooms ?? collect()) as $room)
+                                                    <option value="{{ $room->code }}" @selected(($rowB->room_id_denominator ?? null) == $room->code)>{{ $room->code }}</option>
+                                                @endforeach
+                                            </select>
                                             <div class="availability-note" data-status-for="room-{{ $dayKey }}-{{ $pair }}-b-den"></div>
                                         </div>
                                     </td>
@@ -560,10 +584,21 @@
     updateAddButtons();
 
     const subjectTeacherMap = @json($teacherSubjectMap ?? []);
+    const freeTeachersUrl = @json(route('first.schedule.free_teachers'));
+    const freeRoomsUrl = @json(route('first.schedule.free_rooms'));
+    const roomsList = @json(($rooms ?? collect())->values()->all());
     const selectOptionsMap = new Map();
 
     document.querySelectorAll('select.filterable').forEach(selectEl => {
         selectOptionsMap.set(selectEl, Array.from(selectEl.options).map(opt => ({
+            value: opt.value,
+            text: opt.text,
+        })));
+    });
+    const roomSelects = Array.from(document.querySelectorAll('.availability-check[data-type="room"]'));
+    const roomOptionsMap = new Map();
+    roomSelects.forEach((selectEl) => {
+        roomOptionsMap.set(selectEl, Array.from(selectEl.options).map(opt => ({
             value: opt.value,
             text: opt.text,
         })));
@@ -619,13 +654,222 @@
         return allowed.map(String);
     };
 
+    const getFreeTeachersForSelect = (select) => {
+        if (!select || !select.dataset.freeTeachers) {
+            return null;
+        }
+        try {
+            const parsed = JSON.parse(select.dataset.freeTeachers);
+            return Array.isArray(parsed) ? parsed.map(String) : null;
+        } catch (e) {
+            return null;
+        }
+    };
+
+    const rebuildRoomOptions = (selectEl, allowedValues = null) => {
+        const options = roomOptionsMap.get(selectEl) || Array.from(selectEl.options).map(opt => ({
+            value: opt.value,
+            text: opt.text,
+        }));
+        const allowedSet = allowedValues && allowedValues.length ? new Set(allowedValues.map(String)) : null;
+        const previousValue = selectEl.value;
+        selectEl.innerHTML = '';
+
+        let hasSelection = false;
+        options.forEach(opt => {
+            if (allowedSet && opt.value && !allowedSet.has(String(opt.value))) {
+                return;
+            }
+            const node = document.createElement('option');
+            node.value = opt.value;
+            node.text = opt.text;
+            if (opt.value === previousValue) {
+                node.selected = true;
+                hasSelection = true;
+            }
+            selectEl.appendChild(node);
+        });
+
+        if (!hasSelection && selectEl.options.length) {
+            selectEl.selectedIndex = 0;
+        }
+    };
+
+    const freeTeacherCache = new Map();
+    const buildFreeTeacherKey = (dayKey, pair, mode, groupId) => `${dayKey}|${pair}|${mode}|${groupId || ''}`;
+
+    const fetchFreeTeachersForSlot = async (dayKey, pair, mode, groupId) => {
+        if (!dayKey || !pair || !weekStartInput?.value) {
+            return null;
+        }
+        const key = buildFreeTeacherKey(dayKey, pair, mode, groupId);
+        if (freeTeacherCache.has(key)) {
+            return freeTeacherCache.get(key);
+        }
+        const params = new URLSearchParams();
+        params.set('week_start', weekStartInput.value);
+        params.set('day_key', dayKey);
+        params.set('lesson_number', pair);
+        params.set('mode', mode || 'numerator');
+        if (courseInput?.value) {
+            params.set('course', courseInput.value);
+        }
+        if (groupId) {
+            params.set('group_id', groupId);
+        }
+        try {
+            const response = await fetch(`${freeTeachersUrl}?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
+            if (!response.ok) {
+                return null;
+            }
+            const payload = await response.json();
+            freeTeacherCache.set(key, payload);
+            return payload;
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const updateTeacherAbsenceState = (select) => {
+        if (!select) return;
+        let absentMap = null;
+        if (select.dataset.absentTeachers) {
+            try {
+                absentMap = JSON.parse(select.dataset.absentTeachers);
+            } catch (e) {
+                absentMap = null;
+            }
+        }
+        const selected = select.value;
+        const type = selected && absentMap ? absentMap[selected] : null;
+        select.classList.toggle('teacher-absent', !!type);
+    };
+
+    const refreshFreeTeachersForSelect = async (select) => {
+        if (!select) return;
+        const dayKey = select.dataset.day;
+        const pair = select.dataset.pair;
+        const mode = select.dataset.mode || 'numerator';
+        const groupId = groupSelect?.value || '';
+        const payload = await fetchFreeTeachersForSlot(dayKey, pair, mode, groupId);
+        if (!payload) {
+            return;
+        }
+        const freeList = Array.isArray(payload.free) ? payload.free.map(String) : null;
+        if (freeList) {
+            const currentValue = select.value ? String(select.value) : '';
+            if (currentValue && !freeList.includes(currentValue)) {
+                freeList.push(currentValue);
+            }
+            select.dataset.freeTeachers = JSON.stringify(freeList);
+        }
+        if (payload.absent) {
+            select.dataset.absentTeachers = JSON.stringify(payload.absent);
+        }
+        const subjectSelect = document.querySelector(`select[data-teacher-target="#${select.id}"]`);
+        if (subjectSelect) {
+            subjectSelect.dispatchEvent(new Event('change'));
+        }
+        updateTeacherAbsenceState(select);
+    };
+
+    const fetchFreeRoomsForSlot = async (dayKey, pair, mode, groupId, teacherId) => {
+        if (!dayKey || !pair || !weekStartInput?.value) {
+            return null;
+        }
+        const params = new URLSearchParams();
+        params.set('week_start', weekStartInput.value);
+        params.set('day_key', dayKey);
+        params.set('lesson_number', pair);
+        params.set('mode', mode || 'numerator');
+        if (courseInput?.value) {
+            params.set('course', courseInput.value);
+        }
+        if (groupId) {
+            params.set('group_id', groupId);
+        }
+        if (teacherId) {
+            params.set('teacher_id', teacherId);
+        }
+        try {
+            const response = await fetch(`${freeRoomsUrl}?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
+            if (!response.ok) {
+                return null;
+            }
+            return await response.json();
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const refreshFreeRoomsForSelect = async (roomSelect) => {
+        if (!roomSelect) return;
+        const dayKey = roomSelect.dataset.day;
+        const pair = roomSelect.dataset.pair;
+        const mode = roomSelect.dataset.mode || 'numerator';
+        const groupId = groupSelect?.value || '';
+        const teacherTarget = roomSelect.dataset.teacherTarget || '';
+        const teacherSelect = teacherTarget ? document.querySelector(teacherTarget) : null;
+        const teacherId = teacherSelect?.value || '';
+
+        const payload = await fetchFreeRoomsForSlot(dayKey, pair, mode, groupId, teacherId);
+        if (!payload || !Array.isArray(payload.rooms)) {
+            const fallback = roomsList.map((r) => String(r.code));
+            rebuildRoomOptions(roomSelect, fallback);
+            return;
+        }
+
+        const freeCodes = payload.rooms
+            .map((room) => String(room.code ?? '').trim())
+            .filter((code) => code !== '');
+        const currentValue = roomSelect.value ? String(roomSelect.value) : '';
+        if (currentValue && !freeCodes.includes(currentValue)) {
+            freeCodes.push(currentValue);
+        }
+        rebuildRoomOptions(roomSelect, freeCodes);
+    };
+
+    const suggestRoomForTeacher = async (teacherSelect) => {
+        const roomTarget = teacherSelect?.dataset.roomTarget;
+        if (!roomTarget) {
+            return;
+        }
+        const roomInput = document.querySelector(roomTarget);
+        if (!roomInput || roomInput.value) {
+            return;
+        }
+        const dayKey = teacherSelect.dataset.day;
+        const pair = teacherSelect.dataset.pair;
+        const mode = teacherSelect.dataset.mode || 'numerator';
+        const groupId = groupSelect?.value || '';
+        const teacherId = teacherSelect.value || '';
+        if (!teacherId) {
+            return;
+        }
+        const payload = await fetchFreeRoomsForSlot(dayKey, pair, mode, groupId, teacherId);
+        const suggested = payload?.suggested;
+        if (suggested) {
+            roomInput.value = suggested;
+            roomInput.dispatchEvent(new Event('input'));
+        }
+    };
+
     document.querySelectorAll('select[data-teacher-target]').forEach(subjectSelect => {
         const target = subjectSelect.dataset.teacherTarget;
         const teacherSelect = document.querySelector(target);
         if (!teacherSelect) return;
 
         const applyFilter = () => {
-            const allowed = getAllowedTeachers(subjectSelect.value);
+            let allowed = getAllowedTeachers(subjectSelect.value);
+            const freeTeachers = getFreeTeachersForSelect(teacherSelect);
+            if (freeTeachers) {
+                if (allowed) {
+                    const freeSet = new Set(freeTeachers.map(String));
+                    allowed = allowed.filter((id) => freeSet.has(String(id)));
+                } else {
+                    allowed = freeTeachers;
+                }
+            }
             const filterInput = document.querySelector(`.filter-input[data-target="${target}"]`);
             if (filterInput) {
                 filterInput.value = '';
@@ -635,6 +879,23 @@
 
         subjectSelect.addEventListener('change', applyFilter);
         applyFilter();
+    });
+
+    document.querySelectorAll('select.availability-check[data-type="teacher"]').forEach(select => {
+        select.addEventListener('focus', () => refreshFreeTeachersForSelect(select));
+        select.addEventListener('change', () => {
+            updateTeacherAbsenceState(select);
+            suggestRoomForTeacher(select);
+            const roomTarget = select.dataset.roomTarget;
+            if (roomTarget) {
+                const roomSelect = document.querySelector(roomTarget);
+                refreshFreeRoomsForSelect(roomSelect);
+            }
+        });
+    });
+
+    roomSelects.forEach((select) => {
+        refreshFreeRoomsForSelect(select);
     });
 
     // Быстрый поиск по select
@@ -664,6 +925,7 @@
 
     // Смена группы — перезагрузка с параметром
     const groupSelect = document.getElementById('groupSelect');
+    const courseInput = document.querySelector('input[name="course"]');
     if (groupSelect) {
         groupSelect.addEventListener('change', () => {
             const params = new URLSearchParams(window.location.search);

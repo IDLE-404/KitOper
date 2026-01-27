@@ -8,6 +8,8 @@ use App\Http\Controllers\TeacherWorkloadController;
 use App\Http\Controllers\PracticeController;
 use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\GroupController;
+use App\Http\Controllers\RoomController;
+use App\Http\Controllers\TeacherAbsenceController;
 
 Route::get('/', [FirstCourseSchedulePageController::class, 'index'])->name('home');
 Route::get('/teachers/workload', [TeacherWorkloadController::class, 'index'])->name('teachers.workload');
@@ -18,15 +20,27 @@ Route::get('/holidays', [HolidayController::class, 'index'])->name('holidays.ind
 Route::post('/holidays', [HolidayController::class, 'store'])->name('holidays.store');
 Route::put('/holidays/{holiday}', [HolidayController::class, 'update'])->name('holidays.update');
 Route::delete('/holidays/{holiday}', [HolidayController::class, 'destroy'])->name('holidays.destroy');
+Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');
+Route::post('/rooms', [RoomController::class, 'store'])->name('rooms.store');
+Route::put('/rooms/{id}', [RoomController::class, 'update'])->name('rooms.update');
+Route::delete('/rooms/{id}', [RoomController::class, 'destroy'])->name('rooms.destroy');
+Route::get('/teacher-absences', [TeacherAbsenceController::class, 'index'])->name('teacher_absences.index');
+Route::post('/teacher-absences', [TeacherAbsenceController::class, 'store'])->name('teacher_absences.store');
+Route::put('/teacher-absences/{id}', [TeacherAbsenceController::class, 'update'])->name('teacher_absences.update');
+Route::delete('/teacher-absences/{id}', [TeacherAbsenceController::class, 'destroy'])->name('teacher_absences.destroy');
 
 Route::prefix('first-course')->group(function () {
     Route::get('/schedule', [FirstCourseSchedulePageController::class, 'index'])->name('first.schedule.index');
+    Route::get('/schedule/day', [FirstCourseSchedulePageController::class, 'day'])->name('first.schedule.day');
     Route::get('/schedule/week', [FirstCourseSchedulePageController::class, 'week'])->name('first.schedule.week');
     Route::get('/schedule/availability', [FirstCourseSchedulePageController::class, 'availability'])->name('first.schedule.availability');
+    Route::get('/schedule/free-teachers', [FirstCourseSchedulePageController::class, 'freeTeachers'])->name('first.schedule.free_teachers');
+    Route::get('/schedule/free-rooms', [FirstCourseSchedulePageController::class, 'freeRooms'])->name('first.schedule.free_rooms');
     Route::post('/schedule/week', [FirstCourseSchedulePageController::class, 'weekSave'])->name('first.schedule.week.save');
     Route::post('/schedule/expand-semester', [FirstCourseSchedulePageController::class, 'expandSemester'])->name('first.schedule.semester.expand');
     Route::post('/schedule/update-pair', [FirstCourseSchedulePageController::class, 'updatePair'])->name('first.schedule.pair.update');
     Route::post('/schedule/delete-pair', [FirstCourseSchedulePageController::class, 'deletePair'])->name('first.schedule.pair.delete');
+    Route::post('/schedule/auto-assign-rooms-day', [FirstCourseSchedulePageController::class, 'autoAssignRoomsDay'])->name('first.schedule.auto_assign_rooms_day');
     Route::get('/form-two', [\App\Http\Controllers\FormTwoController::class, 'index'])->name('first.schedule.form_two');
     Route::post('/form-two/save', [\App\Http\Controllers\FormTwoController::class, 'save'])->name('first.schedule.form_two.save');
     Route::get('/form-two/export', [\App\Http\Controllers\FormTwoController::class, 'export'])->name('first.schedule.form_two.export');

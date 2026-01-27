@@ -105,11 +105,21 @@
 
         <div class="mb-3">
             <label class="form-label">Аудитория</label>
-            <input type="number" name="room_id" class="form-control" placeholder="Например, 32">
+            <select name="room_id" class="form-select">
+                <option value="">—</option>
+                @foreach(($rooms ?? collect()) as $room)
+                    <option value="{{ $room->code }}">{{ $room->code }}</option>
+                @endforeach
+            </select>
         </div>
         <div class="mb-3">
             <label class="form-label">Аудитория (знаменатель)</label>
-            <input type="number" name="room_id_denominator" class="form-control denom-block d-none" placeholder="Если аудитория другая">
+            <select name="room_id_denominator" class="form-select denom-block d-none">
+                <option value="">—</option>
+                @foreach(($rooms ?? collect()) as $room)
+                    <option value="{{ $room->code }}">{{ $room->code }}</option>
+                @endforeach
+            </select>
         </div>
 
         <div class="form-check form-switch mb-3">
@@ -168,11 +178,21 @@
             </div>
             <div class="mt-3">
                 <label class="form-label">Аудитория (подгруппа 2)</label>
-                <input type="number" name="room_id_second" class="form-control" placeholder="Например, 33">
+                <select name="room_id_second" class="form-select">
+                    <option value="">—</option>
+                    @foreach(($rooms ?? collect()) as $room)
+                        <option value="{{ $room->code }}">{{ $room->code }}</option>
+                    @endforeach
+                </select>
             </div>
             <div class="mt-3">
                 <label class="form-label">Аудитория (знаменатель, подгруппа 2)</label>
-                <input type="number" name="room_id_second_denominator" class="form-control denom-block d-none" placeholder="Если аудитория меняется">
+                <select name="room_id_second_denominator" class="form-select denom-block d-none">
+                    <option value="">—</option>
+                    @foreach(($rooms ?? collect()) as $room)
+                        <option value="{{ $room->code }}">{{ $room->code }}</option>
+                    @endforeach
+                </select>
             </div>
             <small class="text-muted">Будут созданы две записи: для подгруппы A (основной предмет) и B (этот предмет/преподаватель/аудитория).</small>
         </div>

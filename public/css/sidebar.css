@@ -1,0 +1,235 @@
+:root {
+    --ko-bg: #eef1f7;
+    --ko-sidebar: #f7f8fb;
+    --ko-card: #ffffff;
+    --ko-text: #1d2636;
+    --ko-muted: #6c7a91;
+    --ko-border: #e3e7f0;
+    --ko-primary: #4b6bff;
+    --ko-primary-soft: #e6ebff;
+    --ko-success: #23b26b;
+    --ko-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+    --ko-radius: 18px;
+}
+
+.ko-body {
+    font-family: "Manrope", "Segoe UI", sans-serif;
+    color: var(--ko-text);
+    background: radial-gradient(1200px 600px at 10% -10%, #ffffff 0%, #eef1f7 55%, #e6ebf5 100%);
+    min-height: 100vh;
+}
+
+.ko-app {
+    display: flex;
+    gap: 24px;
+    padding: 24px;
+    min-height: 100vh;
+}
+
+.ko-sidebar {
+    width: 280px;
+    background: var(--ko-sidebar);
+    border-radius: var(--ko-radius);
+    padding: 18px;
+    box-shadow: var(--ko-shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: sticky;
+    top: 24px;
+    height: calc(100vh - 48px);
+}
+
+.ko-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ko-brand-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, #4b6bff, #7b9dff);
+    color: #ffffff;
+    box-shadow: 0 10px 20px rgba(75, 107, 255, 0.25);
+}
+
+.ko-brand-name {
+    font-family: "Unbounded", "Manrope", sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+
+.ko-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--ko-border);
+}
+
+.ko-search i {
+    color: var(--ko-muted);
+}
+
+.ko-search input {
+    border: none;
+    outline: none;
+    width: 100%;
+    background: transparent;
+    font-size: 14px;
+}
+
+.ko-section-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--ko-muted);
+    margin: 6px 4px 8px;
+}
+
+.ko-nav {
+    display: grid;
+    gap: 6px;
+}
+
+.ko-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    text-decoration: none;
+    color: var(--ko-text);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.ko-nav-item i {
+    color: var(--ko-muted);
+    font-size: 16px;
+}
+
+.ko-nav-item:hover {
+    background: #ffffff;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    transform: translateY(-1px);
+}
+
+.ko-nav-item.is-active {
+    background: #ffffff;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    color: #1b2a5b;
+}
+
+.ko-nav-item.is-active i {
+    color: var(--ko-primary);
+}
+
+.ko-card {
+    background: linear-gradient(135deg, #e8edff 0%, #f7f9ff 100%);
+    border-radius: 16px;
+    padding: 16px;
+    border: 1px solid #dde4ff;
+    display: grid;
+    gap: 8px;
+}
+
+.ko-card-title {
+    font-size: 13px;
+    color: var(--ko-muted);
+}
+
+.ko-card-value {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.ko-card-note {
+    font-size: 12px;
+    color: var(--ko-muted);
+}
+
+.ko-upgrade-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid #d6dcff;
+    color: #2a3b8f;
+    font-weight: 600;
+    text-decoration: none;
+    justify-content: center;
+}
+
+.ko-upgrade-btn i {
+    color: var(--ko-primary);
+}
+
+.ko-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.ko-spacer {
+    flex: 1 1 auto;
+}
+
+.ko-logout {
+    color: #b4232b;
+}
+
+.ko-logout i {
+    color: #b4232b;
+}
+
+.ko-main {
+    background: #ffffff;
+    border-radius: 22px;
+    padding: 18px;
+    box-shadow: var(--ko-shadow);
+    min-height: calc(100vh - 48px);
+}
+
+.ko-main-inner {
+    padding: 4px 8px;
+}
+
+@media (max-width: 992px) {
+    .ko-app {
+        flex-direction: column;
+        padding: 16px;
+    }
+
+    .ko-sidebar {
+        width: 100%;
+        position: static;
+        height: auto;
+    }
+
+    .ko-main {
+        min-height: auto;
+    }
+}
+
+@media (max-width: 600px) {
+    .ko-nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ko-nav-item {
+        justify-content: center;
+        text-align: center;
+    }
+
+    .ko-nav-item span {
+        display: none;
+    }
+}

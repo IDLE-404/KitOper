@@ -52,6 +52,9 @@
         box-shadow: 0 12px 22px rgba(79, 124, 255, 0.25);
         background: #eef2ff;
     }
+    .pair-cell.filled {
+        cursor: pointer;
+    }
     .holiday-lock {
         font-size: 0.75rem;
         color: #7c2d12;
@@ -63,6 +66,151 @@
     .schedule-shell.day-grid-mode {
         max-width: 100%;
         width: 100%;
+    }
+    .schedule-main {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .header-block {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .header-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    .header-context {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .header-context .page-title {
+        margin-bottom: 2px;
+    }
+    .header-subline {
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+    .header-controls {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .control-group {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 8px;
+    }
+    .control-label {
+        font-size: 0.78rem;
+        color: #64748b;
+        font-weight: 600;
+    }
+    .header-search {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .header-search .search-input {
+        height: 36px;
+        min-width: 220px;
+    }
+    .header-search .btn-pill {
+        height: 36px;
+    }
+    .header-search .btn-primary {
+        background: #4f7cff;
+        color: #fff;
+        border: none;
+    }
+    .nav-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+    }
+    .nav-left,
+    .nav-right {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .segmented {
+        display: inline-flex;
+        background: #e2e8f0;
+        border-radius: 999px;
+        padding: 2px;
+        gap: 2px;
+    }
+    .segmented .btn-pill {
+        padding: 6px 12px;
+    }
+    .segmented .btn-pill.primary {
+        background: #ffffff;
+        color: #0f172a;
+        box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+    }
+    .header-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+    .header-actions__primary,
+    .header-actions__secondary {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .header-actions__secondary {
+        margin-left: auto;
+    }
+    .tools-dropdown {
+        position: relative;
+    }
+    .tools-dropdown > summary {
+        list-style: none;
+        cursor: pointer;
+    }
+    .tools-dropdown > summary::-webkit-details-marker {
+        display: none;
+    }
+    .tools-menu {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 6px);
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 18px 30px rgba(15, 23, 42, 0.12);
+        padding: 6px;
+        min-width: 220px;
+        display: grid;
+        gap: 4px;
+        z-index: 20;
+    }
+    .tools-menu a {
+        text-decoration: none;
+        color: #0f172a;
+        padding: 8px 10px;
+        border-radius: 8px;
+    }
+    .tools-menu a:hover {
+        background: #f1f5f9;
     }
     .pair-practice {
         background: #eef2ff;
@@ -120,9 +268,16 @@
         font-size: 15px;
         letter-spacing: 0.2px;
         color: #0f172a;
+        position: sticky;
+        top: 0;
+        z-index: 6;
     }
     .day-grid-corner {
         width: 54px;
+        position: sticky;
+        top: 0;
+        left: 0;
+        z-index: 7;
     }
     .day-grid-num {
         text-align: center;
@@ -130,6 +285,9 @@
         background: #f8fafc;
         color: #0f172a;
         width: 54px;
+        position: sticky;
+        left: 0;
+        z-index: 5;
     }
     .day-grid-table th.day-grid-head:not(.day-grid-corner),
     .day-grid-table td.day-grid-cell {
@@ -148,9 +306,60 @@
         box-shadow: none;
         min-height: 96px;
         padding: 10px 12px 12px;
+        transition: box-shadow 0.12s ease, transform 0.12s ease, background 0.12s ease;
+    }
+    .day-grid-cell .pair-cell.filled {
+        margin: 6px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #ffffff;
+        cursor: pointer;
+    }
+    .day-grid-cell:hover {
+        background: #f8fafc;
+    }
+    .day-grid-cell:hover .pair-cell.filled {
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+        transform: translateY(-1px);
     }
     .day-grid-cell .pair-cell.empty {
         background: #f9fafb;
+    }
+    .table-empty {
+        padding: 16px;
+        border: 1px dashed #cbd5e1;
+        border-radius: 12px;
+        color: #64748b;
+        background: #f8fafc;
+        text-align: center;
+    }
+    .table-alert {
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #fecaca;
+        background: #fef2f2;
+        color: #991b1b;
+        font-size: 0.85rem;
+        margin-bottom: 12px;
+    }
+    .table-skeleton {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #fff;
+    }
+    .table-skeleton__row {
+        height: 56px;
+        border-radius: 10px;
+        background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+        background-size: 200% 100%;
+        animation: skeleton 1.2s ease-in-out infinite;
+    }
+    @keyframes skeleton {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
     }
 </style>
 @endpush
@@ -180,6 +389,21 @@
     $dayFilter = $dayFilter ?? null;
     $isDayView = $isDayView ?? false;
     $dayKey = $dayKey ?? null;
+    $dayKeyOrder = ['mon', 'tue', 'wed', 'thu', 'fri'];
+    $dayOptions = $weekDays;
+    if ($isDayView) {
+        $dayOptions = array_values(array_filter($weekDays, function ($dayInfo) use ($dayKeyOrder) {
+            $key = $dayInfo['key'] ?? null;
+            return $key && in_array($key, $dayKeyOrder, true);
+        }));
+        if (empty($dayOptions)) {
+            $dayOptions = $weekDays;
+        }
+        $allowedKeys = array_column($dayOptions, 'key');
+        if ($dayKey && !in_array($dayKey, $allowedKeys, true)) {
+            $dayKey = $dayOptions[0]['key'] ?? $dayKey;
+        }
+    }
     $daysToShow = $dayFilter ? [$dayFilter] : $days;
     $itemsByGroup = $schedule ?? [];
     $firstGroupId = count($itemsByGroup) ? array_key_first($itemsByGroup) : null;
@@ -188,79 +412,216 @@
     $isFallbackWeek = $isFallbackWeek ?? false;
     $fallbackWeekStart = $fallbackWeekStart ?? null;
     $fallbackMode = $fallbackMode ?? null;
+    $isLoading = request()->boolean('loading');
     if ($firstGroupId) {
         $expandLinkParams['group_id'] = $firstGroupId;
     }
 @endphp
 
+<div class="schedule-layout">
+    <aside class="schedule-sidebar">
+        <div class="sidebar-title">Навигация</div>
+        <div class="sidebar-section">
+            <div class="sidebar-section__title">Учёба</div>
+            <a href="{{ route('first.schedule.index', ['course' => $course ?? 1, 'week_start' => $requestedWeekStart ?? null]) }}" class="sidebar-link {{ request()->routeIs('first.schedule.index', 'first.schedule.day') ? 'active' : '' }}">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="17" rx="3"></rect>
+                    <path d="M8 2v4M16 2v4M3 9h18"></path>
+                </svg>
+                <span class="sidebar-text">Расписание</span>
+            </a>
+            <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="sidebar-link {{ request()->routeIs('first.schedule.form_two') ? 'active' : '' }}">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 2H7a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V8z"></path>
+                    <path d="M14 2v6h6"></path>
+                    <path d="M8 13h8M8 17h5"></path>
+                </svg>
+                <span class="sidebar-text">Форма 2</span>
+            </a>
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-section__title">Справочники</div>
+            <a href="{{ route('rooms.index') }}" class="sidebar-link {{ request()->routeIs('rooms.index') ? 'active' : '' }}">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 21h16"></path>
+                    <path d="M6 21V5a2 2 0 0 1 2-2h6l4 4v14"></path>
+                    <path d="M14 3v4h4"></path>
+                    <circle cx="10" cy="12" r="1.2"></circle>
+                </svg>
+                <span class="sidebar-text">Кабинеты</span>
+            </a>
+            <a href="{{ route('teachers.index', ['course' => $course ?? 1]) }}" class="sidebar-link {{ request()->routeIs('teachers.index') ? 'active' : '' }}">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="8" r="4"></circle>
+                    <path d="M4 20a8 8 0 0 1 16 0"></path>
+                </svg>
+                <span class="sidebar-text">Преподаватели</span>
+            </a>
+            <a href="{{ route('groups.index', ['course' => $course ?? 1]) }}" class="sidebar-link {{ request()->routeIs('groups.index') ? 'active' : '' }}">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="8" cy="9" r="3.2"></circle>
+                    <circle cx="16.5" cy="10" r="2.6"></circle>
+                    <path d="M3 20a6 6 0 0 1 10 0"></path>
+                    <path d="M13 20a5 5 0 0 1 8 0"></path>
+                </svg>
+                <span class="sidebar-text">Группы</span>
+            </a>
+        </div>
+        <details class="sidebar-more sidebar-section">
+            <summary class="sidebar-link">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="3" y="3" width="7" height="7" rx="2"></rect>
+                    <rect x="14" y="3" width="7" height="7" rx="2"></rect>
+                    <rect x="3" y="14" width="7" height="7" rx="2"></rect>
+                    <rect x="14" y="14" width="7" height="7" rx="2"></rect>
+                </svg>
+                <span class="sidebar-text">Дополнительно</span>
+                <span class="sidebar-caret" aria-hidden="true">▾</span>
+            </summary>
+            <div class="sidebar-more__menu">
+                <a href="{{ route('subjects.index', ['course' => $course ?? 1]) }}">
+                    <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 5a3 3 0 0 1 3-3h11v18H7a3 3 0 0 0-3 3z"></path>
+                        <path d="M7 2v18"></path>
+                    </svg>
+                    <span class="sidebar-text">Предметы</span>
+                </a>
+                <a href="{{ route('practice.index', ['course' => max(2, (int) ($course ?? 2))]) }}">
+                    <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>
+                        <rect x="3" y="6" width="18" height="14" rx="3"></rect>
+                        <path d="M3 12h18"></path>
+                    </svg>
+                    <span class="sidebar-text">Практика</span>
+                </a>
+                <a href="{{ route('holidays.index') }}">
+                    <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 3l2.2 4.6 5.1.8-3.7 3.6.9 5.2-4.5-2.4-4.5 2.4.9-5.2L4.7 8.4l5.1-.8L12 3z"></path>
+                    </svg>
+                    <span class="sidebar-text">Праздники</span>
+                </a>
+                <a href="{{ route('teachers.workload', ['week_start' => $weekStart]) }}">
+                    <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <path d="M12 7v6l4 2"></path>
+                    </svg>
+                    <span class="sidebar-text">Занятость преподавателей</span>
+                </a>
+                <a href="{{ route('teacher_absences.index') }}">
+                    <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 3l9 16H3z"></path>
+                        <path d="M12 9v5"></path>
+                        <circle cx="12" cy="17" r="1"></circle>
+                    </svg>
+                    <span class="sidebar-text">Отсутствия</span>
+                </a>
+            </div>
+        </details>
+    </aside>
+    <div class="schedule-main">
 <div class="schedule-shell compact{{ $isDayView ? ' day-grid-mode' : '' }}">
-    <div class="header-row">
-        <div>
-            <h1 class="page-title">Расписание — {{ $course ?? 1 }} курс</h1>
-            <p class="page-subtitle">
-                {{ $isDayView ? ('Только ' . ($dayFilter ?? 'день недели')) : 'Компактный обзор по всем группам' }}
-            </p>
-            <div class="mt-2 d-flex align-items-center gap-2">
-                <label class="text-muted small mb-0">Курс:</label>
+    @php
+        $dayDisplay = $dayFilter ? ($dayDetails[$dayFilter]['name'] ?? $dayFilter) : null;
+        $weekModeLabel = ($weekMode ?? 'num') === 'den' ? 'неделя B (знаменатель)' : 'неделя A (числитель)';
+        $weekStartLabel = $weekStart ?? '—';
+    @endphp
+    <div class="header-block">
+        <div class="header-top">
+            <div class="header-context">
+                <h1 class="page-title">Расписание — {{ $course ?? 1 }} курс</h1>
+                @if($isDayView)
+                    <div class="header-subline">Только {{ $dayDisplay ?? 'день недели' }}</div>
+                @else
+                    <div class="header-subline">Обзор по всем группам</div>
+                @endif
+                <div class="header-subline">
+                    Сейчас показывается: {{ $weekModeLabel }} • старт {{ $weekStartLabel }}
+                </div>
+                @if($isFallbackWeek)
+                    <div class="header-subline">
+                        Для выбранной недели знаменателя нет расписания — использован шаблон за {{ $fallbackWeekStart ?? ($weekStart ?? '—') }}.
+                    </div>
+                @endif
+            </div>
+            <div class="header-search">
+                <input type="search" id="groupSearch" class="search-input" placeholder="Поиск по группе или предмету">
+                <input type="date" id="weekStartInput" class="search-input" value="{{ $requestedWeekStart ?? '' }}" style="width:auto;">
+                <button type="button" class="btn-pill primary btn-primary" id="weekStartApply">Показать неделю</button>
+            </div>
+        </div>
+        <div class="header-controls">
+            <div class="control-group">
+                <label class="control-label">Курс</label>
                 <select id="courseSelect" class="search-input" style="width:auto;">
                     @for($c = 1; $c <= 4; $c++)
                         <option value="{{ $c }}" @selected(($course ?? 1) == $c)>{{ $c }}</option>
                     @endfor
                 </select>
-                @if($isDayView)
-                    <label class="text-muted small mb-0 ms-2">День:</label>
+            </div>
+            @if($isDayView)
+                <div class="control-group">
+                    <label class="control-label">День</label>
                     <select id="daySelect" class="search-input" style="width:auto;">
-                        @foreach($weekDays as $dayInfo)
+                        @foreach($dayOptions as $dayInfo)
                             <option value="{{ $dayInfo['key'] ?? $dayInfo['name'] }}" @selected(($dayKey ?? '') === ($dayInfo['key'] ?? ''))>
                                 {{ $dayInfo['name'] ?? 'День' }}
                             </option>
                         @endforeach
                     </select>
-                @endif
+                </div>
+            @endif
+        </div>
+        <div class="nav-bar">
+            <div class="nav-left">
+                <span class="control-label">Режим</span>
+                <div class="segmented">
+                    @if($isDayView)
+                        <a href="{{ route('first.schedule.index', ['course' => $course ?? 1, 'week_start' => $requestedWeekStart ?? null]) }}" class="btn-pill ghost">Неделя</a>
+                        <span class="btn-pill primary">День</span>
+                    @else
+                        <span class="btn-pill primary">Неделя</span>
+                        @php $defaultDayKey = $dayOptions[0]['key'] ?? ($weekDays[0]['key'] ?? 'mon'); @endphp
+                        <a href="{{ route('first.schedule.day', ['course' => $course ?? 1, 'week_start' => $requestedWeekStart ?? null, 'day' => $dayKey ?? $defaultDayKey]) }}" class="btn-pill ghost">День</a>
+                    @endif
+                </div>
             </div>
-            <div class="mt-2">
-                <span class="pill {{ ($weekMode ?? 'num') === 'den' ? 'primary' : 'soft' }}">
-                    Сейчас показывается: {{ ($weekMode ?? 'num') === 'den' ? 'неделя B (знаменатель)' : 'неделя A (числитель)' }} (неделя от {{ $weekStart ?? '—' }})
-                </span>
-                @if($isFallbackWeek)
-                    <div class="text-muted small mt-1">
-                        Для выбранной недели знаменателя нет расписания — использован шаблон за {{ $fallbackWeekStart ?? ($weekStart ?? '—') }}.
-                    </div>
+            <div class="nav-right">
+                @if($isDayView)
+                    <button type="button" class="btn-pill ghost" id="dayPrev">Предыдущий</button>
+                    <button type="button" class="btn-pill ghost" id="dayToday">Сегодня</button>
+                    <button type="button" class="btn-pill ghost" id="dayNext">Следующий</button>
+                @else
+                    <button type="button" class="btn-pill ghost" id="weekPrev">Предыдущая неделя</button>
+                    <button type="button" class="btn-pill ghost" id="weekNext">Следующая неделя</button>
                 @endif
             </div>
         </div>
-    <div class="action-buttons">
-        <input type="search" id="groupSearch" class="search-input" placeholder="Поиск по группе или предмету">
-        <input type="date" id="weekStartInput" class="search-input" value="{{ $requestedWeekStart ?? '' }}" style="width:auto;">
-        <button type="button" class="btn-pill ghost" id="weekStartApply">Показать неделю</button>
-        <button type="button" class="btn-pill ghost" id="weekNext">Следующая неделя</button>
-        <button type="button" class="btn-pill ghost" id="weekPrev">Предыдущая неделя</button>
-        @if($isDayView)
-            <a href="{{ route('first.schedule.index', ['course' => $course ?? 1, 'week_start' => $requestedWeekStart ?? null]) }}" class="btn-pill ghost">Неделя</a>
-        @else
-            @php $defaultDayKey = $weekDays[0]['key'] ?? 'mon'; @endphp
-            <a href="{{ route('first.schedule.day', ['course' => $course ?? 1, 'week_start' => $requestedWeekStart ?? null, 'day' => $dayKey ?? $defaultDayKey]) }}" class="btn-pill ghost">День</a>
-        @endif
-        @if($isDayView)
-            <button type="button" class="btn-pill primary" id="autoAssignRoomsDayBtn">Подставить кабинеты на день</button>
-            <button type="button" class="btn-pill ghost" id="clearRoomsDayBtn">Очистить кабинеты на день</button>
-        @endif
-        <a href="{{ route('first.schedule.week', ['course' => $course ?? 1]) }}" class="btn-pill primary">Редактор недели</a>
-        <a href="{{ route('first.schedule.week', $expandLinkParams) }}#semesterExpandSection" class="btn-pill ghost">Развернуть семестр</a>
-        @php
-            $practiceCourse = max(2, (int) ($course ?? 2));
-        @endphp
-        <a href="{{ route('practice.index', ['course' => $practiceCourse]) }}" class="btn-pill ghost">Практика</a>
-        <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Форма 2</a>
-        <a href="{{ route('holidays.index') }}" class="btn-pill ghost">Праздники</a>
-        <a href="{{ route('teachers.workload', ['week_start' => $weekStart]) }}" class="btn-pill ghost">Занятость преподавателей</a>
-        <a href="{{ route('groups.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Группы</a>
-        <a href="{{ route('teachers.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Преподаватели</a>
-        <a href="{{ route('subjects.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Предметы</a>
-        <a href="{{ route('rooms.index') }}" class="btn-pill ghost">Кабинеты</a>
-        <a href="{{ route('teacher_absences.index') }}" class="btn-pill ghost">Отсутствия</a>
+        <div class="header-actions">
+            <div class="header-actions__primary">
+                @if($isDayView)
+                    <button type="button" class="btn-pill primary" id="autoAssignRoomsDayBtn">Подставить кабинеты на день</button>
+                    <button type="button" class="btn-pill ghost" id="clearRoomsDayBtn">Очистить кабинеты на день</button>
+                @endif
+            </div>
+            <div class="header-actions__secondary">
+                <a href="{{ route('first.schedule.week', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Редактор недели</a>
+                <a href="{{ route('first.schedule.week', $expandLinkParams) }}#semesterExpandSection" class="btn-pill ghost">Развернуть семестр</a>
+                @php
+                    $practiceCourse = max(2, (int) ($course ?? 2));
+                @endphp
+                <details class="tools-dropdown">
+                    <summary class="btn-pill ghost">Дополнительно ▾</summary>
+                    <div class="tools-menu">
+                        <a href="{{ route('practice.index', ['course' => $practiceCourse]) }}">Практика</a>
+                        <a href="{{ route('holidays.index') }}">Праздники</a>
+                        <a href="{{ route('teachers.workload', ['week_start' => $weekStart]) }}">Занятость преподавателей</a>
+                        <a href="{{ route('subjects.index', ['course' => $course ?? 1]) }}">Предметы</a>
+                        <a href="{{ route('teacher_absences.index') }}">Отсутствия</a>
+                    </div>
+                </details>
+            </div>
+        </div>
     </div>
-</div>
     @if(!empty($weeklyHolidays))
         <div class="holiday-banner">
             <div class="holiday-banner__title">Праздники недели:</div>
@@ -274,7 +635,19 @@
         </div>
     @endif
 
-    @if($isDayView)
+    @if(session('error'))
+        <div class="table-alert">{{ session('error') }}</div>
+    @endif
+    @if($isLoading)
+        <div class="table-skeleton" aria-hidden="true">
+            <div class="table-skeleton__row"></div>
+            <div class="table-skeleton__row"></div>
+            <div class="table-skeleton__row"></div>
+            <div class="table-skeleton__row"></div>
+        </div>
+    @elseif(empty($itemsByGroup))
+        <div class="table-empty">Нет пар в этот день/неделю.</div>
+    @elseif($isDayView)
         @php
             $dayToShow = $daysToShow[0] ?? null;
             $dayInfo = $dayToShow ? ($dayDetails[$dayToShow] ?? []) : [];
@@ -341,7 +714,8 @@
                                          data-group="{{ $groupId }}"
                                          data-day="{{ $dayToShow ?? '' }}"
                                          data-day-key="{{ $dayToShow ? ($dayDetails[$dayToShow]['key'] ?? '') : '' }}"
-                                         data-lesson="{{ $i }}">
+                                         data-lesson="{{ $i }}"
+                                         title="Открыть детали пары">
                                         @if($hasPractice)
                                             <div class="practice-label" title="Практика">
                                                 На практике
@@ -576,7 +950,8 @@
                                      data-group="{{ $groupId }}"
                                      data-day="{{ $day }}"
                                      data-day-key="{{ $dayDetails[$day]['key'] ?? '' }}"
-                                     data-lesson="{{ $i }}">
+                                     data-lesson="{{ $i }}"
+                                     title="Открыть детали пары">
                                     @if($hasPractice)
                                         <div class="practice-label" title="Практика">
                                             На практике
@@ -747,6 +1122,8 @@
             @endforeach
         </div>
     @endif
+</div>
+    </div>
 </div>
 @endsection
 
@@ -1641,6 +2018,18 @@
         });
     });
 
+    document.querySelectorAll('.pair-cell').forEach(cell => {
+        cell.addEventListener('click', (e) => {
+            if (e.target.closest('.cell-edit')) {
+                return;
+            }
+            const editBtn = cell.querySelector('.cell-edit');
+            if (editBtn) {
+                editBtn.click();
+            }
+        });
+    });
+
     document.getElementById('modalClose').addEventListener('click', closeModal);
     overlay.addEventListener('click', closeModal);
 
@@ -1751,6 +2140,24 @@
 
     const weekNext = document.getElementById('weekNext');
     const weekPrev = document.getElementById('weekPrev');
+    const dayPrev = document.getElementById('dayPrev');
+    const dayNext = document.getElementById('dayNext');
+    const dayToday = document.getElementById('dayToday');
+
+    const formatDate = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
+    const getWeekStart = (date) => {
+        const copy = new Date(date.getTime());
+        const day = copy.getDay();
+        const diff = (day + 6) % 7;
+        copy.setDate(copy.getDate() - diff);
+        return copy;
+    };
     const applyWeekStart = (value) => {
         const params = new URLSearchParams(window.location.search);
         if (daySelect) {
@@ -1779,10 +2186,7 @@
             }
             if (Number.isNaN(baseDate.getTime())) return;
             baseDate.setDate(baseDate.getDate() + 7);
-            const y = baseDate.getFullYear();
-            const m = String(baseDate.getMonth() + 1).padStart(2, '0');
-            const d = String(baseDate.getDate()).padStart(2, '0');
-            const isoDate = `${y}-${m}-${d}`;
+            const isoDate = formatDate(baseDate);
             weekStartPicker.value = isoDate;
             applyWeekStart(isoDate);
         });
@@ -1797,10 +2201,7 @@
             }
             if (Number.isNaN(baseDate.getTime())) return;
             baseDate.setDate(baseDate.getDate() - 7);
-            const y = baseDate.getFullYear();
-            const m = String(baseDate.getMonth() + 1).padStart(2, '0');
-            const d = String(baseDate.getDate()).padStart(2, '0');
-            const isoDate = `${y}-${m}-${d}`;
+            const isoDate = formatDate(baseDate);
             weekStartPicker.value = isoDate;
             applyWeekStart(isoDate);
         });
@@ -1823,6 +2224,69 @@
             const params = new URLSearchParams(window.location.search);
             params.set('day', daySelect.value);
             window.location.search = params.toString();
+        });
+    }
+
+    const applyDayAndWeek = (dayKey, weekStart) => {
+        const params = new URLSearchParams(window.location.search);
+        if (dayKey) {
+            params.set('day', dayKey);
+        }
+        if (weekStart) {
+            params.set('week_start', weekStart);
+        }
+        window.location.search = params.toString();
+    };
+
+    if (daySelect && dayPrev && dayNext) {
+        const dayOrder = Array.from(daySelect.options).map(opt => opt.value).filter(Boolean);
+        const resolveWeekStart = () => {
+            if (weekStartPicker?.value) {
+                const [year, month, day] = weekStartPicker.value.split('-').map(Number);
+                const parsed = new Date(year, (month || 1) - 1, day || 1);
+                if (!Number.isNaN(parsed.getTime())) {
+                    return parsed;
+                }
+            }
+            return getWeekStart(new Date());
+        };
+
+        dayPrev.addEventListener('click', () => {
+            const currentKey = daySelect.value || dayOrder[0];
+            let idx = dayOrder.indexOf(currentKey);
+            if (idx === -1) idx = 0;
+            if (idx === 0) {
+                const weekStart = resolveWeekStart();
+                weekStart.setDate(weekStart.getDate() - 7);
+                applyDayAndWeek(dayOrder[dayOrder.length - 1], formatDate(weekStart));
+            } else {
+                applyDayAndWeek(dayOrder[idx - 1], weekStartPicker?.value || '');
+            }
+        });
+
+        dayNext.addEventListener('click', () => {
+            const currentKey = daySelect.value || dayOrder[0];
+            let idx = dayOrder.indexOf(currentKey);
+            if (idx === -1) idx = 0;
+            if (idx === dayOrder.length - 1) {
+                const weekStart = resolveWeekStart();
+                weekStart.setDate(weekStart.getDate() + 7);
+                applyDayAndWeek(dayOrder[0], formatDate(weekStart));
+            } else {
+                applyDayAndWeek(dayOrder[idx + 1], weekStartPicker?.value || '');
+            }
+        });
+    }
+
+    if (daySelect && dayToday) {
+        dayToday.addEventListener('click', () => {
+            const today = new Date();
+            const weekStart = getWeekStart(today);
+            const dayKeyMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+            const todayKey = dayKeyMap[today.getDay()];
+            const dayOrder = Array.from(daySelect.options).map(opt => opt.value).filter(Boolean);
+            const targetKey = dayOrder.includes(todayKey) ? todayKey : dayOrder[0];
+            applyDayAndWeek(targetKey, formatDate(weekStart));
         });
     }
 

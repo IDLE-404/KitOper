@@ -41,6 +41,7 @@ Route::prefix('first-course')->group(function () {
     Route::post('/schedule/update-pair', [FirstCourseSchedulePageController::class, 'updatePair'])->name('first.schedule.pair.update');
     Route::post('/schedule/delete-pair', [FirstCourseSchedulePageController::class, 'deletePair'])->name('first.schedule.pair.delete');
     Route::post('/schedule/auto-assign-rooms-day', [FirstCourseSchedulePageController::class, 'autoAssignRoomsDay'])->name('first.schedule.auto_assign_rooms_day');
+    Route::post('/schedule/clear-rooms-day', [FirstCourseSchedulePageController::class, 'clearRoomsDay'])->name('first.schedule.clear_rooms_day');
     Route::get('/form-two', [\App\Http\Controllers\FormTwoController::class, 'index'])->name('first.schedule.form_two');
     Route::post('/form-two/save', [\App\Http\Controllers\FormTwoController::class, 'save'])->name('first.schedule.form_two.save');
     Route::get('/form-two/export', [\App\Http\Controllers\FormTwoController::class, 'export'])->name('first.schedule.form_two.export');

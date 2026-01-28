@@ -1356,7 +1356,7 @@ class FirstCourseSchedulePageController extends Controller
         $mode = $syncService->resolveWeekMode($weekStart, $course);
         $hasDenominatorSub2Column = Schema::hasColumn($tables['schedules'], 'room_id_denominator_2');
 
-        $roomsQuery = DB::table('rooms')->select('id', 'code');
+        $roomsQuery = DB::table('rooms')->select('id', 'code', 'type');
         if ($hasRoomIsActive) {
             $roomsQuery->where('is_active', true);
         }
@@ -1372,6 +1372,29 @@ class FirstCourseSchedulePageController extends Controller
                 'skipped' => 0,
                 'message' => 'Нет доступных кабинетов',
             ], 422);
+        }
+        $roomTypeByCode = $rooms
+            ->mapWithKeys(function ($room) {
+                $code = $this->normalizeRoomString($room->code ?? null);
+                if (!$code) {
+                    return [];
+                }
+                return [$code => ($room->type ?? 'standard')];
+            })
+            ->all();
+
+        $subjectNameMap = [];
+        if (Schema::hasTable($tables['subjects'])) {
+            $subjectNameMap = DB::table($tables['subjects'])
+                ->select('id', 'subject_name', 'name_ru', 'name_kz', 'module_title')
+                ->get()
+                ->mapWithKeys(function ($row) {
+                    $name = $row->name_ru ?: ($row->name_kz ?: $row->subject_name);
+                    $module = trim((string) ($row->module_title ?? ''));
+                    $label = trim($module . ' ' . $name);
+                    return [(int) $row->id => $label];
+                })
+                ->all();
         }
 
         $defaultRoomCodesByTeacher = [];
@@ -1451,6 +1474,9 @@ class FirstCourseSchedulePageController extends Controller
             $roomCodes,
             $defaultRoomCodesByTeacher,
             $hasDenominatorSub2Column,
+            $course,
+            $weekStart,
+            $studyDay,
             &$occupiedBySlot,
             &$updated,
             &$skipped
@@ -1485,12 +1511,39 @@ class FirstCourseSchedulePageController extends Controller
                 }
 
                 if (!$candidate) {
+                    $subjectId = (int) ($row->subject_id ?? 0);
+                    $subjectName = $subjectId ? ($subjectNameMap[$subjectId] ?? '') : '';
+                    $preferComputer = $course === 1 && $this->isInformaticsSubject($subjectName);
+
+                    $freeCodes = [];
                     foreach ($roomCodes as $code) {
                         if (!isset($occupiedSet[$code])) {
-                            $candidate = $code;
-                            break;
+                            $freeCodes[] = $code;
                         }
                     }
+
+                    $preferred = [];
+                    $fallback = [];
+                    foreach ($freeCodes as $code) {
+                        $type = $roomTypeByCode[$code] ?? 'standard';
+                        if ($preferComputer) {
+                            if ($type === 'computer') {
+                                $preferred[] = $code;
+                            } else {
+                                $fallback[] = $code;
+                            }
+                        } else {
+                            if ($type !== 'computer') {
+                                $preferred[] = $code;
+                            } else {
+                                $fallback[] = $code;
+                            }
+                        }
+                    }
+
+                    $orderedPreferred = $this->randomShuffle($preferred);
+                    $orderedFallback = $this->randomShuffle($fallback);
+                    $candidate = $orderedPreferred[0] ?? $orderedFallback[0] ?? null;
                 }
 
                 if (!$candidate) {
@@ -1514,6 +1567,82 @@ class FirstCourseSchedulePageController extends Controller
             'updated' => $updated,
             'skipped' => $skipped,
             'mode' => $mode,
+        ]);
+    }
+
+    private function isInformaticsSubject(string $subjectName): bool
+    {
+        $name = mb_strtolower($subjectName);
+        return $name !== '' && mb_strpos($name, 'информатик') !== false;
+    }
+
+    private function randomShuffle(array $items): array
+    {
+        if (count($items) <= 1) {
+            return $items;
+        }
+        shuffle($items);
+        return $items;
+    }
+
+    /**
+     * Массово очистить кабинеты для выбранного дня и курса.
+     */
+    public function clearRoomsDay(Request $request)
+    {
+        $data = $request->validate([
+            'week_start' => 'required|date',
+            'day_key' => 'required|string',
+            'course' => 'nullable|integer|min:1|max:4',
+        ]);
+
+        $dayMap = [
+            'mon' => 'Понедельник',
+            'tue' => 'Вторник',
+            'wed' => 'Среда',
+            'thu' => 'Четверг',
+            'fri' => 'Пятница',
+            'sat' => 'Суббота',
+        ];
+
+        $course = CourseContext::normalize($data['course'] ?? 1);
+        $tables = CourseContext::tables($course);
+        if (!Schema::hasTable($tables['schedules'])) {
+            return response()->json([
+                'updated' => 0,
+                'message' => 'Таблица расписания не найдена для курса',
+            ], 422);
+        }
+
+        $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
+        $dayKey = $data['day_key'] ?? '';
+        $studyDay = $dayMap[$dayKey] ?? $dayKey;
+        if (!in_array($studyDay, $dayMap, true)) {
+            return response()->json([
+                'updated' => 0,
+                'message' => 'Некорректный день недели',
+            ], 422);
+        }
+
+        $columns = ['room_id', 'room_id_denominator', 'room_id_2', 'room_id_denominator_2'];
+        $payload = ['updated_at' => now()];
+        foreach ($columns as $column) {
+            if (Schema::hasColumn($tables['schedules'], $column)) {
+                $payload[$column] = null;
+            }
+        }
+
+        if (count($payload) === 1) {
+            return response()->json(['updated' => 0]);
+        }
+
+        $updated = DB::table($tables['schedules'])
+            ->whereDate('week_start', $weekStart->toDateString())
+            ->where('study_day', $studyDay)
+            ->update($payload);
+
+        return response()->json([
+            'updated' => (int) $updated,
         ]);
     }
 

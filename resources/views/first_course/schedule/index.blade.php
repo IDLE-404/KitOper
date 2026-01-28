@@ -60,6 +60,10 @@
         background: #fef3c7;
         margin-bottom: 0.35rem;
     }
+    .schedule-shell.day-grid-mode {
+        max-width: 100%;
+        width: 100%;
+    }
     .pair-practice {
         background: #eef2ff;
         border: 1px dashed #94a3b8;
@@ -89,6 +93,64 @@
         background: #fee2e2;
         border-radius: 999px;
         white-space: nowrap;
+    }
+    .day-grid-wrap {
+        width: 100%;
+        overflow-x: auto;
+        border: 1px solid #d5dbe6;
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+    }
+    .day-grid-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    .day-grid-table th,
+    .day-grid-table td {
+        border: 1px solid #e2e8f0;
+        padding: 8px 10px;
+        vertical-align: top;
+    }
+    .day-grid-head {
+        background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+        text-align: center;
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: 0.2px;
+        color: #0f172a;
+    }
+    .day-grid-corner {
+        width: 54px;
+    }
+    .day-grid-num {
+        text-align: center;
+        font-weight: 700;
+        background: #f8fafc;
+        color: #0f172a;
+        width: 54px;
+    }
+    .day-grid-table th.day-grid-head:not(.day-grid-corner),
+    .day-grid-table td.day-grid-cell {
+        width: calc((100% - 54px) / var(--day-grid-cols));
+    }
+    .day-grid-row:nth-child(even) .day-grid-cell {
+        background: #fcfdff;
+    }
+    .day-grid-cell {
+        padding: 0;
+        background: #fff;
+    }
+    .day-grid-cell .pair-cell {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        min-height: 96px;
+        padding: 10px 12px 12px;
+    }
+    .day-grid-cell .pair-cell.empty {
+        background: #f9fafb;
     }
 </style>
 @endpush
@@ -131,7 +193,7 @@
     }
 @endphp
 
-<div class="schedule-shell compact">
+<div class="schedule-shell compact{{ $isDayView ? ' day-grid-mode' : '' }}">
     <div class="header-row">
         <div>
             <h1 class="page-title">Расписание — {{ $course ?? 1 }} курс</h1>
@@ -181,6 +243,7 @@
         @endif
         @if($isDayView)
             <button type="button" class="btn-pill primary" id="autoAssignRoomsDayBtn">Подставить кабинеты на день</button>
+            <button type="button" class="btn-pill ghost" id="clearRoomsDayBtn">Очистить кабинеты на день</button>
         @endif
         <a href="{{ route('first.schedule.week', ['course' => $course ?? 1]) }}" class="btn-pill primary">Редактор недели</a>
         <a href="{{ route('first.schedule.week', $expandLinkParams) }}#semesterExpandSection" class="btn-pill ghost">Развернуть семестр</a>
@@ -211,240 +274,479 @@
         </div>
     @endif
 
-    <div class="groups-compact">
-        @foreach($itemsByGroup as $groupId => $groupData)
-            @php $groupItems = $groupData['days'] ?? []; @endphp
-        <div class="group-compact" id="group-{{ $groupId }}">
-            <div class="group-compact__head">
-                <h2 class="group-compact__title">Группа: {{ $groupData['name'] ?? 'Без названия' }}</h2>
-                <a href="{{ route('first.schedule.week') }}" class="link-edit">Редактировать</a>
-            </div>
-            <div class="grid-table">
-                <div class="grid-row grid-head">
-                    <div class="grid-cell day-col"></div>
+    @if($isDayView)
+        @php
+            $dayToShow = $daysToShow[0] ?? null;
+            $dayInfo = $dayToShow ? ($dayDetails[$dayToShow] ?? []) : [];
+            $holidayMeta = $dayInfo['holiday'] ?? null;
+        @endphp
+        @php
+            $gridCols = max(1, count($itemsByGroup));
+            $gridMinWidth = 54 + ($gridCols * 220);
+        @endphp
+        <div class="day-grid-wrap">
+            <table class="day-grid-table" style="--day-grid-cols: {{ $gridCols }}; min-width: {{ $gridMinWidth }}px;">
+                <thead>
+                    <tr>
+                        <th class="day-grid-head day-grid-corner">№</th>
+                        @foreach($itemsByGroup as $groupId => $groupData)
+                            <th class="day-grid-head">
+                                {{ $groupData['name'] ?? 'Без названия' }}
+                            </th>
+                        @endforeach
+                    </tr>
+                </thead>
+                <tbody>
                     @for($i = 1; $i <= 7; $i++)
-                        <div class="grid-cell col-head">Пара {{ $i }}</div>
+                        <tr class="day-grid-row{{ $holidayMeta ? ' holiday-row' : '' }}">
+                            <td class="day-grid-num">{{ $i }}</td>
+                            @foreach($itemsByGroup as $groupId => $groupData)
+                                @php
+                                    $groupItems = $groupData['days'] ?? [];
+                                    $pair = ($dayToShow && isset($groupItems[$dayToShow][$i]))
+                                        ? $groupItems[$dayToShow][$i]
+                                        : ['sub1'=>[], 'sub2'=>[], 'has_denominator' => false];
+                                    $practiceInfo = $practiceMap[$groupId][$dayInfo['date'] ?? ''] ?? null;
+                                    $hasPractice = !empty($practiceInfo);
+                                    $main = $pair['sub1'] ?? [];
+                                    $sub2 = $pair['sub2'] ?? [];
+                                    $mainHasActive = !empty($main['active_subject'])
+                                        || !empty($main['active_teacher'])
+                                        || !empty($main['active_room'])
+                                        || ($main['is_absent'] ?? false)
+                                        || ($main['is_replacement'] ?? false);
+                                    $sub2HasActive = !empty($sub2['active_subject'])
+                                        || !empty($sub2['active_teacher'])
+                                        || !empty($sub2['active_room'])
+                                        || ($sub2['is_absent'] ?? false)
+                                        || ($sub2['is_replacement'] ?? false);
+                                    $hasLesson = $hasPractice ? true : ($mainHasActive || $sub2HasActive);
+                                    $hasConflict = ($pair['sub1']['active_conflict'] ?? false) || ($pair['sub2']['active_conflict'] ?? false);
+                                    $hasSubgroupsAny = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
+                                    $hasSubgroupsCurrentWeek = $sub2HasActive;
+                                    $pairStatus = '';
+                                    if ($hasPractice) {
+                                        $pairStatus = 'pair-practice';
+                                    } elseif (($pair['sub1']['is_replacement'] ?? false) || ($pair['sub2']['is_replacement'] ?? false)) {
+                                        $pairStatus = 'pair-replacement';
+                                    } elseif (($pair['sub1']['is_absent'] ?? false) || ($pair['sub2']['is_absent'] ?? false)) {
+                                        $pairStatus = 'pair-sick';
+                                    }
+                                    if (!empty($main['absence_type']) || !empty($sub2['absence_type'])) {
+                                        $pairStatus = 'pair-absence';
+                                    }
+                                @endphp
+                                <td class="day-grid-cell">
+                                    <div class="pair-cell {{ $hasLesson ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}{{ $holidayMeta ? ' holiday-cell' : '' }}"
+                                         data-group="{{ $groupId }}"
+                                         data-day="{{ $dayToShow ?? '' }}"
+                                         data-day-key="{{ $dayToShow ? ($dayDetails[$dayToShow]['key'] ?? '') : '' }}"
+                                         data-lesson="{{ $i }}">
+                                        @if($hasPractice)
+                                            <div class="practice-label" title="Практика">
+                                                На практике
+                                            </div>
+                                            <div class="practice-meta text-muted">
+                                                {{ ($practiceInfo['type'] ?? '') === 'educational' ? 'Учебная' : 'Производственная' }}
+                                                @if(!empty($practiceInfo['teacher_id']))
+                                                    — {{ $teacherDisplay[$practiceInfo['teacher_id']] ?? 'Преподаватель' }}
+                                                @endif
+                                                @if(!empty($practiceInfo['room_id']))
+                                                    (каб. {{ $practiceInfo['room_id'] }})
+                                                @endif
+                                            </div>
+                                        @elseif(!$holidayMeta)
+                                            <a href="#"
+                                               class="cell-edit"
+                                               title="Редактировать"
+                                               data-group="{{ $groupId }}"
+                                               data-day="{{ $dayToShow ?? '' }}"
+                                               data-lesson="{{ $i }}"
+                                                data-subject1="{{ $pair['sub1']['subject_num_id'] ?? '' }}"
+                                                data-teacher1="{{ $pair['sub1']['teacher_num_id'] ?? '' }}"
+                                                data-room1="{{ $pair['sub1']['room_num'] ?? '' }}"
+                                                data-den-subject1="{{ $pair['sub1']['subject_den_id'] ?? '' }}"
+                                                data-den-teacher1="{{ $pair['sub1']['teacher_den_id'] ?? '' }}"
+                                                data-den-room1="{{ $pair['sub1']['room_den'] ?? '' }}"
+                                                data-sub1="1"
+                                                data-has-sub2="{{ $hasSubgroupsAny ? '1' : '0' }}"
+                                                data-subject2="{{ $pair['sub2']['subject_num_id'] ?? '' }}"
+                                                data-teacher2="{{ $pair['sub2']['teacher_num_id'] ?? '' }}"
+                                                data-room2="{{ $pair['sub2']['room_num'] ?? '' }}"
+                                                data-den-subject2="{{ $pair['sub2']['subject_den_id'] ?? '' }}"
+                                                data-den-teacher2="{{ $pair['sub2']['teacher_den_id'] ?? '' }}"
+                                                data-den-room2="{{ $pair['sub2']['room_den'] ?? '' }}"
+                                                data-sub2="2"
+                                                data-subject1-title="{{ $pair['sub1']['subject_num'] ?? '' }}"
+                                                data-subject2-title="{{ $pair['sub2']['subject_num'] ?? '' }}"
+                                                data-has-denominator="{{ $pair['has_denominator'] ? '1' : '0' }}"
+                                                data-week-start="{{ $weekStart ?? '' }}"
+                                                data-absent1="{{ ($pair['sub1']['is_absent'] ?? false) ? '1' : '0' }}"
+                                                data-absent2="{{ ($pair['sub2']['is_absent'] ?? false) ? '1' : '0' }}"
+                                                data-replacement1="{{ ($pair['sub1']['is_replacement'] ?? false) ? '1' : '0' }}"
+                                                data-replacement2="0"
+                                                data-replacement-teacher-1="{{ $pair['sub1']['replacement_teacher_id'] ?? '' }}"
+                                                data-replacement-subject-1="{{ $pair['sub1']['replacement_subject_id'] ?? '' }}"
+                                                data-replacement-comment-1="{{ $pair['sub1']['replacement_comment'] ?? '' }}"
+                                                data-replacement2="{{ ($pair['sub2']['is_replacement'] ?? false) ? '1' : '0' }}"
+                                                data-replacement-teacher-2="{{ $pair['sub2']['replacement_teacher_id'] ?? '' }}"
+                                                data-replacement-subject-2="{{ $pair['sub2']['replacement_subject_id'] ?? '' }}"
+                                                data-replacement-comment-2="{{ $pair['sub2']['replacement_comment'] ?? '' }}"
+                                                data-replacement-den-1="{{ ($pair['sub1']['replacement_flag_den'] ?? false) ? '1' : '0' }}"
+                                                data-replacement-teacher-den-1="{{ $pair['sub1']['replacement_teacher_den'] ?? '' }}"
+                                                data-replacement-subject-den-1="{{ $pair['sub1']['replacement_subject_den'] ?? '' }}"
+                                                data-replacement-comment-den-1="{{ $pair['sub1']['replacement_comment_den'] ?? '' }}"
+                                                data-replacement-den-2="{{ ($pair['sub2']['replacement_flag_den'] ?? false) ? '1' : '0' }}"
+                                                data-replacement-teacher-den-2="{{ $pair['sub2']['replacement_teacher_den'] ?? '' }}"
+                                                data-replacement-subject-den-2="{{ $pair['sub2']['replacement_subject_den'] ?? '' }}"
+                                                data-replacement-comment-den-2="{{ $pair['sub2']['replacement_comment_den'] ?? '' }}"
+                                                data-teacher-conflict1="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? '1' : '0' }}"
+                                                data-teacher-conflict1-groups="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub1']['teacher_conflict_groups'] ?? []) : '' }}"
+                                                data-teacher-conflict2="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? '1' : '0' }}"
+                                                data-teacher-conflict2-groups="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub2']['teacher_conflict_groups'] ?? []) : '' }}"
+                                            >✏️</a>
+                                        @else
+                                            <div class="holiday-lock" title="Праздник — {{ $holidayMeta['name'] }} ({{ $holidayMeta['label'] }})">
+                                                🎉 {{ $holidayMeta['label'] }} ({{ $holidayMeta['day'] ?? '' }})
+                                            </div>
+                                        @endif
+                                        @if ($hasLesson && !$hasPractice)
+                                            @if($mainHasActive)
+                                                <div class="cell-line main-line sub-line">
+                                                    <span class="pill badge-sub">1</span>
+                                                    @if($main['is_absent'] ?? false)
+                                                        <span class="status-chip tiny status-sick" title="Болезнь">Б</span>
+                                                    @elseif($main['is_replacement'] ?? false)
+                                                        <span class="status-chip tiny status-replacement" title="Замена">2</span>
+                                                    @endif
+                                                    <span class="cell-title emphasis">{{ $main['active_subject'] ?? '' }}</span>
+                                                    @if(($main['replacement_subject'] ?? null) && ($main['is_replacement'] ?? false) && ($main['replacement_subject'] !== ($main['active_subject'] ?? null)))
+                                                        <span class="text-danger ms-1">→ {{ $main['replacement_subject'] }}</span>
+                                                    @endif
+                                                </div>
+                                                <div class="cell-meta">
+                                                    @if (!empty($main['active_teacher']))
+                                                        <span class="pill">
+                                                            <span>👤</span>{{ $main['active_teacher'] }}
+                                                    @if(
+                                                        ($main['replacement_teacher'] ?? null)
+                                                        && ($main['is_replacement'] ?? false)
+                                                        && ($main['replacement_teacher'] !== ($main['active_teacher'] ?? null))
+                                                    )
+                                                        <span class="text-warning ms-1">→ {{ $main['replacement_teacher'] }}</span>
+                                                    @endif
+                                                        </span>
+                                                        @if(!empty($main['absence_type']))
+                                                            <span class="absence-note">
+                                                                {{ $absenceLabels[$main['absence_type']] ?? $main['absence_type'] }}
+                                                            </span>
+                                                        @endif
+                                                    @endif
+                                                    @if (!empty($main['active_room']))
+                                                        <span class="pill room-pill {{ ($main['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($main['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
+                                                            <span>🏫</span>{{ $main['active_room'] }}
+                                                        </span>
+                                                    @endif
+                                                    @if (!empty($main['label']))
+                                                        <span class="pill"><span>🔸</span>{{ $main['label'] }}</span>
+                                                    @endif
+                                                </div>
+                                                @if($main['active_conflict'] ?? false)
+                                                    <div class="conflict-hint">Конфликт: кабинет уже занят</div>
+                                                @endif
+                                            @endif
+                                            @if($hasSubgroupsCurrentWeek)
+                                                <div class="cell-line subpair-line">
+                                                    <span class="pill badge-sub soft">2</span>
+                                                    @if($sub2['is_absent'] ?? false)
+                                                        <span class="status-chip tiny status-sick" title="Болезнь">Б</span>
+                                                    @elseif($sub2['is_replacement'] ?? false)
+                                                        <span class="status-chip tiny status-replacement" title="Замена">2</span>
+                                                    @endif
+                                                    <span class="cell-title sub2 emphasis">{{ $sub2['active_subject'] ?? '' }}</span>
+                                                    @if(($sub2['replacement_subject'] ?? null) && ($sub2['is_replacement'] ?? false) && ($sub2['replacement_subject'] !== ($sub2['active_subject'] ?? null)))
+                                                        <span class="text-danger ms-1">→ {{ $sub2['replacement_subject'] }}</span>
+                                                    @endif
+                                                </div>
+                                                <div class="cell-meta subpair">
+                                                    @if (!empty($sub2['active_teacher']))
+                                                        <span class="pill">
+                                                            <span>👤</span>{{ $sub2['active_teacher'] }}
+                                                    @if(
+                                                        ($sub2['replacement_teacher'] ?? null)
+                                                        && ($sub2['is_replacement'] ?? false)
+                                                        && ($sub2['replacement_teacher'] !== ($sub2['active_teacher'] ?? null))
+                                                    )
+                                                        <span class="text-warning ms-1">→ {{ $sub2['replacement_teacher'] }}</span>
+                                                    @endif
+                                                        </span>
+                                                        @if(!empty($sub2['absence_type']))
+                                                            <span class="absence-note">
+                                                                {{ $absenceLabels[$sub2['absence_type']] ?? $sub2['absence_type'] }}
+                                                            </span>
+                                                        @endif
+                                                    @endif
+                                                    @if (!empty($sub2['active_room']))
+                                                        <span class="pill room-pill {{ ($sub2['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($sub2['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
+                                                            <span>🏫</span>{{ $sub2['active_room'] }}
+                                                        </span>
+                                                    @endif
+                                                    @if (!empty($sub2['label']))
+                                                        <span class="pill"><span>🔸</span>{{ $sub2['label'] }}</span>
+                                                    @endif
+                                                </div>
+                                                @if($sub2['active_conflict'] ?? false)
+                                                    <div class="conflict-hint">Конфликт: кабинет уже занят</div>
+                                                @endif
+                                            @endif
+                                            @if($pair['has_denominator'])
+                                                <div class="den-separator" title="Разделение числитель/знаменатель"></div>
+                                            @endif
+                                        @endif
+                                    </div>
+                                </td>
+                            @endforeach
+                        </tr>
                     @endfor
+                </tbody>
+            </table>
+        </div>
+    @else
+        <div class="groups-compact">
+            @foreach($itemsByGroup as $groupId => $groupData)
+                @php $groupItems = $groupData['days'] ?? []; @endphp
+            <div class="group-compact" id="group-{{ $groupId }}">
+                <div class="group-compact__head">
+                    <h2 class="group-compact__title">Группа: {{ $groupData['name'] ?? 'Без названия' }}</h2>
+                    <a href="{{ route('first.schedule.week') }}" class="link-edit">Редактировать</a>
                 </div>
-                @foreach($daysToShow as $day)
-                    @php
-                        $dayInfo = $dayDetails[$day] ?? [];
-                        $holidayMeta = $dayInfo['holiday'] ?? null;
-                    @endphp
-                    <div class="grid-row{{ $holidayMeta ? ' holiday-row' : '' }}">
-                        <div class="grid-cell day-col{{ $holidayMeta ? ' holiday-day' : '' }}">
-                            {{ $day }}
-                            @if($holidayMeta)
-                                <div class="holiday-note">{{ $holidayMeta['name'] }}</div>
-                            @endif
-                        </div>
+                <div class="grid-table">
+                    <div class="grid-row grid-head">
+                        <div class="grid-cell day-col"></div>
                         @for($i = 1; $i <= 7; $i++)
-                            @php
-                                $pair = $groupItems[$day][$i] ?? ['sub1'=>[], 'sub2'=>[], 'has_denominator' => false];
-                                $practiceInfo = $practiceMap[$groupId][$dayInfo['date'] ?? ''] ?? null;
-                                $hasPractice = !empty($practiceInfo);
-                                $main = $pair['sub1'] ?? [];
-                                $sub2 = $pair['sub2'] ?? [];
-                                $mainHasActive = !empty($main['active_subject'])
-                                    || !empty($main['active_teacher'])
-                                    || !empty($main['active_room'])
-                                    || ($main['is_absent'] ?? false)
-                                    || ($main['is_replacement'] ?? false);
-                                $sub2HasActive = !empty($sub2['active_subject'])
-                                    || !empty($sub2['active_teacher'])
-                                    || !empty($sub2['active_room'])
-                                    || ($sub2['is_absent'] ?? false)
-                                    || ($sub2['is_replacement'] ?? false);
-                                $hasLesson = $hasPractice ? true : ($mainHasActive || $sub2HasActive);
-                                $hasConflict = ($pair['sub1']['active_conflict'] ?? false) || ($pair['sub2']['active_conflict'] ?? false);
-                                $hasSubgroupsAny = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
-                                $hasSubgroupsCurrentWeek = $sub2HasActive;
-                                $pairStatus = '';
-                                if ($hasPractice) {
-                                    $pairStatus = 'pair-practice';
-                                } elseif (($pair['sub1']['is_replacement'] ?? false) || ($pair['sub2']['is_replacement'] ?? false)) {
-                                    $pairStatus = 'pair-replacement';
-                                } elseif (($pair['sub1']['is_absent'] ?? false) || ($pair['sub2']['is_absent'] ?? false)) {
-                                    $pairStatus = 'pair-sick';
-                                }
-                                if (!empty($main['absence_type']) || !empty($sub2['absence_type'])) {
-                                    $pairStatus = 'pair-absence';
-                                }
-                            @endphp
-                            <div class="grid-cell pair-cell {{ $hasLesson ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}{{ $holidayMeta ? ' holiday-cell' : '' }}"
-                                 data-group="{{ $groupId }}"
-                                 data-day="{{ $day }}"
-                                 data-day-key="{{ $dayDetails[$day]['key'] ?? '' }}"
-                                 data-lesson="{{ $i }}">
-                                @if($hasPractice)
-                                    <div class="practice-label" title="Практика">
-                                        На практике
-                                    </div>
-                                    <div class="practice-meta text-muted">
-                                        {{ ($practiceInfo['type'] ?? '') === 'educational' ? 'Учебная' : 'Производственная' }}
-                                        @if(!empty($practiceInfo['teacher_id']))
-                                            — {{ $teacherDisplay[$practiceInfo['teacher_id']] ?? 'Преподаватель' }}
-                                        @endif
-                                        @if(!empty($practiceInfo['room_id']))
-                                            (каб. {{ $practiceInfo['room_id'] }})
-                                        @endif
-                                    </div>
-                                @elseif(!$holidayMeta)
-                                    <a href="#"
-                                       class="cell-edit"
-                                       title="Редактировать"
-                                       data-group="{{ $groupId }}"
-                                       data-day="{{ $day }}"
-                                       data-lesson="{{ $i }}"
-                                        data-subject1="{{ $pair['sub1']['subject_num_id'] ?? '' }}"
-                                        data-teacher1="{{ $pair['sub1']['teacher_num_id'] ?? '' }}"
-                                        data-room1="{{ $pair['sub1']['room_num'] ?? '' }}"
-                                        data-den-subject1="{{ $pair['sub1']['subject_den_id'] ?? '' }}"
-                                        data-den-teacher1="{{ $pair['sub1']['teacher_den_id'] ?? '' }}"
-                                        data-den-room1="{{ $pair['sub1']['room_den'] ?? '' }}"
-                                        data-sub1="1"
-                                        data-has-sub2="{{ $hasSubgroupsAny ? '1' : '0' }}"
-                                        data-subject2="{{ $pair['sub2']['subject_num_id'] ?? '' }}"
-                                        data-teacher2="{{ $pair['sub2']['teacher_num_id'] ?? '' }}"
-                                        data-room2="{{ $pair['sub2']['room_num'] ?? '' }}"
-                                        data-den-subject2="{{ $pair['sub2']['subject_den_id'] ?? '' }}"
-                                        data-den-teacher2="{{ $pair['sub2']['teacher_den_id'] ?? '' }}"
-                                        data-den-room2="{{ $pair['sub2']['room_den'] ?? '' }}"
-                                        data-sub2="2"
-                                        data-subject1-title="{{ $pair['sub1']['subject_num'] ?? '' }}"
-                                        data-subject2-title="{{ $pair['sub2']['subject_num'] ?? '' }}"
-                                        data-has-denominator="{{ $pair['has_denominator'] ? '1' : '0' }}"
-                                        data-week-start="{{ $weekStart ?? '' }}"
-                                        data-absent1="{{ ($pair['sub1']['is_absent'] ?? false) ? '1' : '0' }}"
-                                        data-absent2="{{ ($pair['sub2']['is_absent'] ?? false) ? '1' : '0' }}"
-                                        data-replacement1="{{ ($pair['sub1']['is_replacement'] ?? false) ? '1' : '0' }}"
-                                        data-replacement2="0"
-                                        data-replacement-teacher-1="{{ $pair['sub1']['replacement_teacher_id'] ?? '' }}"
-                                        data-replacement-subject-1="{{ $pair['sub1']['replacement_subject_id'] ?? '' }}"
-                                        data-replacement-comment-1="{{ $pair['sub1']['replacement_comment'] ?? '' }}"
-                                        data-replacement2="{{ ($pair['sub2']['is_replacement'] ?? false) ? '1' : '0' }}"
-                                        data-replacement-teacher-2="{{ $pair['sub2']['replacement_teacher_id'] ?? '' }}"
-                                        data-replacement-subject-2="{{ $pair['sub2']['replacement_subject_id'] ?? '' }}"
-                                        data-replacement-comment-2="{{ $pair['sub2']['replacement_comment'] ?? '' }}"
-                                        data-replacement-den-1="{{ ($pair['sub1']['replacement_flag_den'] ?? false) ? '1' : '0' }}"
-                                        data-replacement-teacher-den-1="{{ $pair['sub1']['replacement_teacher_den'] ?? '' }}"
-                                        data-replacement-subject-den-1="{{ $pair['sub1']['replacement_subject_den'] ?? '' }}"
-                                        data-replacement-comment-den-1="{{ $pair['sub1']['replacement_comment_den'] ?? '' }}"
-                                        data-replacement-den-2="{{ ($pair['sub2']['replacement_flag_den'] ?? false) ? '1' : '0' }}"
-                                        data-replacement-teacher-den-2="{{ $pair['sub2']['replacement_teacher_den'] ?? '' }}"
-                                        data-replacement-subject-den-2="{{ $pair['sub2']['replacement_subject_den'] ?? '' }}"
-                                        data-replacement-comment-den-2="{{ $pair['sub2']['replacement_comment_den'] ?? '' }}"
-                                        data-teacher-conflict1="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? '1' : '0' }}"
-                                        data-teacher-conflict1-groups="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub1']['teacher_conflict_groups'] ?? []) : '' }}"
-                                        data-teacher-conflict2="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? '1' : '0' }}"
-                                        data-teacher-conflict2-groups="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub2']['teacher_conflict_groups'] ?? []) : '' }}"
-                                    >✏️</a>
-                                @else
-                                    <div class="holiday-lock" title="Праздник — {{ $holidayMeta['name'] }} ({{ $holidayMeta['label'] }})">
-                                        🎉 {{ $holidayMeta['label'] }} ({{ $holidayMeta['day'] ?? '' }})
-                                    </div>
-                                @endif
-                                @if ($hasLesson && !$hasPractice)
-                                    @if($mainHasActive)
-                                        <div class="cell-line main-line sub-line">
-                                            <span class="pill badge-sub">1</span>
-                                            @if($main['is_absent'] ?? false)
-                                                <span class="status-chip tiny status-sick" title="Болезнь">Б</span>
-                                            @elseif($main['is_replacement'] ?? false)
-                                                <span class="status-chip tiny status-replacement" title="Замена">2</span>
-                                            @endif
-                                            <span class="cell-title emphasis">{{ $main['active_subject'] ?? '' }}</span>
-                                            @if(($main['replacement_subject'] ?? null) && ($main['is_replacement'] ?? false) && ($main['replacement_subject'] !== ($main['active_subject'] ?? null)))
-                                                <span class="text-danger ms-1">→ {{ $main['replacement_subject'] }}</span>
-                                            @endif
-                                        </div>
-                                        <div class="cell-meta">
-                                            @if (!empty($main['active_teacher']))
-                                                <span class="pill">
-                                                    <span>👤</span>{{ $main['active_teacher'] }}
-                                            @if(
-                                                ($main['replacement_teacher'] ?? null)
-                                                && ($main['is_replacement'] ?? false)
-                                                && ($main['replacement_teacher'] !== ($main['active_teacher'] ?? null))
-                                            )
-                                                <span class="text-warning ms-1">→ {{ $main['replacement_teacher'] }}</span>
-                                            @endif
-                                                </span>
-                                                @if(!empty($main['absence_type']))
-                                                    <span class="absence-note">
-                                                        {{ $absenceLabels[$main['absence_type']] ?? $main['absence_type'] }}
-                                                    </span>
-                                                @endif
-                                            @endif
-                                            @if (!empty($main['active_room']))
-                                                <span class="pill room-pill {{ ($main['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($main['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
-                                                    <span>🏫</span>{{ $main['active_room'] }}
-                                                </span>
-                                            @endif
-                                            @if (!empty($main['label']))
-                                                <span class="pill"><span>🔸</span>{{ $main['label'] }}</span>
-                                            @endif
-                                        </div>
-                                        @if($main['active_conflict'] ?? false)
-                                            <div class="conflict-hint">Конфликт: кабинет уже занят</div>
-                                        @endif
-                                    @endif
-                                    @if($hasSubgroupsCurrentWeek)
-                                        <div class="cell-line subpair-line">
-                                            <span class="pill badge-sub soft">2</span>
-                                            @if($sub2['is_absent'] ?? false)
-                                                <span class="status-chip tiny status-sick" title="Болезнь">Б</span>
-                                            @elseif($sub2['is_replacement'] ?? false)
-                                                <span class="status-chip tiny status-replacement" title="Замена">2</span>
-                                            @endif
-                                            <span class="cell-title sub2 emphasis">{{ $sub2['active_subject'] ?? '' }}</span>
-                                            @if(($sub2['replacement_subject'] ?? null) && ($sub2['is_replacement'] ?? false) && ($sub2['replacement_subject'] !== ($sub2['active_subject'] ?? null)))
-                                                <span class="text-danger ms-1">→ {{ $sub2['replacement_subject'] }}</span>
-                                            @endif
-                                        </div>
-                                        <div class="cell-meta subpair">
-                                            @if (!empty($sub2['active_teacher']))
-                                                <span class="pill">
-                                                    <span>👤</span>{{ $sub2['active_teacher'] }}
-                                            @if(
-                                                ($sub2['replacement_teacher'] ?? null)
-                                                && ($sub2['is_replacement'] ?? false)
-                                                && ($sub2['replacement_teacher'] !== ($sub2['active_teacher'] ?? null))
-                                            )
-                                                <span class="text-warning ms-1">→ {{ $sub2['replacement_teacher'] }}</span>
-                                            @endif
-                                                </span>
-                                                @if(!empty($sub2['absence_type']))
-                                                    <span class="absence-note">
-                                                        {{ $absenceLabels[$sub2['absence_type']] ?? $sub2['absence_type'] }}
-                                                    </span>
-                                                @endif
-                                            @endif
-                                            @if (!empty($sub2['active_room']))
-                                                <span class="pill room-pill {{ ($sub2['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($sub2['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
-                                                    <span>🏫</span>{{ $sub2['active_room'] }}
-                                                </span>
-                                            @endif
-                                            @if (!empty($sub2['label']))
-                                                <span class="pill"><span>🔸</span>{{ $sub2['label'] }}</span>
-                                            @endif
-                                        </div>
-                                        @if($sub2['active_conflict'] ?? false)
-                                            <div class="conflict-hint">Конфликт: кабинет уже занят</div>
-                                        @endif
-                                    @endif
-                                    @if($pair['has_denominator'])
-                                        <div class="den-separator" title="Разделение числитель/знаменатель"></div>
-                                    @endif
-                                @endif
-                            </div>
+                            <div class="grid-cell col-head">Пара {{ $i }}</div>
                         @endfor
                     </div>
-                @endforeach
+                    @foreach($daysToShow as $day)
+                        @php
+                            $dayInfo = $dayDetails[$day] ?? [];
+                            $holidayMeta = $dayInfo['holiday'] ?? null;
+                        @endphp
+                        <div class="grid-row{{ $holidayMeta ? ' holiday-row' : '' }}">
+                            <div class="grid-cell day-col{{ $holidayMeta ? ' holiday-day' : '' }}">
+                                {{ $day }}
+                                @if($holidayMeta)
+                                    <div class="holiday-note">{{ $holidayMeta['name'] }}</div>
+                                @endif
+                            </div>
+                            @for($i = 1; $i <= 7; $i++)
+                                @php
+                                    $pair = $groupItems[$day][$i] ?? ['sub1'=>[], 'sub2'=>[], 'has_denominator' => false];
+                                    $practiceInfo = $practiceMap[$groupId][$dayInfo['date'] ?? ''] ?? null;
+                                    $hasPractice = !empty($practiceInfo);
+                                    $main = $pair['sub1'] ?? [];
+                                    $sub2 = $pair['sub2'] ?? [];
+                                    $mainHasActive = !empty($main['active_subject'])
+                                        || !empty($main['active_teacher'])
+                                        || !empty($main['active_room'])
+                                        || ($main['is_absent'] ?? false)
+                                        || ($main['is_replacement'] ?? false);
+                                    $sub2HasActive = !empty($sub2['active_subject'])
+                                        || !empty($sub2['active_teacher'])
+                                        || !empty($sub2['active_room'])
+                                        || ($sub2['is_absent'] ?? false)
+                                        || ($sub2['is_replacement'] ?? false);
+                                    $hasLesson = $hasPractice ? true : ($mainHasActive || $sub2HasActive);
+                                    $hasConflict = ($pair['sub1']['active_conflict'] ?? false) || ($pair['sub2']['active_conflict'] ?? false);
+                                    $hasSubgroupsAny = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
+                                    $hasSubgroupsCurrentWeek = $sub2HasActive;
+                                    $pairStatus = '';
+                                    if ($hasPractice) {
+                                        $pairStatus = 'pair-practice';
+                                    } elseif (($pair['sub1']['is_replacement'] ?? false) || ($pair['sub2']['is_replacement'] ?? false)) {
+                                        $pairStatus = 'pair-replacement';
+                                    } elseif (($pair['sub1']['is_absent'] ?? false) || ($pair['sub2']['is_absent'] ?? false)) {
+                                        $pairStatus = 'pair-sick';
+                                    }
+                                    if (!empty($main['absence_type']) || !empty($sub2['absence_type'])) {
+                                        $pairStatus = 'pair-absence';
+                                    }
+                                @endphp
+                                <div class="grid-cell pair-cell {{ $hasLesson ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}{{ $holidayMeta ? ' holiday-cell' : '' }}"
+                                     data-group="{{ $groupId }}"
+                                     data-day="{{ $day }}"
+                                     data-day-key="{{ $dayDetails[$day]['key'] ?? '' }}"
+                                     data-lesson="{{ $i }}">
+                                    @if($hasPractice)
+                                        <div class="practice-label" title="Практика">
+                                            На практике
+                                        </div>
+                                        <div class="practice-meta text-muted">
+                                            {{ ($practiceInfo['type'] ?? '') === 'educational' ? 'Учебная' : 'Производственная' }}
+                                            @if(!empty($practiceInfo['teacher_id']))
+                                                — {{ $teacherDisplay[$practiceInfo['teacher_id']] ?? 'Преподаватель' }}
+                                            @endif
+                                            @if(!empty($practiceInfo['room_id']))
+                                                (каб. {{ $practiceInfo['room_id'] }})
+                                            @endif
+                                        </div>
+                                    @elseif(!$holidayMeta)
+                                        <a href="#"
+                                           class="cell-edit"
+                                           title="Редактировать"
+                                           data-group="{{ $groupId }}"
+                                           data-day="{{ $day }}"
+                                           data-lesson="{{ $i }}"
+                                            data-subject1="{{ $pair['sub1']['subject_num_id'] ?? '' }}"
+                                            data-teacher1="{{ $pair['sub1']['teacher_num_id'] ?? '' }}"
+                                            data-room1="{{ $pair['sub1']['room_num'] ?? '' }}"
+                                            data-den-subject1="{{ $pair['sub1']['subject_den_id'] ?? '' }}"
+                                            data-den-teacher1="{{ $pair['sub1']['teacher_den_id'] ?? '' }}"
+                                            data-den-room1="{{ $pair['sub1']['room_den'] ?? '' }}"
+                                            data-sub1="1"
+                                            data-has-sub2="{{ $hasSubgroupsAny ? '1' : '0' }}"
+                                            data-subject2="{{ $pair['sub2']['subject_num_id'] ?? '' }}"
+                                            data-teacher2="{{ $pair['sub2']['teacher_num_id'] ?? '' }}"
+                                            data-room2="{{ $pair['sub2']['room_num'] ?? '' }}"
+                                            data-den-subject2="{{ $pair['sub2']['subject_den_id'] ?? '' }}"
+                                            data-den-teacher2="{{ $pair['sub2']['teacher_den_id'] ?? '' }}"
+                                            data-den-room2="{{ $pair['sub2']['room_den'] ?? '' }}"
+                                            data-sub2="2"
+                                            data-subject1-title="{{ $pair['sub1']['subject_num'] ?? '' }}"
+                                            data-subject2-title="{{ $pair['sub2']['subject_num'] ?? '' }}"
+                                            data-has-denominator="{{ $pair['has_denominator'] ? '1' : '0' }}"
+                                            data-week-start="{{ $weekStart ?? '' }}"
+                                            data-absent1="{{ ($pair['sub1']['is_absent'] ?? false) ? '1' : '0' }}"
+                                            data-absent2="{{ ($pair['sub2']['is_absent'] ?? false) ? '1' : '0' }}"
+                                            data-replacement1="{{ ($pair['sub1']['is_replacement'] ?? false) ? '1' : '0' }}"
+                                            data-replacement2="0"
+                                            data-replacement-teacher-1="{{ $pair['sub1']['replacement_teacher_id'] ?? '' }}"
+                                            data-replacement-subject-1="{{ $pair['sub1']['replacement_subject_id'] ?? '' }}"
+                                            data-replacement-comment-1="{{ $pair['sub1']['replacement_comment'] ?? '' }}"
+                                            data-replacement2="{{ ($pair['sub2']['is_replacement'] ?? false) ? '1' : '0' }}"
+                                            data-replacement-teacher-2="{{ $pair['sub2']['replacement_teacher_id'] ?? '' }}"
+                                            data-replacement-subject-2="{{ $pair['sub2']['replacement_subject_id'] ?? '' }}"
+                                            data-replacement-comment-2="{{ $pair['sub2']['replacement_comment'] ?? '' }}"
+                                            data-replacement-den-1="{{ ($pair['sub1']['replacement_flag_den'] ?? false) ? '1' : '0' }}"
+                                            data-replacement-teacher-den-1="{{ $pair['sub1']['replacement_teacher_den'] ?? '' }}"
+                                            data-replacement-subject-den-1="{{ $pair['sub1']['replacement_subject_den'] ?? '' }}"
+                                            data-replacement-comment-den-1="{{ $pair['sub1']['replacement_comment_den'] ?? '' }}"
+                                            data-replacement-den-2="{{ ($pair['sub2']['replacement_flag_den'] ?? false) ? '1' : '0' }}"
+                                            data-replacement-teacher-den-2="{{ $pair['sub2']['replacement_teacher_den'] ?? '' }}"
+                                            data-replacement-subject-den-2="{{ $pair['sub2']['replacement_subject_den'] ?? '' }}"
+                                            data-replacement-comment-den-2="{{ $pair['sub2']['replacement_comment_den'] ?? '' }}"
+                                            data-teacher-conflict1="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? '1' : '0' }}"
+                                            data-teacher-conflict1-groups="{{ ($pair['sub1']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub1']['teacher_conflict_groups'] ?? []) : '' }}"
+                                            data-teacher-conflict2="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? '1' : '0' }}"
+                                            data-teacher-conflict2-groups="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub2']['teacher_conflict_groups'] ?? []) : '' }}"
+                                        >✏️</a>
+                                    @else
+                                        <div class="holiday-lock" title="Праздник — {{ $holidayMeta['name'] }} ({{ $holidayMeta['label'] }})">
+                                            🎉 {{ $holidayMeta['label'] }} ({{ $holidayMeta['day'] ?? '' }})
+                                        </div>
+                                    @endif
+                                    @if ($hasLesson && !$hasPractice)
+                                        @if($mainHasActive)
+                                            <div class="cell-line main-line sub-line">
+                                                <span class="pill badge-sub">1</span>
+                                                @if($main['is_absent'] ?? false)
+                                                    <span class="status-chip tiny status-sick" title="Болезнь">Б</span>
+                                                @elseif($main['is_replacement'] ?? false)
+                                                    <span class="status-chip tiny status-replacement" title="Замена">2</span>
+                                                @endif
+                                                <span class="cell-title emphasis">{{ $main['active_subject'] ?? '' }}</span>
+                                                @if(($main['replacement_subject'] ?? null) && ($main['is_replacement'] ?? false) && ($main['replacement_subject'] !== ($main['active_subject'] ?? null)))
+                                                    <span class="text-danger ms-1">→ {{ $main['replacement_subject'] }}</span>
+                                                @endif
+                                            </div>
+                                            <div class="cell-meta">
+                                                @if (!empty($main['active_teacher']))
+                                                    <span class="pill">
+                                                        <span>👤</span>{{ $main['active_teacher'] }}
+                                                @if(
+                                                    ($main['replacement_teacher'] ?? null)
+                                                    && ($main['is_replacement'] ?? false)
+                                                    && ($main['replacement_teacher'] !== ($main['active_teacher'] ?? null))
+                                                )
+                                                    <span class="text-warning ms-1">→ {{ $main['replacement_teacher'] }}</span>
+                                                @endif
+                                                    </span>
+                                                    @if(!empty($main['absence_type']))
+                                                        <span class="absence-note">
+                                                            {{ $absenceLabels[$main['absence_type']] ?? $main['absence_type'] }}
+                                                        </span>
+                                                    @endif
+                                                @endif
+                                                @if (!empty($main['active_room']))
+                                                    <span class="pill room-pill {{ ($main['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($main['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
+                                                        <span>🏫</span>{{ $main['active_room'] }}
+                                                    </span>
+                                                @endif
+                                                @if (!empty($main['label']))
+                                                    <span class="pill"><span>🔸</span>{{ $main['label'] }}</span>
+                                                @endif
+                                            </div>
+                                            @if($main['active_conflict'] ?? false)
+                                                <div class="conflict-hint">Конфликт: кабинет уже занят</div>
+                                            @endif
+                                        @endif
+                                        @if($hasSubgroupsCurrentWeek)
+                                            <div class="cell-line subpair-line">
+                                                <span class="pill badge-sub soft">2</span>
+                                                @if($sub2['is_absent'] ?? false)
+                                                    <span class="status-chip tiny status-sick" title="Болезнь">Б</span>
+                                                @elseif($sub2['is_replacement'] ?? false)
+                                                    <span class="status-chip tiny status-replacement" title="Замена">2</span>
+                                                @endif
+                                                <span class="cell-title sub2 emphasis">{{ $sub2['active_subject'] ?? '' }}</span>
+                                                @if(($sub2['replacement_subject'] ?? null) && ($sub2['is_replacement'] ?? false) && ($sub2['replacement_subject'] !== ($sub2['active_subject'] ?? null)))
+                                                    <span class="text-danger ms-1">→ {{ $sub2['replacement_subject'] }}</span>
+                                                @endif
+                                            </div>
+                                            <div class="cell-meta subpair">
+                                                @if (!empty($sub2['active_teacher']))
+                                                    <span class="pill">
+                                                        <span>👤</span>{{ $sub2['active_teacher'] }}
+                                                @if(
+                                                    ($sub2['replacement_teacher'] ?? null)
+                                                    && ($sub2['is_replacement'] ?? false)
+                                                    && ($sub2['replacement_teacher'] !== ($sub2['active_teacher'] ?? null))
+                                                )
+                                                    <span class="text-warning ms-1">→ {{ $sub2['replacement_teacher'] }}</span>
+                                                @endif
+                                                    </span>
+                                                    @if(!empty($sub2['absence_type']))
+                                                        <span class="absence-note">
+                                                            {{ $absenceLabels[$sub2['absence_type']] ?? $sub2['absence_type'] }}
+                                                        </span>
+                                                    @endif
+                                                @endif
+                                                @if (!empty($sub2['active_room']))
+                                                    <span class="pill room-pill {{ ($sub2['active_conflict'] ?? false) ? 'pill-conflict' : '' }}" title="{{ ($sub2['active_conflict'] ?? false) ? 'Конфликт: кабинет уже занят' : '' }}">
+                                                        <span>🏫</span>{{ $sub2['active_room'] }}
+                                                    </span>
+                                                @endif
+                                                @if (!empty($sub2['label']))
+                                                    <span class="pill"><span>🔸</span>{{ $sub2['label'] }}</span>
+                                                @endif
+                                            </div>
+                                            @if($sub2['active_conflict'] ?? false)
+                                                <div class="conflict-hint">Конфликт: кабинет уже занят</div>
+                                            @endif
+                                        @endif
+                                        @if($pair['has_denominator'])
+                                            <div class="den-separator" title="Разделение числитель/знаменатель"></div>
+                                        @endif
+                                    @endif
+                                </div>
+                            @endfor
+                        </div>
+                    @endforeach
+                </div>
             </div>
+            @endforeach
         </div>
-        @endforeach
-    </div>
+    @endif
 </div>
 @endsection
 
@@ -478,6 +780,16 @@
                 } else {
                     groupCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
+            } else {
+                const targetCell = document.querySelector(
+                    `.pair-cell[data-group="${targetGroupId}"][data-day="${targetDayName}"][data-lesson="${targetLesson}"]`
+                ) || document.querySelector(
+                    `.pair-cell[data-group="${targetGroupId}"][data-day-key="${targetDay}"][data-lesson="${targetLesson}"]`
+                );
+                if (targetCell) {
+                    targetCell.classList.add('highlighted');
+                    targetCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
             }
         }
 
@@ -490,6 +802,7 @@
         const freeTeachersUrl = @json(route('first.schedule.free_teachers'));
         const freeRoomsUrl = @json(route('first.schedule.free_rooms'));
         const autoAssignRoomsDayUrl = @json(route('first.schedule.auto_assign_rooms_day'));
+        const clearRoomsDayUrl = @json(route('first.schedule.clear_rooms_day'));
         const initialDayKey = @json($dayKey ?? null);
         const roomsList = @json(($rooms ?? collect())->values()->all());
         const absenceLabels = @json($absenceLabels ?? []);
@@ -1562,6 +1875,57 @@
         } finally {
             autoAssignRoomsDayBtn.disabled = false;
             autoAssignRoomsDayBtn.textContent = originalText;
+        }
+    });
+
+    const clearRoomsDayBtn = document.getElementById('clearRoomsDayBtn');
+    clearRoomsDayBtn?.addEventListener('click', async () => {
+        const dayKey = daySelect?.value || initialDayKey;
+        const weekStart = weekStartPicker?.value || weekStartHidden?.value || '';
+        const course = courseSelect?.value || '1';
+
+        if (!dayKey || !weekStart) {
+            alert('Не удалось определить день или начало недели');
+            return;
+        }
+
+        if (!confirm('Очистить кабинеты для всех групп на выбранный день?')) {
+            return;
+        }
+
+        clearRoomsDayBtn.disabled = true;
+        const originalText = clearRoomsDayBtn.textContent;
+        clearRoomsDayBtn.textContent = 'Очистка...';
+
+        try {
+            const res = await fetch(clearRoomsDayUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({
+                    week_start: weekStart,
+                    day_key: dayKey,
+                    course: Number(course),
+                }),
+            });
+
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(payload.message || 'Не удалось очистить кабинеты');
+                return;
+            }
+
+            const updated = Number(payload.updated || 0);
+            alert(`Готово. Очищено записей: ${updated}.`);
+            window.location.reload();
+        } catch (e) {
+            alert('Ошибка сети при очистке кабинетов');
+        } finally {
+            clearRoomsDayBtn.disabled = false;
+            clearRoomsDayBtn.textContent = originalText;
         }
     });
 });

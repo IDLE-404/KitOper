@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use App\Services\FieldCampService;
 
 class ScheduleToFormTwoSyncService
 {
@@ -26,6 +27,12 @@ class ScheduleToFormTwoSyncService
         /** @var PracticeService $practiceService */
         $practiceService = app(PracticeService::class);
         $practiceDates = $practiceService->practiceDatesForRange($course, $groupId, $classWeekStart, $weekEnd);
+        $campDates = [];
+        if ($course === 1) {
+            /** @var FieldCampService $fieldCampService */
+            $fieldCampService = app(FieldCampService::class);
+            $campDates = $fieldCampService->campDatesForRange($course, $groupId, $classWeekStart, $weekEnd);
+        }
 
         $dayOffset = [
             'Понедельник' => 0,
@@ -41,6 +48,9 @@ class ScheduleToFormTwoSyncService
             ->whereBetween('class_date', [$classWeekStart->toDateString(), $weekEnd->toDateString()]);
         if ($practiceDates) {
             $deleteQuery->whereNotIn('class_date', $practiceDates);
+        }
+        if ($campDates) {
+            $deleteQuery->whereNotIn('class_date', $campDates);
         }
         $deleteQuery->delete();
 
@@ -73,6 +83,9 @@ class ScheduleToFormTwoSyncService
             $lessonNumber = (int) $row->lesson_number;
             $classDate = $classWeekStart->copy()->addDays($dayOffset[$dayName]);
             if ($practiceDates && in_array($classDate->toDateString(), $practiceDates, true)) {
+                continue;
+            }
+            if ($campDates && in_array($classDate->toDateString(), $campDates, true)) {
                 continue;
             }
 

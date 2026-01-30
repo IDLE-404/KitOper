@@ -6,6 +6,7 @@ use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TeacherWorkloadController;
 use App\Http\Controllers\PracticeController;
+use App\Http\Controllers\FieldCampController;
 use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\RoomController;
@@ -16,6 +17,10 @@ Route::get('/teachers/workload', [TeacherWorkloadController::class, 'index'])->n
 Route::get('/practice', [PracticeController::class, 'index'])->name('practice.index');
 Route::post('/practice', [PracticeController::class, 'store'])->name('practice.store');
 Route::delete('/practice/{practicePeriod}', [PracticeController::class, 'destroy'])->name('practice.destroy');
+
+Route::get('/field-camps', [FieldCampController::class, 'index'])->name('field_camps.index');
+Route::post('/field-camps', [FieldCampController::class, 'store'])->name('field_camps.store');
+Route::delete('/field-camps/{fieldCampPeriod}', [FieldCampController::class, 'destroy'])->name('field_camps.destroy');
 Route::get('/holidays', [HolidayController::class, 'index'])->name('holidays.index');
 Route::post('/holidays', [HolidayController::class, 'store'])->name('holidays.store');
 Route::put('/holidays/{holiday}', [HolidayController::class, 'update'])->name('holidays.update');

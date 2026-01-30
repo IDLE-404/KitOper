@@ -624,11 +624,20 @@
                                          data-lesson="{{ $i }}"
                                          title="Открыть детали пары">
                                         @if($hasPractice)
-                                            <div class="practice-label" title="Практика">
-                                                На практике
+                                            @php
+                                                $practiceType = $practiceInfo['type'] ?? '';
+                                                $practiceTitle = $practiceType === 'field_camp' ? 'Полевые сборы' : 'На практике';
+                                                $practiceLabel = $practiceType === 'educational'
+                                                    ? 'Учебная'
+                                                    : ($practiceType === 'production' ? 'Производственная' : null);
+                                            @endphp
+                                            <div class="practice-label" title="{{ $practiceTitle }}">
+                                                {{ $practiceTitle }}
                                             </div>
                                             <div class="practice-meta text-muted">
-                                                {{ ($practiceInfo['type'] ?? '') === 'educational' ? 'Учебная' : 'Производственная' }}
+                                                @if($practiceLabel)
+                                                    {{ $practiceLabel }}
+                                                @endif
                                                 @if(!empty($practiceInfo['teacher_id']))
                                                     — {{ $teacherDisplay[$practiceInfo['teacher_id']] ?? 'Преподаватель' }}
                                                 @endif
@@ -860,11 +869,20 @@
                                      data-lesson="{{ $i }}"
                                      title="Открыть детали пары">
                                     @if($hasPractice)
-                                        <div class="practice-label" title="Практика">
-                                            На практике
+                                        @php
+                                            $practiceType = $practiceInfo['type'] ?? '';
+                                            $practiceTitle = $practiceType === 'field_camp' ? 'Полевые сборы' : 'На практике';
+                                            $practiceLabel = $practiceType === 'educational'
+                                                ? 'Учебная'
+                                                : ($practiceType === 'production' ? 'Производственная' : null);
+                                        @endphp
+                                        <div class="practice-label" title="{{ $practiceTitle }}">
+                                            {{ $practiceTitle }}
                                         </div>
                                         <div class="practice-meta text-muted">
-                                            {{ ($practiceInfo['type'] ?? '') === 'educational' ? 'Учебная' : 'Производственная' }}
+                                            @if($practiceLabel)
+                                                {{ $practiceLabel }}
+                                            @endif
                                             @if(!empty($practiceInfo['teacher_id']))
                                                 — {{ $teacherDisplay[$practiceInfo['teacher_id']] ?? 'Преподаватель' }}
                                             @endif

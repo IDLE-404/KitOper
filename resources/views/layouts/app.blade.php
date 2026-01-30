@@ -57,6 +57,10 @@
                         <i class="bi bi-briefcase"></i>
                         <span>Практика</span>
                     </a>
+                    <a class="ko-nav-item {{ request()->routeIs('field_camps.*') ? 'is-active' : '' }}" href="{{ route('field_camps.index') }}">
+                        <i class="bi bi-compass"></i>
+                        <span>Полевые сборы</span>
+                    </a>
                     <a class="ko-nav-item {{ request()->routeIs('teacher_absences.*') ? 'is-active' : '' }}" href="{{ route('teacher_absences.index') }}">
                         <i class="bi bi-clipboard-check"></i>
                         <span>Отсутствия</span>

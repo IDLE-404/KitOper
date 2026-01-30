@@ -188,6 +188,30 @@ class FirstCourseSchedulePageController extends Controller
                 }
             }
         }
+        if ($course === 1) {
+            /** @var FieldCampService $fieldCampService */
+            $fieldCampService = app(\App\Services\FieldCampService::class);
+            $groupIds = $groupRecords->pluck('id')->all();
+            $weekEnd = $weekStart->copy()->addDays(6);
+            $periods = $fieldCampService->periodsForRange($course, $groupIds, $weekStart, $weekEnd);
+
+            foreach ($periods as $period) {
+                $rangeStart = Carbon::parse($period->start_date)->max($weekStart);
+                $rangeEnd = Carbon::parse($period->end_date)->min($weekEnd);
+                for ($cursor = $rangeStart->copy(); $cursor->lte($rangeEnd); $cursor->addDay()) {
+                    $dateKey = $cursor->toDateString();
+                    if (!empty($holidayWeekDates[$dateKey])) {
+                        continue;
+                    }
+                    $practiceMap[$period->group_id][$dateKey] = [
+                        'type' => 'field_camp',
+                        'teacher_id' => $period->teacher_id,
+                        'room_id' => $period->room_id,
+                        'hours_per_day' => $period->hours_per_day,
+                    ];
+                }
+            }
+        }
 
         $currentMode = $isDenominatorWeek ? 'denominator' : 'numerator';
         $roomConflicts = FirstCourseSchedule::detectRoomConflicts($raw);

@@ -1620,7 +1620,7 @@
     };
 
     const weekMode = "{{ $weekMode ?? 'num' }}";
-    const allowDenEdit = weekMode === 'den';
+    const allowDenEdit = true;
 
     const setBlockEnabled = (block, enabled) => {
         if (!block) return;
@@ -1630,13 +1630,7 @@
         });
     };
 
-    const syncDenominatorVisibility = (hasDen) => {
-        if (!allowDenEdit) {
-            hasDenToggle.checked = !!hasDen;
-            hasDenToggle.disabled = true;
-            setBlockEnabled(denBlock, false);
-            return;
-        }
+    const syncDenominatorVisibility = () => {
         hasDenToggle.disabled = false;
         denBlock.classList.toggle('d-none', !hasDenToggle.checked);
         denBlock.querySelectorAll('input, select, textarea').forEach(el => {
@@ -1672,10 +1666,8 @@
         sub2CardDen.classList.toggle('d-none', !toggleSub2.checked);
 
         const hasDen = data.hasDenominator === '1' || data.denSubject1 || data.denSubject2 || data.denTeacher1 || data.denTeacher2 || data.denRoom1 || data.denRoom2;
-        const useDenEdit = allowDenEdit && hasDen;
-        setBlockEnabled(numeratorBlock, !useDenEdit);
         hasDenToggle.checked = !!hasDen;
-        syncDenominatorVisibility(hasDen);
+        syncDenominatorVisibility();
 
         absent1Hidden.value = data.absent1 === '1' ? '1' : '0';
         absent2Hidden.value = data.absent2 === '1' ? '1' : '0';
@@ -1899,7 +1891,6 @@
 
     hasDenToggle.addEventListener('change', () => {
         if (!allowDenEdit) return;
-        setBlockEnabled(numeratorBlock, !hasDenToggle.checked);
         denBlock.classList.toggle('d-none', !hasDenToggle.checked);
         denBlock.querySelectorAll('input, select, textarea').forEach(el => {
             el.disabled = !hasDenToggle.checked;

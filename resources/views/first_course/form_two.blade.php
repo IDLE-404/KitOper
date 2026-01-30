@@ -46,7 +46,7 @@
     <div class="card shadow-sm mb-3">
         <div class="card-body">
             <div class="row g-3 align-items-end">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label text-muted small mb-1">Курс</label>
                     <select class="form-select" id="courseSelect">
                         @for($c = 1; $c <= 4; $c++)
@@ -54,7 +54,7 @@
                         @endfor
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label text-muted small mb-1">Группа</label>
                     <select class="form-select" id="groupSelect">
                         @foreach($groups as $g)
@@ -79,8 +79,8 @@
                     </div>
                     <input type="hidden" id="yearInput" value="{{ $year }}">
                 </div>
-                <div class="col-md-1 text-end">
-                    <button class="btn btn-primary w-100" id="reloadBtn">OK</button>
+                <div class="col-12 text-end ok-row">
+                    <button class="btn btn-primary btn-sm" id="reloadBtn">OK</button>
                 </div>
             </div>
         </div>
@@ -563,12 +563,19 @@
 @push('styles')
 <style>
     .form-two-container {
-        width: 80%;
+        width: 100%;
+        max-width: 100%;
         margin-left: auto;
         margin-right: auto;
     }
     .form-two-container .card {
         border-radius: 12px;
+    }
+    .ok-row {
+        margin-top: 0.5rem;
+    }
+    #reloadBtn {
+        padding: 8px 16px;
     }
     .legend-row .status-chip {
         min-width: 32px;

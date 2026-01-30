@@ -154,6 +154,27 @@ class FormTwoService
             $course
         )
             ?? ($useKazakh ? $kzOrder : $ruOrder);
+        if ($course === 1 && $this->groupHasToken($groupRow->group_name ?? '', ['БҚЕ', 'БКЕ', 'BKE'])) {
+            $globalCandidates = [
+                'Ғаламдық құзыреттер',
+                'Жаһандық құзыреттілік',
+                'Глобальные компетенции',
+            ];
+            $targetGlobal = null;
+            foreach ($globalCandidates as $candidate) {
+                if ($this->subjectNamesContain($subjectNames, $candidate)) {
+                    $targetGlobal = $candidate;
+                    break;
+                }
+            }
+            if ($targetGlobal) {
+                $ignoreKeys = array_map(fn (string $name): string => $this->normalizeOrderName($name), $globalCandidates);
+                $preferredOrder = array_values(array_filter($preferredOrder, function (string $name) use ($ignoreKeys): bool {
+                    return !in_array($this->normalizeOrderName($name), $ignoreKeys, true);
+                }));
+                $preferredOrder[] = $targetGlobal;
+            }
+        }
 
         $mainReport = $this->buildReportData(
             $recordsMain,
@@ -1354,7 +1375,7 @@ class FormTwoService
         }
 
         $special15 = ['М', 'СИБ', 'АҚЖ'];
-        $special16 = ['ПО', 'БҚЕ', 'ТЭ'];
+        $special16 = ['ПО', 'БҚЕ', 'БКЕ', 'BKE', 'ТЭ'];
 
         if ($course === 2 && !$useKazakh) {
             foreach ($tokens as $token) {
@@ -1405,6 +1426,36 @@ class FormTwoService
             }
         }
 
+        return false;
+    }
+
+    protected function groupHasToken(string $groupName, array $prefixes): bool
+    {
+        $name = trim($groupName);
+        if ($name === '') {
+            return false;
+        }
+        $upper = mb_strtoupper($name, 'UTF-8');
+        $tokens = preg_split('/[\\s\\-\\/]+/u', $upper, -1, PREG_SPLIT_NO_EMPTY);
+        if (!$tokens) {
+            return false;
+        }
+        foreach ($tokens as $token) {
+            if ($this->tokenMatchesPrefix($token, $prefixes)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected function subjectNamesContain($subjectNames, string $needle): bool
+    {
+        $target = $this->normalizeOrderName($needle);
+        foreach ($subjectNames as $name) {
+            if ($this->normalizeOrderName((string) $name) === $target) {
+                return true;
+            }
+        }
         return false;
     }
 

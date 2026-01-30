@@ -135,6 +135,7 @@ class FirstCourseSchedulePageController extends Controller
             ->whereDate('s.week_start', $weekStart->toDateString())
             ->orderBy('s.study_day')
             ->orderBy('s.lesson_number')
+            ->orderBy('s.group_id')
             ->get();
         if ($raw->isEmpty() && $isDenominatorWeek) {
             $fallbackWeek = $weekStart->copy()->subWeek();
@@ -142,6 +143,7 @@ class FirstCourseSchedulePageController extends Controller
                 ->whereDate('s.week_start', $fallbackWeek->toDateString())
                 ->orderBy('s.study_day')
                 ->orderBy('s.lesson_number')
+                ->orderBy('s.group_id')
                 ->get();
             if ($fallbackRaw->isNotEmpty()) {
                 $raw = $fallbackRaw;
@@ -446,6 +448,17 @@ class FirstCourseSchedulePageController extends Controller
                     $schedule[$groupId]['days'][$day][$lesson] = $pair;
                 }
             }
+        }
+
+        if ($schedule) {
+            $ordered = [];
+            foreach ($groupRecords as $group) {
+                $groupId = (int) $group->id;
+                if (isset($schedule[$groupId])) {
+                    $ordered[$groupId] = $schedule[$groupId];
+                }
+            }
+            $schedule = $ordered ?: $schedule;
         }
 
         // teacherConflicts is merged above and already applied in the per-pair loop.
@@ -2151,7 +2164,7 @@ class FirstCourseSchedulePageController extends Controller
         /** @var ScheduleToFormTwoSyncService $sync */
         $sync = app(ScheduleToFormTwoSyncService::class);
         $weekMode = $sync->resolveWeekMode($weekStart, $course);
-        $editingDenominator = $weekMode === 'denominator' && $request->boolean('has_denominator');
+        $hasDenominatorToggle = $request->boolean('has_denominator');
 
         $existingRows = DB::table($tables['schedules'])
             ->where('group_id', $groupId)
@@ -2179,28 +2192,58 @@ class FirstCourseSchedulePageController extends Controller
             || ($prev2->is_absent_2_den ?? false)
         );
 
-        if ($editingDenominator) {
+        if ($prev1) {
+            if (!array_key_exists('subject_id', $data)) {
+                $data['subject_id'] = $prev1->subject_id;
+            }
+            if (!array_key_exists('teacher_id', $data)) {
+                $data['teacher_id'] = $prev1->teacher_id;
+            }
+            if (!array_key_exists('room_id', $data)) {
+                $data['room_id'] = $prev1->room_id;
+            }
+        }
+        if ($prev2) {
+            if (!array_key_exists('subject_id_2', $data)) {
+                $data['subject_id_2'] = $prev2->subject_id;
+            }
+            if (!array_key_exists('teacher_id_2', $data)) {
+                $data['teacher_id_2'] = $prev2->teacher_id;
+            }
+            if (!array_key_exists('room_id_2', $data)) {
+                $data['room_id_2'] = $prev2->room_id;
+            }
+        }
+        if ($hasDenominatorToggle) {
             if ($prev1) {
-                $data['subject_id'] = $data['subject_id'] ?? $prev1->subject_id;
-                $data['teacher_id'] = $data['teacher_id'] ?? $prev1->teacher_id;
-                $data['room_id'] = $data['room_id'] ?? $prev1->room_id;
+                if (!array_key_exists('den_subject_id', $data)) {
+                    $data['den_subject_id'] = $prev1->subject_id_denominator;
+                }
+                if (!array_key_exists('den_teacher_id', $data)) {
+                    $data['den_teacher_id'] = $prev1->teacher_id_denominator;
+                }
+                if (!array_key_exists('den_room_id', $data)) {
+                    $data['den_room_id'] = $prev1->room_id_denominator;
+                }
             }
             if ($prev2) {
-                $data['subject_id_2'] = $data['subject_id_2'] ?? $prev2->subject_id;
-                $data['teacher_id_2'] = $data['teacher_id_2'] ?? $prev2->teacher_id;
-                $data['room_id_2'] = $data['room_id_2'] ?? $prev2->room_id;
+                if (!array_key_exists('den_subject_id_2', $data)) {
+                    $data['den_subject_id_2'] = $prev2->subject_id_denominator_2;
+                }
+                if (!array_key_exists('den_teacher_id_2', $data)) {
+                    $data['den_teacher_id_2'] = $prev2->teacher_id_denominator_2;
+                }
+                if (!array_key_exists('den_room_id_2', $data)) {
+                    $data['den_room_id_2'] = $prev2->room_id_denominator_2;
+                }
             }
         } else {
-            if ($prev1) {
-                $data['den_subject_id'] = $data['den_subject_id'] ?? $prev1->subject_id_denominator;
-                $data['den_teacher_id'] = $data['den_teacher_id'] ?? $prev1->teacher_id_denominator;
-                $data['den_room_id'] = $data['den_room_id'] ?? $prev1->room_id_denominator;
-            }
-            if ($prev2) {
-                $data['den_subject_id_2'] = $data['den_subject_id_2'] ?? $prev2->subject_id_denominator_2;
-                $data['den_teacher_id_2'] = $data['den_teacher_id_2'] ?? $prev2->teacher_id_denominator_2;
-                $data['den_room_id_2'] = $data['den_room_id_2'] ?? $prev2->room_id_denominator_2;
-            }
+            $data['den_subject_id'] = null;
+            $data['den_teacher_id'] = null;
+            $data['den_room_id'] = null;
+            $data['den_subject_id_2'] = null;
+            $data['den_teacher_id_2'] = null;
+            $data['den_room_id_2'] = null;
         }
 
         $hasSub2 = $request->boolean('has_sub2') || (bool) $prev2;
@@ -2241,14 +2284,11 @@ class FirstCourseSchedulePageController extends Controller
             || ($data['teacher_id_2'] ?? null)
             || ($data['room_id_2'] ?? null)
         );
-        $hasSub2Denominator = $hasSub2 && (
+        $hasSub2Denominator = $hasDenominatorToggle && $hasSub2 && (
             ($data['den_subject_id_2'] ?? null)
             || ($data['den_teacher_id_2'] ?? null)
             || ($data['den_room_id_2'] ?? null)
         );
-        if (!$editingDenominator && $prevHasDen2) {
-            $hasSub2Denominator = true;
-        }
         $denSubject1 = $data['den_subject_id'] ?? null;
         $denTeacher1 = $data['den_teacher_id'] ?? null;
         $denRoom1 = $data['den_room_id'] ?? null;
@@ -2256,7 +2296,7 @@ class FirstCourseSchedulePageController extends Controller
         $denTeacher2 = $data['den_teacher_id_2'] ?? null;
         $denRoom2 = $data['den_room_id_2'] ?? null;
 
-        $hasDenominatorMain = $denSubject1 || $denTeacher1 || $denRoom1;
+        $hasDenominatorMain = $hasDenominatorToggle && ($denSubject1 || $denTeacher1 || $denRoom1);
         if ($hasSub2 && !$hasDenominatorMain && $hasSub2Denominator) {
             // Если знаменатель внесли только в подгруппу 2, считаем это общим знаменателем.
             $denSubject1 = $denSubject2;
@@ -2269,8 +2309,9 @@ class FirstCourseSchedulePageController extends Controller
             $hasSub2Denominator = false;
         }
         $hasSub2Data = $hasSub2Numerator || $hasSub2Denominator;
-        if (!$editingDenominator && $prevHasDen1) {
-            $hasDenominatorMain = true;
+        if (!$hasDenominatorToggle) {
+            $hasDenominatorMain = false;
+            $hasSub2Denominator = false;
         }
 
         $teacherSlots = [];
@@ -2377,7 +2418,6 @@ class FirstCourseSchedulePageController extends Controller
             $denRoom2,
             $weekStart,
             $weekMode,
-            $editingDenominator,
             $prev1,
             $prev2,
             $tables
@@ -2402,27 +2442,16 @@ class FirstCourseSchedulePageController extends Controller
             $teacherDen1 = $hasDenominatorMain ? $denTeacher1 : null;
             $roomDen1 = $hasDenominatorMain ? $denRoom1 : null;
 
-            $denAbsent1 = false;
+            $denAbsent1 = $hasDenominatorMain ? ($prev1?->is_absent_1_den ?? false) : false;
             $denReplacement1 = false;
             $denReplacementTeacher1 = null;
             $denReplacementSubject1 = null;
             $denReplacementComment1 = null;
             if ($hasDenominatorMain) {
-                $denAbsent1 = $editingDenominator
-                    ? $absent1
-                    : ($prev1?->is_absent_1_den ?? false);
-
-                if ($editingDenominator) {
-                    $denReplacement1 = $isReplacement1DenInput;
-                    $denReplacementTeacher1 = $data['replacement_teacher_id_1_den'] ?? null;
-                    $denReplacementSubject1 = $data['replacement_subject_id_1_den'] ?? null;
-                    $denReplacementComment1 = $data['replacement_comment_1_den'] ?? null;
-                } else {
-                    $denReplacement1 = $prev1?->is_replacement_1_den ?? false;
-                    $denReplacementTeacher1 = $prev1?->replacement_teacher_id_1_den ?? null;
-                    $denReplacementSubject1 = $prev1?->replacement_subject_id_1_den ?? null;
-                    $denReplacementComment1 = $prev1?->replacement_comment_1_den ?? null;
-                }
+                $denReplacement1 = $isReplacement1DenInput;
+                $denReplacementTeacher1 = $data['replacement_teacher_id_1_den'] ?? null;
+                $denReplacementSubject1 = $data['replacement_subject_id_1_den'] ?? null;
+                $denReplacementComment1 = $data['replacement_comment_1_den'] ?? null;
             }
 
             $denReplacement2 = false;
@@ -2430,17 +2459,10 @@ class FirstCourseSchedulePageController extends Controller
             $denReplacementSubject2 = null;
             $denReplacementComment2 = null;
             if ($hasSub2Denominator) {
-                if ($editingDenominator) {
-                    $denReplacement2 = $isReplacement2DenInput;
-                    $denReplacementTeacher2 = $data['replacement_teacher_id_2_den'] ?? null;
-                    $denReplacementSubject2 = $data['replacement_subject_id_2_den'] ?? null;
-                    $denReplacementComment2 = $data['replacement_comment_2_den'] ?? null;
-                } else {
-                    $denReplacement2 = $prev2?->is_replacement_2_den ?? false;
-                    $denReplacementTeacher2 = $prev2?->replacement_teacher_id_2_den ?? null;
-                    $denReplacementSubject2 = $prev2?->replacement_subject_id_2_den ?? null;
-                    $denReplacementComment2 = $prev2?->replacement_comment_2_den ?? null;
-                }
+                $denReplacement2 = $isReplacement2DenInput;
+                $denReplacementTeacher2 = $data['replacement_teacher_id_2_den'] ?? null;
+                $denReplacementSubject2 = $data['replacement_subject_id_2_den'] ?? null;
+                $denReplacementComment2 = $data['replacement_comment_2_den'] ?? null;
             }
 
             $subjectId2 = $data['subject_id_2'] ?? null;
@@ -2461,11 +2483,11 @@ class FirstCourseSchedulePageController extends Controller
                 'room_id_denominator'    => $roomDen1,
                 'created_at'    => $now,
                 'updated_at'    => $now,
-                'is_absent_1_num' => $editingDenominator ? ($prev1?->is_absent_1_num ?? false) : $absent1,
-                'is_replacement_1_num' => $editingDenominator ? ($prev1?->is_replacement_1_num ?? false) : $isReplacement1,
-                'replacement_teacher_id_1_num' => $editingDenominator ? ($prev1?->replacement_teacher_id_1_num ?? null) : ($data['replacement_teacher_id_1'] ?? null),
-                'replacement_subject_id_1_num' => $editingDenominator ? ($prev1?->replacement_subject_id_1_num ?? null) : ($data['replacement_subject_id_1'] ?? null),
-                'replacement_comment_1_num' => $editingDenominator ? ($prev1?->replacement_comment_1_num ?? null) : ($data['replacement_comment_1'] ?? null),
+                'is_absent_1_num' => $absent1,
+                'is_replacement_1_num' => $isReplacement1,
+                'replacement_teacher_id_1_num' => $data['replacement_teacher_id_1'] ?? null,
+                'replacement_subject_id_1_num' => $data['replacement_subject_id_1'] ?? null,
+                'replacement_comment_1_num' => $data['replacement_comment_1'] ?? null,
                 'is_absent_1_den' => $denAbsent1,
                 'is_replacement_1_den' => $denReplacement1,
                 'replacement_teacher_id_1_den' => $denReplacementTeacher1,
@@ -2499,11 +2521,11 @@ class FirstCourseSchedulePageController extends Controller
                     'room_id_denominator_2'    => $roomDen2,
                     'created_at'    => $now,
                     'updated_at'    => $now,
-                    'is_absent_2_num' => $editingDenominator ? ($prev2?->is_absent_2_num ?? false) : $absent2,
-                    'is_replacement_2_num' => $editingDenominator ? ($prev2?->is_replacement_2_num ?? false) : $isReplacement2,
-                    'replacement_teacher_id_2_num' => $editingDenominator ? ($prev2?->replacement_teacher_id_2_num ?? null) : ($data['replacement_teacher_id_2'] ?? null),
-                    'replacement_subject_id_2_num' => $editingDenominator ? ($prev2?->replacement_subject_id_2_num ?? null) : ($data['replacement_subject_id_2'] ?? null),
-                    'replacement_comment_2_num' => $editingDenominator ? ($prev2?->replacement_comment_2_num ?? null) : ($data['replacement_comment_2'] ?? null),
+                    'is_absent_2_num' => $absent2,
+                    'is_replacement_2_num' => $isReplacement2,
+                    'replacement_teacher_id_2_num' => $data['replacement_teacher_id_2'] ?? null,
+                    'replacement_subject_id_2_num' => $data['replacement_subject_id_2'] ?? null,
+                    'replacement_comment_2_num' => $data['replacement_comment_2'] ?? null,
                     'is_absent_2_den' => $denAbsent2,
                     'is_replacement_2_den' => $denReplacement2,
                     'replacement_teacher_id_2_den' => $denReplacementTeacher2,
@@ -2554,6 +2576,12 @@ class FirstCourseSchedulePageController extends Controller
         $groupId = (int) $data['group_id'];
         $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
 
+        $syncService = app(ScheduleToFormTwoSyncService::class);
+        $weekMode = $syncService->resolveWeekMode($weekStart, $course);
+        $otherWeekStart = $weekMode === 'denominator'
+            ? $weekStart->copy()->subWeek()
+            : $weekStart->copy()->addWeek();
+
         DB::table($tables['schedules'])
             ->where('group_id', $groupId)
             ->where('study_day', $data['study_day'])
@@ -2561,9 +2589,14 @@ class FirstCourseSchedulePageController extends Controller
             ->whereDate('week_start', $weekStart->toDateString())
             ->delete();
 
-        /** @var ScheduleToFormTwoSyncService $sync */
-        $sync = app(ScheduleToFormTwoSyncService::class);
-        $sync->syncWeekWithAlternation($groupId, $weekStart, $course);
+        DB::table($tables['schedules'])
+            ->where('group_id', $groupId)
+            ->where('study_day', $data['study_day'])
+            ->where('lesson_number', $data['lesson_number'])
+            ->whereDate('week_start', $otherWeekStart->toDateString())
+            ->delete();
+
+        $syncService->syncWeekWithAlternation($groupId, $weekStart, $course);
 
         return response()->json(['message' => 'Пара удалена']);
     }

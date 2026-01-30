@@ -226,9 +226,15 @@
         text-align: center;
         margin-top: 0.15rem;
     }
-    .pair-absence {
-        background: #fee2e2;
-        border-color: #fca5a5;
+    .pair-cell.pair-sick,
+    .pair-cell.pair-absence {
+        background: #ffe4e6;
+        border: 1px solid #fca5a5;
+        box-shadow: 0 10px 20px rgba(248, 113, 113, 0.18);
+    }
+    .pair-cell.pair-replacement {
+        background: #fff7cc;
+        border: 1px solid #facc15;
     }
     .absence-note {
         display: inline-flex;
@@ -419,105 +425,6 @@
 @endphp
 
 <div class="schedule-layout">
-    <aside class="schedule-sidebar">
-        <div class="sidebar-title">Навигация</div>
-        <div class="sidebar-section">
-            <div class="sidebar-section__title">Учёба</div>
-            <a href="{{ route('first.schedule.index', ['course' => $course ?? 1, 'week_start' => $requestedWeekStart ?? null]) }}" class="sidebar-link {{ request()->routeIs('first.schedule.index', 'first.schedule.day') ? 'active' : '' }}">
-                <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="3" y="4" width="18" height="17" rx="3"></rect>
-                    <path d="M8 2v4M16 2v4M3 9h18"></path>
-                </svg>
-                <span class="sidebar-text">Расписание</span>
-            </a>
-            <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="sidebar-link {{ request()->routeIs('first.schedule.form_two') ? 'active' : '' }}">
-                <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M14 2H7a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V8z"></path>
-                    <path d="M14 2v6h6"></path>
-                    <path d="M8 13h8M8 17h5"></path>
-                </svg>
-                <span class="sidebar-text">Форма 2</span>
-            </a>
-        </div>
-        <div class="sidebar-section">
-            <div class="sidebar-section__title">Справочники</div>
-            <a href="{{ route('rooms.index') }}" class="sidebar-link {{ request()->routeIs('rooms.index') ? 'active' : '' }}">
-                <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 21h16"></path>
-                    <path d="M6 21V5a2 2 0 0 1 2-2h6l4 4v14"></path>
-                    <path d="M14 3v4h4"></path>
-                    <circle cx="10" cy="12" r="1.2"></circle>
-                </svg>
-                <span class="sidebar-text">Кабинеты</span>
-            </a>
-            <a href="{{ route('teachers.index', ['course' => $course ?? 1]) }}" class="sidebar-link {{ request()->routeIs('teachers.index') ? 'active' : '' }}">
-                <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="12" cy="8" r="4"></circle>
-                    <path d="M4 20a8 8 0 0 1 16 0"></path>
-                </svg>
-                <span class="sidebar-text">Преподаватели</span>
-            </a>
-            <a href="{{ route('groups.index', ['course' => $course ?? 1]) }}" class="sidebar-link {{ request()->routeIs('groups.index') ? 'active' : '' }}">
-                <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="8" cy="9" r="3.2"></circle>
-                    <circle cx="16.5" cy="10" r="2.6"></circle>
-                    <path d="M3 20a6 6 0 0 1 10 0"></path>
-                    <path d="M13 20a5 5 0 0 1 8 0"></path>
-                </svg>
-                <span class="sidebar-text">Группы</span>
-            </a>
-        </div>
-        <details class="sidebar-more sidebar-section">
-            <summary class="sidebar-link">
-                <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="3" y="3" width="7" height="7" rx="2"></rect>
-                    <rect x="14" y="3" width="7" height="7" rx="2"></rect>
-                    <rect x="3" y="14" width="7" height="7" rx="2"></rect>
-                    <rect x="14" y="14" width="7" height="7" rx="2"></rect>
-                </svg>
-                <span class="sidebar-text">Дополнительно</span>
-                <span class="sidebar-caret" aria-hidden="true">▾</span>
-            </summary>
-            <div class="sidebar-more__menu">
-                <a href="{{ route('subjects.index', ['course' => $course ?? 1]) }}">
-                    <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M4 5a3 3 0 0 1 3-3h11v18H7a3 3 0 0 0-3 3z"></path>
-                        <path d="M7 2v18"></path>
-                    </svg>
-                    <span class="sidebar-text">Предметы</span>
-                </a>
-                <a href="{{ route('practice.index', ['course' => max(2, (int) ($course ?? 2))]) }}">
-                    <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>
-                        <rect x="3" y="6" width="18" height="14" rx="3"></rect>
-                        <path d="M3 12h18"></path>
-                    </svg>
-                    <span class="sidebar-text">Практика</span>
-                </a>
-                <a href="{{ route('holidays.index') }}">
-                    <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 3l2.2 4.6 5.1.8-3.7 3.6.9 5.2-4.5-2.4-4.5 2.4.9-5.2L4.7 8.4l5.1-.8L12 3z"></path>
-                    </svg>
-                    <span class="sidebar-text">Праздники</span>
-                </a>
-                <a href="{{ route('teachers.workload', ['week_start' => $weekStart]) }}">
-                    <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <circle cx="12" cy="12" r="9"></circle>
-                        <path d="M12 7v6l4 2"></path>
-                    </svg>
-                    <span class="sidebar-text">Занятость преподавателей</span>
-                </a>
-                <a href="{{ route('teacher_absences.index') }}">
-                    <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 3l9 16H3z"></path>
-                        <path d="M12 9v5"></path>
-                        <circle cx="12" cy="17" r="1"></circle>
-                    </svg>
-                    <span class="sidebar-text">Отсутствия</span>
-                </a>
-            </div>
-        </details>
-    </aside>
     <div class="schedule-main">
 <div class="schedule-shell compact{{ $isDayView ? ' day-grid-mode' : '' }}">
     @php

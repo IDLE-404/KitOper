@@ -587,13 +587,16 @@ body {
     border-color: #facc15;
 }
 
-.pair-cell.pair-sick {
-    background: linear-gradient(180deg, #fff9ed, #fff5e1);
+.pair-cell.pair-sick,
+.pair-cell.pair-absence {
+    background: #ffe4e6;
+    border: 1px solid #fca5a5;
+    box-shadow: 0 10px 20px rgba(248, 113, 113, 0.18);
 }
 
 .pair-cell.pair-replacement {
-    background: linear-gradient(180deg, #fffbea, #fff7d1);
-    border-color: #fde68a;
+    background: #fff7cc;
+    border: 1px solid #facc15;
 }
 
 @media (max-width: 640px) {

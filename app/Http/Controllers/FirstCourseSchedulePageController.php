@@ -30,6 +30,7 @@ class FirstCourseSchedulePageController extends Controller
     {
         $course = CourseContext::normalize(request()->integer('course') ?? 1);
         $tables = CourseContext::tables($course);
+        $vacancyTeacherId = $course === 1 ? $this->findVacancyTeacherId($tables) : null;
 
         $weekStartInput = request()->get('week_start');
         if (!$weekStartInput) {
@@ -188,8 +189,9 @@ class FirstCourseSchedulePageController extends Controller
 
         $currentMode = $isDenominatorWeek ? 'denominator' : 'numerator';
         $roomConflicts = FirstCourseSchedule::detectRoomConflicts($raw);
-        $teacherConflicts = FirstCourseSchedule::detectTeacherConflicts($raw);
-        $teacherConflictsCross = $this->detectTeacherConflictsAcrossCourses($raw, $weekStart, $course, $teachers->all());
+        $rawForTeacherConflicts = $this->stripVacancyTeacherFromRows($raw, $vacancyTeacherId);
+        $teacherConflicts = FirstCourseSchedule::detectTeacherConflicts($rawForTeacherConflicts);
+        $teacherConflictsCross = $this->detectTeacherConflictsAcrossCourses($rawForTeacherConflicts, $weekStart, $course, $teachers->all(), $vacancyTeacherId);
         $teacherConflicts = $this->mergeTeacherConflicts($teacherConflicts, $teacherConflictsCross);
         $schedule = [];
 
@@ -775,6 +777,9 @@ class FirstCourseSchedulePageController extends Controller
     {
         $course = CourseContext::normalize(request()->integer('course') ?? 1);
         $tables = CourseContext::tables($course);
+        if ($course === 1) {
+            $this->findVacancyTeacherId($tables);
+        }
 
         $groupsQuery = DB::table($tables['groups'])
             ->select('id', 'group_name')
@@ -961,6 +966,7 @@ class FirstCourseSchedulePageController extends Controller
 
         $course = CourseContext::normalize($data['course'] ?? 1);
         $tables = CourseContext::tables($course);
+        $vacancyTeacherId = $course === 1 ? $this->findVacancyTeacherId($tables) : null;
         $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
         $dayKey = $data['day_key'] ?? '';
         $studyDay = $dayMap[$dayKey] ?? $dayKey;
@@ -1032,6 +1038,9 @@ class FirstCourseSchedulePageController extends Controller
         if (!$teacherId) {
             return response()->json(['status' => '', 'message' => '']);
         }
+        if ($this->isVacancyTeacherId($teacherId, $vacancyTeacherId)) {
+            return response()->json(['status' => 'free', 'message' => 'Свободно']);
+        }
 
         $classDate = isset($dayOffset[$studyDay])
             ? $weekStart->copy()->addDays($dayOffset[$studyDay])
@@ -1053,7 +1062,8 @@ class FirstCourseSchedulePageController extends Controller
             $weekStart,
             $tables['schedules'],
             $tables['groups'] ?? null,
-            $excludeGroupId
+            $excludeGroupId,
+            $vacancyTeacherId
         );
 
         if ($conflict) {
@@ -1140,6 +1150,7 @@ class FirstCourseSchedulePageController extends Controller
 
         $course = CourseContext::normalize($data['course'] ?? 1);
         $tables = CourseContext::tables($course);
+        $vacancyTeacherId = $course === 1 ? $this->findVacancyTeacherId($tables) : null;
         $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
         $dayKey = $data['day_key'];
         $studyDay = $dayMap[$dayKey] ?? $dayKey;
@@ -1153,6 +1164,10 @@ class FirstCourseSchedulePageController extends Controller
         $classDate = $weekStart->copy()->addDays($dayOffset[$studyDay]);
         $absences = $this->teacherAbsencesForDate($classDate);
         $absentIds = array_map('intval', array_keys($absences));
+        if ($vacancyTeacherId) {
+            unset($absences[$vacancyTeacherId]);
+            $absentIds = array_values(array_diff($absentIds, [(int) $vacancyTeacherId]));
+        }
 
         $occupied = [];
         foreach ([1, 2, 3, 4] as $courseCheck) {
@@ -1169,14 +1184,21 @@ class FirstCourseSchedulePageController extends Controller
                     $lessonNumber,
                     $weekStart,
                     $mode,
-                    $courseCheck === $course ? $excludeGroupId : null
+                    $courseCheck === $course ? $excludeGroupId : null,
+                    $vacancyTeacherId
                 )
             );
         }
 
         $occupied = array_values(array_unique(array_filter(array_map('intval', $occupied))));
+        if ($vacancyTeacherId) {
+            $occupied = array_values(array_diff($occupied, [(int) $vacancyTeacherId]));
+        }
         $teacherIds = DB::table($tables['teachers'])->pluck('id')->map(fn($id) => (int) $id)->all();
         $free = array_values(array_diff($teacherIds, $occupied, $absentIds));
+        if ($vacancyTeacherId) {
+            $free = array_values(array_unique(array_merge($free, [(int) $vacancyTeacherId])));
+        }
 
         return response()->json([
             'free' => $free,
@@ -2701,9 +2723,13 @@ class FirstCourseSchedulePageController extends Controller
         ?Carbon $weekStart,
         string $table,
         ?string $groupTable = null,
-        ?int $excludeGroupId = null
+        ?int $excludeGroupId = null,
+        ?int $vacancyTeacherId = null
     ): ?array {
         if (!Schema::hasTable($table)) {
+            return null;
+        }
+        if ($this->isVacancyTeacherId($teacherId, $vacancyTeacherId)) {
             return null;
         }
 
@@ -2751,6 +2777,9 @@ class FirstCourseSchedulePageController extends Controller
                 if (!$rowTeacher) {
                     continue;
                 }
+                if ($this->isVacancyTeacherId($rowTeacher, $vacancyTeacherId)) {
+                    continue;
+                }
                 if ($rowTeacher === $teacherId && $rowSlot['mode'] === $mode) {
                     $groupId = (int) ($row->group_id ?? 0);
                     return [
@@ -2772,7 +2801,8 @@ class FirstCourseSchedulePageController extends Controller
         int $lessonNumber,
         ?Carbon $weekStart,
         string $mode,
-        ?int $excludeGroupId = null
+        ?int $excludeGroupId = null,
+        ?int $vacancyTeacherId = null
     ): array {
         if (!Schema::hasTable($table)) {
             return [];
@@ -2808,14 +2838,14 @@ class FirstCourseSchedulePageController extends Controller
 
             if (in_array($mode, $modes, true)) {
                 foreach ([$teacherNum1, $teacherNum2, $replacementNum1, $replacementNum2] as $teacherId) {
-                    if ($teacherId) {
+                    if ($teacherId && !$this->isVacancyTeacherId((int) $teacherId, $vacancyTeacherId)) {
                         $occupied[] = (int) $teacherId;
                     }
                 }
             }
             if ($mode === 'denominator') {
                 foreach ([$teacherDen1, $teacherDen2, $replacementDen1, $replacementDen2] as $teacherId) {
-                    if ($teacherId) {
+                    if ($teacherId && !$this->isVacancyTeacherId((int) $teacherId, $vacancyTeacherId)) {
                         $occupied[] = (int) $teacherId;
                     }
                 }
@@ -2952,6 +2982,58 @@ class FirstCourseSchedulePageController extends Controller
         return $map;
     }
 
+    protected function isVacancyTeacherId(?int $teacherId, ?int $vacancyTeacherId): bool
+    {
+        if (!$teacherId || !$vacancyTeacherId) {
+            return false;
+        }
+
+        return (int) $teacherId === (int) $vacancyTeacherId;
+    }
+
+    protected function findVacancyTeacherId(array $tables): ?int
+    {
+        if (!Schema::hasTable($tables['teachers'] ?? 'teachers')) {
+            return null;
+        }
+
+        $teacherTable = $tables['teachers'];
+        $vacancyId = DB::table($teacherTable)
+            ->where('teacher_name', 'Вакансия')
+            ->value('id');
+
+        return $vacancyId ? (int) $vacancyId : null;
+    }
+
+    protected function stripVacancyTeacherFromRows(\Illuminate\Support\Collection $rows, ?int $vacancyTeacherId): \Illuminate\Support\Collection
+    {
+        if (!$vacancyTeacherId || $rows->isEmpty()) {
+            return $rows;
+        }
+
+        $fields = [
+            'teacher_id',
+            'teacher_id_2',
+            'teacher_id_denominator',
+            'teacher_id_denominator_2',
+            'replacement_teacher_id_1_num',
+            'replacement_teacher_id_2_num',
+            'replacement_teacher_id_1_den',
+            'replacement_teacher_id_2_den',
+        ];
+
+        return $rows->map(function ($row) use ($vacancyTeacherId, $fields) {
+            $clone = clone $row;
+            foreach ($fields as $field) {
+                $value = $clone->{$field} ?? null;
+                if ($value && $this->isVacancyTeacherId((int) $value, $vacancyTeacherId)) {
+                    $clone->{$field} = null;
+                }
+            }
+            return $clone;
+        });
+    }
+
     /**
      * Проверка занятости преподавателей по режимам недели.
      *
@@ -2986,6 +3068,7 @@ class FirstCourseSchedulePageController extends Controller
                 ->pluck('teacher_name', 'id')
                 ->all();
         }
+        $vacancyTeacherId = $currentCourse === 1 ? $this->findVacancyTeacherId($courseTables) : null;
         $subjectTitleById = $this->subjectTitlesByIds($subjectIds, $subjectTable);
 
         $occupiedByMode = [];
@@ -3007,6 +3090,9 @@ class FirstCourseSchedulePageController extends Controller
         foreach ($slots as $slot) {
             $teacherId = $slot['id'] ?? null;
             if (!$teacherId) {
+                continue;
+            }
+            if ($this->isVacancyTeacherId((int) $teacherId, $vacancyTeacherId)) {
                 continue;
             }
             $mode = ($slot['mode'] ?? 'numerator') === 'denominator' ? 'denominator' : 'numerator';
@@ -3046,6 +3132,9 @@ class FirstCourseSchedulePageController extends Controller
             if (!$teacherId) {
                 continue;
             }
+            if ($this->isVacancyTeacherId((int) $teacherId, $vacancyTeacherId)) {
+                continue;
+            }
             $mode = $slot['mode'] ?? null;
             $conflict = $this->teacherBusyInTable(
                 (int) $teacherId,
@@ -3055,7 +3144,8 @@ class FirstCourseSchedulePageController extends Controller
                 $weekStart,
                 $table ?? 'first_course_schedules',
                 $groupTable,
-                $groupId
+                $groupId,
+                $vacancyTeacherId
             );
 
             if ($conflict) {
@@ -3205,7 +3295,8 @@ class FirstCourseSchedulePageController extends Controller
         \Illuminate\Support\Collection $rows,
         Carbon $weekStart,
         int $currentCourse,
-        array $currentTeachers
+        array $currentTeachers,
+        ?int $vacancyTeacherId = null
     ): array {
         if ($rows->isEmpty()) {
             return [];
@@ -3214,6 +3305,9 @@ class FirstCourseSchedulePageController extends Controller
         $normalize = fn (?string $name): string => mb_strtolower(trim((string) ($name ?? '')));
         $teacherNameById = [];
         foreach ($currentTeachers as $id => $name) {
+            if ($this->isVacancyTeacherId((int) $id, $vacancyTeacherId)) {
+                continue;
+            }
             $normalized = $normalize($name);
             if ($normalized !== '') {
                 $teacherNameById[(int) $id] = $normalized;
@@ -3272,6 +3366,9 @@ class FirstCourseSchedulePageController extends Controller
         $conflicts = [];
         foreach ($rows as $row) {
             foreach ($this->teacherSlotsForRow($row) as $slot) {
+                if ($this->isVacancyTeacherId((int) $slot['teacher_id'], $vacancyTeacherId)) {
+                    continue;
+                }
                 $teacherName = $teacherNameById[$slot['teacher_id']] ?? null;
                 if (!$teacherName) {
                     continue;

@@ -67,6 +67,18 @@
         max-width: 100%;
         width: 100%;
     }
+    .day-grid-wrap,
+    .grid-table-wrap {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    @media (max-width: 1100px) {
+        .grid-table {
+            min-width: 980px;
+        }
+    }
     .schedule-main {
         flex: 1 1 auto;
         min-width: 0;
@@ -810,6 +822,7 @@
                     <h2 class="group-compact__title">Группа: {{ $groupData['name'] ?? 'Без названия' }}</h2>
                     <a href="{{ route('first.schedule.week') }}" class="link-edit">Редактировать</a>
                 </div>
+                <div class="grid-table-wrap">
                 <div class="grid-table">
                     <div class="grid-row grid-head">
                         <div class="grid-cell day-col"></div>
@@ -1042,6 +1055,7 @@
                             @endfor
                         </div>
                     @endforeach
+                </div>
                 </div>
             </div>
             @endforeach

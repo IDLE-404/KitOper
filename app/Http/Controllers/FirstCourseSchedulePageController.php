@@ -2728,14 +2728,7 @@ class FirstCourseSchedulePageController extends Controller
             ->get();
 
         foreach ($rows as $row) {
-            $hasDenominator = ($row->subject_id_denominator ?? null)
-                || ($row->teacher_id_denominator ?? null)
-                || ($row->room_id_denominator ?? null)
-                || ($row->subject_id_denominator_2 ?? null)
-                || ($row->teacher_id_denominator_2 ?? null)
-                || ($row->room_id_denominator_2 ?? null);
-
-            $modes = $hasDenominator ? ['numerator'] : ['numerator', 'denominator'];
+            $modes = ['numerator'];
             $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? '2' : '1';
 
             $roomNum1 = $subgroupFlag === '1' ? ($row->room_id ?? null) : null;
@@ -2798,14 +2791,7 @@ class FirstCourseSchedulePageController extends Controller
             ->get();
 
         foreach ($rows as $row) {
-            $hasDenominator = ($row->subject_id_denominator ?? null)
-                || ($row->teacher_id_denominator ?? null)
-                || ($row->room_id_denominator ?? null)
-                || ($row->subject_id_denominator_2 ?? null)
-                || ($row->teacher_id_denominator_2 ?? null)
-                || ($row->room_id_denominator_2 ?? null);
-
-            $modes = $hasDenominator ? ['numerator'] : ['numerator', 'denominator'];
+            $modes = ['numerator'];
             $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? '2' : '1';
 
             $teacherNum1 = $subgroupFlag === '1' ? ($row->teacher_id ?? null) : null;
@@ -2874,14 +2860,7 @@ class FirstCourseSchedulePageController extends Controller
 
         $occupied = [];
         foreach ($rows as $row) {
-            $hasDenominator = ($row->subject_id_denominator ?? null)
-                || ($row->teacher_id_denominator ?? null)
-                || ($row->room_id_denominator ?? null)
-                || ($row->subject_id_denominator_2 ?? null)
-                || ($row->teacher_id_denominator_2 ?? null)
-                || ($row->room_id_denominator_2 ?? null);
-
-            $modes = $hasDenominator ? ['numerator'] : ['numerator', 'denominator'];
+            $modes = ['numerator'];
             $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? '2' : '1';
 
             $teacherNum1 = $subgroupFlag === '1' ? ($row->teacher_id ?? null) : null;
@@ -2933,14 +2912,7 @@ class FirstCourseSchedulePageController extends Controller
 
         $occupied = [];
         foreach ($rows as $row) {
-            $hasDenominator = ($row->subject_id_denominator ?? null)
-                || ($row->teacher_id_denominator ?? null)
-                || ($row->room_id_denominator ?? null)
-                || ($row->subject_id_denominator_2 ?? null)
-                || ($row->teacher_id_denominator_2 ?? null)
-                || ($row->room_id_denominator_2 ?? null);
-
-            $modes = $hasDenominator ? ['numerator'] : ['numerator', 'denominator'];
+            $modes = ['numerator'];
             $subgroupFlag = in_array($row->subgroup ?? null, ['2', 'B'], true) ? '2' : '1';
 
             $roomNum1 = $subgroupFlag === '1' ? ($row->room_id ?? null) : null;

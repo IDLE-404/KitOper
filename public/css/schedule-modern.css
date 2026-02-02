@@ -312,6 +312,8 @@ body {
     border-radius: 10px;
     overflow: hidden;
     background: #f8fafc;
+    width: max-content;
+    min-width: 100%;
 }
 
 .grid-row {
@@ -377,6 +379,17 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     font-size: 16px;
+}
+
+@media (max-width: 1100px) {
+    .grid-table {
+        grid-template-columns: minmax(150px, 1.1fr) repeat(7, minmax(160px, 1fr));
+    }
+    .cell-title {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+    }
 }
 
 .cell-meta {

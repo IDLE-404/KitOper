@@ -151,7 +151,7 @@
                             <th class="text-muted col-index">#</th>
                             <th class="text-muted col-subject">Предмет</th>
                             <th class="text-muted col-teacher">Преподаватель</th>
-                            <th class="text-muted col-norm">Норматив</th>
+                            <th class="text-muted col-norm">Часы</th>
                             @foreach($days as $d)
                                 <th class="text-center text-muted day-head col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
                             @endforeach
@@ -175,11 +175,7 @@
                                     <input type="hidden" class="row-teacher" value="{{ $row['teacher_id'] }}">
                                 </td>
                                 <td class="col-norm">
-                                    <div class="small text-muted">
-                                        Остаток на начало:
-                                        <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
-                                    </div>
-                                    <div class="small text-muted">По паре: {{ $row['hours_per_class'] ?? 2 }}</div>
+                                    <div class="small text-muted">{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</div>
                                     <div class="manual-norm d-none mt-2">
                                         <label class="form-label text-muted small mb-1">Всего часов</label>
                                         <input type="number"
@@ -310,7 +306,7 @@
                             <th class="text-muted col-index">#</th>
                             <th class="text-muted col-subject">Предмет</th>
                             <th class="text-muted col-teacher">Преподаватель</th>
-                            <th class="text-muted col-norm">Норматив</th>
+                            <th class="text-muted col-norm">Часы</th>
                             @foreach($days as $d)
                                 <th class="text-center text-muted day-head col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
                             @endforeach
@@ -334,11 +330,7 @@
                                     <input type="hidden" class="row-teacher" value="{{ $row['teacher_id'] }}">
                                 </td>
                                 <td class="col-norm">
-                                    <div class="small text-muted">
-                                        Остаток на начало:
-                                        <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
-                                    </div>
-                                    <div class="small text-muted">По паре: {{ $row['hours_per_class'] ?? 2 }}</div>
+                                    <div class="small text-muted">{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</div>
                                     <div class="manual-norm d-none mt-2">
                                         <label class="form-label text-muted small mb-1">Всего часов</label>
                                         <input type="number"
@@ -441,7 +433,7 @@
                                 <th class="text-muted col-index">#</th>
                                 <th class="text-muted col-subject">Предмет</th>
                                 <th class="text-muted col-teacher">Преподаватель</th>
-                                <th class="text-muted col-norm">Норматив</th>
+                                <th class="text-muted col-norm">Часы</th>
                                 @foreach($days as $d)
                                     <th class="text-center text-muted day-head col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
                                 @endforeach
@@ -465,11 +457,7 @@
                                         <input type="hidden" class="row-teacher" value="{{ $row['teacher_id'] }}">
                                     </td>
                                     <td class="col-norm">
-                                        <div class="small text-muted">
-                                            Остаток на начало:
-                                            <strong>{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</strong>
-                                        </div>
-                                        <div class="small text-muted">По паре: {{ $row['hours_per_class'] ?? 2 }}</div>
+                                        <div class="small text-muted">{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</div>
                                         <div class="manual-norm d-none mt-2">
                                             <label class="form-label text-muted small mb-1">Всего часов</label>
                                             <input type="number"

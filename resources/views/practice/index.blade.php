@@ -26,6 +26,10 @@
         flex: 1 1 220px;
         min-width: 200px;
     }
+    .form-field .search-input {
+        width: 100%;
+        min-width: 0;
+    }
     .form-field label {
         font-size: 13px;
         color: var(--muted);
@@ -58,6 +62,9 @@
     $course = $course ?? 2;
     $groupMap = $groups->pluck('group_name', 'id');
     $teacherMap = $teachers->pluck('teacher_name', 'id');
+    $subjectMap = $subjects->mapWithKeys(function ($subject) {
+        return [$subject->id => ($subject->subject_name ?? $subject->name_ru ?? $subject->name_kz ?? '—')];
+    });
 @endphp
 
 <div class="schedule-shell compact">
@@ -122,10 +129,20 @@
                     </select>
                 </div>
                 <div class="form-field">
+                    <label>Предмет</label>
+                    <select class="search-input" name="subject_id" id="practiceSubject" required>
+                        @foreach($subjects as $subject)
+                            @php $subjectTitle = $subject->subject_name ?? $subject->name_ru ?? $subject->name_kz; @endphp
+                            <option value="{{ $subject->id }}" @selected(old('subject_id') == $subject->id)>{{ $subjectTitle }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="form-field">
                     <label>Преподаватель</label>
-                    <select class="search-input" name="teacher_id" required>
+                    <select class="search-input" name="teacher_id" id="practiceTeacher" required>
+                        <option value="">Выберите преподавателя</option>
                         @foreach($teachers as $t)
-                            <option value="{{ $t->id }}">{{ $t->teacher_name }}</option>
+                            <option value="{{ $t->id }}" @selected((string) old('teacher_id') === (string) $t->id)>{{ $t->teacher_name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -160,6 +177,7 @@
                     <tr>
                         <th>Группа</th>
                         <th>Тип</th>
+                        <th>Предмет</th>
                         <th>Преподаватель</th>
                         <th>Кабинет</th>
                         <th>Период</th>
@@ -172,6 +190,7 @@
                         <tr>
                             <td>{{ $groupMap[$period->group_id] ?? '—' }}</td>
                             <td>{{ $period->type === 'educational' ? 'Учебная' : 'Производственная' }}</td>
+                            <td>{{ $subjectMap[$period->subject_id] ?? ($period->type === 'educational' ? 'Учебная практика' : 'Производственная практика') }}</td>
                             <td>{{ $teacherMap[$period->teacher_id] ?? '—' }}</td>
                             <td>{{ $period->room_id ?? '—' }}</td>
                             <td>{{ $period->start_date }} → {{ $period->end_date }}</td>
@@ -186,7 +205,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="empty-note">Периоды не добавлены</td>
+                            <td colspan="8" class="empty-note">Периоды не добавлены</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -200,6 +219,9 @@
     const courseSelectForm = document.getElementById('courseSelectForm');
     const practiceType = document.getElementById('practiceType');
     const roomBlock = document.getElementById('roomBlock');
+    const practiceSubject = document.getElementById('practiceSubject');
+    const practiceTeacher = document.getElementById('practiceTeacher');
+    const teacherSubjectMap = @json($teacherSubjectMap ?? []);
 
     const toggleRoom = () => {
         const isEducational = practiceType && practiceType.value === 'educational';
@@ -226,6 +248,43 @@
         practiceType.addEventListener('change', toggleRoom);
     }
 
+    const filterTeachersBySubject = () => {
+        if (!practiceTeacher) return;
+
+        const subjectId = practiceSubject?.value || '';
+        const allowedIds = new Set(((teacherSubjectMap[String(subjectId)] || [])).map(String));
+        let visibleCount = 0;
+
+        Array.from(practiceTeacher.options).forEach((option) => {
+            if (!option.value) {
+                option.hidden = false;
+                option.disabled = false;
+                return;
+            }
+
+            const allowed = allowedIds.has(String(option.value));
+            option.hidden = !allowed;
+            option.disabled = !allowed;
+            if (allowed) visibleCount += 1;
+        });
+
+        if (!subjectId || visibleCount === 0) {
+            practiceTeacher.value = '';
+            practiceTeacher.setAttribute('disabled', 'disabled');
+            return;
+        }
+
+        if (practiceTeacher.value && !allowedIds.has(String(practiceTeacher.value))) {
+            practiceTeacher.value = '';
+        }
+        practiceTeacher.removeAttribute('disabled');
+    };
+
+    if (practiceSubject) {
+        practiceSubject.addEventListener('change', filterTeachersBySubject);
+    }
+
     toggleRoom();
+    filterTeachersBySubject();
 </script>
 @endsection

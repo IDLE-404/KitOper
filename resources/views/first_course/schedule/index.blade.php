@@ -67,17 +67,47 @@
         max-width: 100%;
         width: 100%;
     }
+    .schedule-shell {
+        max-width: none !important;
+        width: 100% !important;
+    }
+    .schedule-shell.compact {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+    .ko-main-inner {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+    .group-compact {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        width: 100%;
+    }
+    .group-compact__head {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
     .day-grid-wrap,
     .grid-table-wrap {
         width: 100%;
         max-width: 100%;
-        overflow-x: auto;
+        overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
     }
     @media (max-width: 1100px) {
         .grid-table {
-            min-width: 980px;
+            min-width: 100%;
         }
+    }
+    .day-grid-table {
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+    .grid-table {
+        width: 100% !important;
+        min-width: 100% !important;
+        grid-template-columns: 100px repeat(7, minmax(0, 1fr)) !important;
     }
     .schedule-main {
         flex: 1 1 auto;
@@ -262,7 +292,7 @@
     }
     .day-grid-wrap {
         width: 100%;
-        overflow-x: auto;
+        overflow-x: hidden;
         border: 1px solid #d5dbe6;
         border-radius: 12px;
         background: #fff;
@@ -278,6 +308,9 @@
         border: 1px solid #e2e8f0;
         padding: 8px 10px;
         vertical-align: top;
+    }
+    .day-grid-table td.day-grid-cell {
+        height: 170px;
     }
     .day-grid-head {
         background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
@@ -322,8 +355,12 @@
         border: 0;
         border-radius: 0;
         box-shadow: none;
-        min-height: 96px;
-        padding: 10px 12px 12px;
+        min-height: 0;
+        height: 100%;
+        overflow: hidden;
+        padding: 8px 10px;
+        gap: 6px;
+        justify-content: flex-start;
         transition: box-shadow 0.12s ease, transform 0.12s ease, background 0.12s ease;
     }
     .day-grid-cell .pair-cell.filled {
@@ -342,6 +379,29 @@
     }
     .day-grid-cell .pair-cell.empty {
         background: #f9fafb;
+    }
+    .grid-table .grid-cell.pair-cell {
+        min-height: 170px;
+        height: 170px;
+        overflow: hidden;
+        padding: 8px 10px;
+        gap: 6px;
+        justify-content: flex-start;
+    }
+    .grid-table .pair-cell .cell-line {
+        font-size: 13px;
+        gap: 6px;
+    }
+    .grid-table .pair-cell .cell-title {
+        font-size: 14px;
+    }
+    .grid-table .pair-cell .cell-meta {
+        font-size: 12px;
+        gap: 6px;
+    }
+    .grid-table .pair-cell .den-separator {
+        margin-top: 4px;
+        padding-top: 3px;
     }
     .table-empty {
         padding: 16px;

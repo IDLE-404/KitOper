@@ -11,6 +11,7 @@ class PracticePeriod extends Model
     protected $fillable = [
         'course',
         'group_id',
+        'subject_id',
         'type',
         'teacher_id',
         'room_id',

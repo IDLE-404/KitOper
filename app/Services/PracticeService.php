@@ -62,7 +62,9 @@ class PracticeService
     {
         $course = (int) $period->course;
         $tables = CourseContext::tables($course);
-        $subjectId = $this->ensurePracticeSubjectId($course, $period->type);
+        $subjectId = $period->subject_id
+            ? (int) $period->subject_id
+            : $this->ensurePracticeSubjectId($course, $period->type);
 
         $start = Carbon::parse($period->start_date);
         $end = Carbon::parse($period->end_date);
@@ -127,6 +129,9 @@ class PracticeService
         $end = Carbon::parse($period->end_date);
 
         if ($subjectIds) {
+            if ($period->subject_id) {
+                $subjectIds = [(int) $period->subject_id];
+            }
             DB::table($tables['form_two_records'])
                 ->where('group_id', $period->group_id)
                 ->whereBetween('class_date', [$start->toDateString(), $end->toDateString()])

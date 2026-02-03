@@ -7,6 +7,7 @@ use App\Services\PracticeService;
 use App\Support\CourseContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class PracticeController extends Controller
@@ -22,6 +23,16 @@ class PracticeController extends Controller
 
         $groups = DB::table($tables['groups'])->orderBy('group_name')->get();
         $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get();
+        $subjects = DB::table($tables['subjects'])->orderBy('subject_name')->get();
+        $teacherSubjectMap = [];
+        if (Schema::hasTable($tables['teacher_subjects'])) {
+            $teacherSubjectMap = DB::table($tables['teacher_subjects'])
+                ->select('subject_id', 'teacher_id')
+                ->get()
+                ->groupBy('subject_id')
+                ->map(fn ($rows) => $rows->pluck('teacher_id')->map(fn ($id) => (int) $id)->values()->all())
+                ->toArray();
+        }
 
         $periods = PracticePeriod::query()
             ->where('course', $course)
@@ -32,6 +43,8 @@ class PracticeController extends Controller
             'course' => $course,
             'groups' => $groups,
             'teachers' => $teachers,
+            'subjects' => $subjects,
+            'teacherSubjectMap' => $teacherSubjectMap,
             'periods' => $periods,
         ]);
     }
@@ -49,6 +62,7 @@ class PracticeController extends Controller
         $data = $request->validate([
             'course' => 'required|integer|min:2|max:4',
             'group_id' => ['required', 'integer', Rule::exists($tables['groups'], 'id')],
+            'subject_id' => ['required', 'integer', Rule::exists($tables['subjects'], 'id')],
             'type' => ['required', 'string', $typeRule],
             'teacher_id' => ['required', 'integer', Rule::exists($tables['teachers'], 'id')],
             'room_id' => ['nullable', 'string', 'max:50'],
@@ -69,6 +83,16 @@ class PracticeController extends Controller
             return back()->withErrors(['end_date' => 'Дата окончания не может быть раньше начала.'])->withInput();
         }
 
+        if (Schema::hasTable($tables['teacher_subjects'])) {
+            $isLinked = DB::table($tables['teacher_subjects'])
+                ->where('subject_id', (int) $data['subject_id'])
+                ->where('teacher_id', (int) $data['teacher_id'])
+                ->exists();
+            if (!$isLinked) {
+                return back()->withErrors(['teacher_id' => 'Этот преподаватель не закреплен за выбранным предметом.'])->withInput();
+            }
+        }
+
         $overlap = PracticePeriod::query()
             ->where('course', $course)
             ->where('group_id', $data['group_id'])
@@ -83,6 +107,7 @@ class PracticeController extends Controller
         $period = PracticePeriod::create([
             'course' => $course,
             'group_id' => (int) $data['group_id'],
+            'subject_id' => (int) $data['subject_id'],
             'type' => $data['type'],
             'teacher_id' => (int) $data['teacher_id'],
             'room_id' => $data['room_id'] ?? null,

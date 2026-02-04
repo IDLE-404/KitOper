@@ -18,32 +18,56 @@ class TeacherController extends Controller
         $teachers = DB::table($tables['teachers'])
             ->orderBy('teacher_name')
             ->get();
+        $teacherIds = $teachers->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        $subjects = DB::table($tables['subjects'])
-            ->select('id', 'subject_name', 'name_ru', 'name_kz', 'module_title')
-            ->orderBy('module_title')
-            ->orderByRaw('COALESCE(name_ru, subject_name)')
-            ->get()
-            ->map(function ($row) use ($course) {
-                $name = $row->name_ru ?: ($row->name_kz ?: $row->subject_name);
-                $module = trim((string) ($row->module_title ?? ''));
-                $row->title = ($course !== 1 && $module !== '') ? trim($module . ' ' . $name) : $name;
-                return $row;
-            });
-        $subjectTitleMap = $subjects->pluck('title', 'id')->all();
+        $subjectsByCourse = [];
+        $subjectTitleMapByCourse = [];
+        $teacherSubjectsByCourse = [];
 
-        $teacherSubjects = [];
-        $teacherSubjectTable = $tables['teacher_subjects'] ?? null;
-        if ($teacherSubjectTable && Schema::hasTable($teacherSubjectTable)) {
+        foreach ([1, 2, 3, 4] as $courseNo) {
+            $courseTables = CourseContext::tables($courseNo);
+            if (!Schema::hasTable($courseTables['subjects'])) {
+                $subjectsByCourse[$courseNo] = collect();
+                $subjectTitleMapByCourse[$courseNo] = [];
+                $teacherSubjectsByCourse[$courseNo] = [];
+                continue;
+            }
+
+            $subjects = DB::table($courseTables['subjects'])
+                ->select('id', 'subject_name', 'name_ru', 'name_kz', 'module_title')
+                ->orderBy('module_title')
+                ->orderByRaw('COALESCE(subject_name, name_ru, name_kz)')
+                ->get()
+                ->map(function ($row) use ($courseNo) {
+                    // Keep full competency code (e.g. RO/ON) in UI labels.
+                    $name = $row->subject_name ?: ($row->name_ru ?: $row->name_kz);
+                    $module = trim((string) ($row->module_title ?? ''));
+                    $row->title = ($courseNo !== 1 && $module !== '') ? trim($module . ' ' . $name) : $name;
+                    return $row;
+                });
+
+            $subjectsByCourse[$courseNo] = $subjects;
+            $subjectTitleMapByCourse[$courseNo] = $subjects->pluck('title', 'id')->all();
+            $teacherSubjectsByCourse[$courseNo] = [];
+
+            $teacherSubjectTable = $courseTables['teacher_subjects'] ?? null;
+            if (!$teacherSubjectTable || !Schema::hasTable($teacherSubjectTable) || empty($teacherIds)) {
+                continue;
+            }
+
             $pairs = DB::table($teacherSubjectTable)
                 ->select('teacher_id', 'subject_id')
-                ->whereIn('teacher_id', $teachers->pluck('id')->all())
+                ->whereIn('teacher_id', $teacherIds)
                 ->get();
             foreach ($pairs as $pair) {
                 $teacherId = (int) $pair->teacher_id;
-                $teacherSubjects[$teacherId][] = (int) $pair->subject_id;
+                $teacherSubjectsByCourse[$courseNo][$teacherId][] = (int) $pair->subject_id;
             }
         }
+
+        $subjects = $subjectsByCourse[$course] ?? collect();
+        $subjectTitleMap = $subjectTitleMapByCourse[$course] ?? [];
+        $teacherSubjects = $teacherSubjectsByCourse[$course] ?? [];
 
         $hasInitials = Schema::hasColumn($tables['teachers'], 'initials');
         $duplicateInitials = [];
@@ -72,6 +96,9 @@ class TeacherController extends Controller
             'subjects' => $subjects,
             'subjectTitleMap' => $subjectTitleMap,
             'teacherSubjects' => $teacherSubjects,
+            'subjectsByCourse' => $subjectsByCourse,
+            'subjectTitleMapByCourse' => $subjectTitleMapByCourse,
+            'teacherSubjectsByCourse' => $teacherSubjectsByCourse,
             'course' => $course,
             'hasInitials' => $hasInitials,
             'rooms' => $rooms,
@@ -89,8 +116,18 @@ class TeacherController extends Controller
         $data = $request->validate([
             'teacher_name' => 'required|string|max:255',
             'initials' => $hasInitials ? 'nullable|string|max:20' : 'nullable',
+            'subjects_by_course_mode' => 'sometimes|boolean',
             'subject_ids' => 'sometimes|array',
             'subject_ids.*' => 'integer',
+            'subject_ids_by_course' => 'sometimes|array',
+            'subject_ids_by_course.1' => 'sometimes|array',
+            'subject_ids_by_course.1.*' => 'integer',
+            'subject_ids_by_course.2' => 'sometimes|array',
+            'subject_ids_by_course.2.*' => 'integer',
+            'subject_ids_by_course.3' => 'sometimes|array',
+            'subject_ids_by_course.3.*' => 'integer',
+            'subject_ids_by_course.4' => 'sometimes|array',
+            'subject_ids_by_course.4.*' => 'integer',
             'default_room_id' => ($hasDefaultRoom && Schema::hasTable('rooms')) ? 'nullable|integer|exists:rooms,id' : 'nullable',
         ]);
 
@@ -113,8 +150,8 @@ class TeacherController extends Controller
         }
 
         $teacherId = DB::table($tables['teachers'])->insertGetId($payload);
-        $subjectIds = $data['subject_ids'] ?? [];
-        $this->syncTeacherSubjects($tables, $teacherId, $subjectIds);
+        $subjectIdsByCourse = $this->extractSubjectIdsByCourse($data, $course);
+        $this->syncTeacherSubjectsForCourses($teacherId, $subjectIdsByCourse);
 
         return redirect()
             ->route('teachers.index', ['course' => $course])
@@ -131,8 +168,18 @@ class TeacherController extends Controller
         $data = $request->validate([
             'teacher_name' => 'required|string|max:255',
             'initials' => $hasInitials ? 'nullable|string|max:20' : 'nullable',
+            'subjects_by_course_mode' => 'sometimes|boolean',
             'subject_ids' => 'sometimes|array',
             'subject_ids.*' => 'integer',
+            'subject_ids_by_course' => 'sometimes|array',
+            'subject_ids_by_course.1' => 'sometimes|array',
+            'subject_ids_by_course.1.*' => 'integer',
+            'subject_ids_by_course.2' => 'sometimes|array',
+            'subject_ids_by_course.2.*' => 'integer',
+            'subject_ids_by_course.3' => 'sometimes|array',
+            'subject_ids_by_course.3.*' => 'integer',
+            'subject_ids_by_course.4' => 'sometimes|array',
+            'subject_ids_by_course.4.*' => 'integer',
             'default_room_id' => ($hasDefaultRoom && Schema::hasTable('rooms')) ? 'nullable|integer|exists:rooms,id' : 'nullable',
         ]);
 
@@ -156,8 +203,8 @@ class TeacherController extends Controller
         DB::table($tables['teachers'])
             ->where('id', $id)
             ->update($payload);
-        $subjectIds = $data['subject_ids'] ?? [];
-        $this->syncTeacherSubjects($tables, $id, $subjectIds);
+        $subjectIdsByCourse = $this->extractSubjectIdsByCourse($data, $course);
+        $this->syncTeacherSubjectsForCourses($id, $subjectIdsByCourse);
 
         return redirect()
             ->route('teachers.index', ['course' => $course])
@@ -256,5 +303,41 @@ class TeacherController extends Controller
         ], $subjectIds);
 
         DB::table($teacherSubjectTable)->insert($rows);
+    }
+
+    private function syncTeacherSubjectsForCourses(int $teacherId, array $subjectIdsByCourse): void
+    {
+        foreach ([1, 2, 3, 4] as $courseNo) {
+            $tables = CourseContext::tables($courseNo);
+            $subjectIds = $subjectIdsByCourse[$courseNo] ?? [];
+            $this->syncTeacherSubjects($tables, $teacherId, $subjectIds);
+        }
+    }
+
+    private function extractSubjectIdsByCourse(array $data, int $selectedCourse): array
+    {
+        $result = [
+            1 => [],
+            2 => [],
+            3 => [],
+            4 => [],
+        ];
+
+        $byCourse = $data['subject_ids_by_course'] ?? null;
+        $forceByCourse = (bool) ($data['subjects_by_course_mode'] ?? false);
+        if ($forceByCourse || is_array($byCourse)) {
+            foreach ([1, 2, 3, 4] as $courseNo) {
+                $result[$courseNo] = is_array($byCourse[$courseNo] ?? null)
+                    ? $byCourse[$courseNo]
+                    : [];
+            }
+            return $result;
+        }
+
+        $result[$selectedCourse] = is_array($data['subject_ids'] ?? null)
+            ? $data['subject_ids']
+            : [];
+
+        return $result;
     }
 }

@@ -26,6 +26,10 @@
         flex: 1 1 220px;
         min-width: 200px;
     }
+    .form-field .search-input {
+        width: 100%;
+        min-width: 0;
+    }
     .form-field label {
         font-size: 13px;
         color: var(--muted);
@@ -105,9 +109,13 @@
                 <div class="form-field">
                     <label>Преподаватель</label>
                     <select class="search-input" name="teacher_id" required>
-                        @foreach($teachers as $t)
-                            <option value="{{ $t->id }}">{{ $t->teacher_name }}</option>
-                        @endforeach
+                        @if($teachers->isEmpty())
+                            <option value="">Нет преподавателей по НВП</option>
+                        @else
+                            @foreach($teachers as $t)
+                                <option value="{{ $t->id }}">{{ $t->teacher_name }}</option>
+                            @endforeach
+                        @endif
                     </select>
                 </div>
                 <div class="form-field">
@@ -127,7 +135,7 @@
                     <input type="number" class="search-input" name="hours_per_day" value="6" min="1" max="10">
                 </div>
                 <div class="form-field form-field--actions">
-                    <button class="btn-pill primary" type="submit">Сохранить</button>
+                    <button class="btn-pill primary" type="submit" @disabled($teachers->isEmpty())>Сохранить</button>
                 </div>
             </div>
         </form>

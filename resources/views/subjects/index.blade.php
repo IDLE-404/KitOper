@@ -56,6 +56,11 @@
         padding: 16px 0;
         text-align: center;
     }
+    .subject-name-cell {
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.35;
+    }
 </style>
 @endpush
 
@@ -138,7 +143,7 @@
                             @if($hasModules)
                                 <td>{{ $subject->module_title ?? '—' }}</td>
                             @endif
-                            <td>{{ $subject->subject_name ?? '—' }}</td>
+                            <td class="subject-name-cell">{{ $subject->subject_name ?? '—' }}</td>
                             <td class="text-end">
                                 <div class="table-actions">
                                     <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editSubject{{ $subject->id }}">Редактировать</button>

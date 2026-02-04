@@ -7,6 +7,7 @@ use App\Services\FieldCampService;
 use App\Support\CourseContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class FieldCampController extends Controller
@@ -17,7 +18,20 @@ class FieldCampController extends Controller
         $tables = CourseContext::tables($course);
 
         $groups = DB::table($tables['groups'])->orderBy('group_name')->get();
-        $teachers = DB::table($tables['teachers'])->orderBy('teacher_name')->get();
+        $nvpSubjectIds = $this->nvpSubjectIds($tables['subjects']);
+
+        if (Schema::hasTable($tables['teacher_subjects']) && !empty($nvpSubjectIds)) {
+            $teacherIds = DB::table($tables['teacher_subjects'])
+                ->whereIn('subject_id', $nvpSubjectIds)
+                ->pluck('teacher_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $teachers = empty($teacherIds)
+                ? collect()
+                : DB::table($tables['teachers'])->whereIn('id', $teacherIds)->orderBy('teacher_name')->get();
+        } else {
+            $teachers = collect();
+        }
 
         $periods = FieldCampPeriod::query()
             ->where('course', $course)
@@ -53,6 +67,19 @@ class FieldCampController extends Controller
 
         if ($data['end_date'] < $data['start_date']) {
             return back()->withErrors(['end_date' => 'Дата окончания не может быть раньше начала.'])->withInput();
+        }
+
+        $nvpSubjectIds = $this->nvpSubjectIds($tables['subjects']);
+        if (Schema::hasTable($tables['teacher_subjects']) && !empty($nvpSubjectIds)) {
+            $isLinked = DB::table($tables['teacher_subjects'])
+                ->whereIn('subject_id', $nvpSubjectIds)
+                ->where('teacher_id', (int) $data['teacher_id'])
+                ->exists();
+            if (!$isLinked) {
+                return back()->withErrors(['teacher_id' => 'Выберите преподавателя, который ведет НВП (начальная военная подготовка).'])->withInput();
+            }
+        } else {
+            return back()->withErrors(['teacher_id' => 'Не найдены предметы НВП или привязки преподавателей к НВП.'])->withInput();
         }
 
         $overlap = FieldCampPeriod::query()
@@ -91,5 +118,19 @@ class FieldCampController extends Controller
         return redirect()
             ->route('field_camps.index')
             ->with('success', 'Полевые сборы удалены. Расписание восстановлено.');
+    }
+
+    private function nvpSubjectIds(string $subjectTable): array
+    {
+        return DB::table($subjectTable)
+            ->where(function ($query) {
+                $query->where('subject_name', 'like', 'НВП%')
+                    ->orWhere('name_ru', 'like', 'НВП%')
+                    ->orWhere('subject_name', 'like', '%Начальная военная%')
+                    ->orWhere('name_ru', 'like', '%Начальная военная%');
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 }

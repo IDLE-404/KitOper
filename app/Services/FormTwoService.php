@@ -1375,7 +1375,7 @@ class FormTwoService
         }
 
         $special15 = ['М', 'СИБ', 'АҚЖ'];
-        $special16 = ['ПО', 'БҚЕ', 'БКЕ', 'BKE', 'ТЭ'];
+        $special16 = ['ПО', 'БҚЕ','ТЭ'];
 
         if ($course === 2 && !$useKazakh) {
             foreach ($tokens as $token) {

@@ -30,7 +30,7 @@ class FirstCourseSchedulePageController extends Controller
     {
         $course = CourseContext::normalize(request()->integer('course') ?? 1);
         $tables = CourseContext::tables($course);
-        $vacancyTeacherId = $course === 1 ? $this->findVacancyTeacherId($tables) : null;
+        $vacancyTeacherId = $this->findVacancyTeacherId($tables);
 
         $weekStartInput = request()->get('week_start');
         if (!$weekStartInput) {
@@ -814,9 +814,7 @@ class FirstCourseSchedulePageController extends Controller
     {
         $course = CourseContext::normalize(request()->integer('course') ?? 1);
         $tables = CourseContext::tables($course);
-        if ($course === 1) {
-            $this->findVacancyTeacherId($tables);
-        }
+        $this->findVacancyTeacherId($tables);
 
         $groupsQuery = DB::table($tables['groups'])
             ->select('id', 'group_name')
@@ -1003,7 +1001,7 @@ class FirstCourseSchedulePageController extends Controller
 
         $course = CourseContext::normalize($data['course'] ?? 1);
         $tables = CourseContext::tables($course);
-        $vacancyTeacherId = $course === 1 ? $this->findVacancyTeacherId($tables) : null;
+        $vacancyTeacherId = $this->findVacancyTeacherId($tables);
         $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
         $dayKey = $data['day_key'] ?? '';
         $studyDay = $dayMap[$dayKey] ?? $dayKey;
@@ -1187,7 +1185,7 @@ class FirstCourseSchedulePageController extends Controller
 
         $course = CourseContext::normalize($data['course'] ?? 1);
         $tables = CourseContext::tables($course);
-        $vacancyTeacherId = $course === 1 ? $this->findVacancyTeacherId($tables) : null;
+        $vacancyTeacherId = $this->findVacancyTeacherId($tables);
         $weekStart = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
         $dayKey = $data['day_key'];
         $studyDay = $dayMap[$dayKey] ?? $dayKey;
@@ -3097,7 +3095,7 @@ class FirstCourseSchedulePageController extends Controller
                 ->pluck('teacher_name', 'id')
                 ->all();
         }
-        $vacancyTeacherId = $currentCourse === 1 ? $this->findVacancyTeacherId($courseTables) : null;
+        $vacancyTeacherId = $this->findVacancyTeacherId($courseTables);
         $subjectTitleById = $this->subjectTitlesByIds($subjectIds, $subjectTable);
 
         $occupiedByMode = [];

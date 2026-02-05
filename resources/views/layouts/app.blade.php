@@ -69,6 +69,10 @@
                         <i class="bi bi-file-earmark-text"></i>
                         <span>Форма 2</span>
                     </a>
+                    <a class="ko-nav-item {{ request()->routeIs('form_two_templates.*') ? 'is-active' : '' }}" href="{{ route('form_two_templates.index') }}">
+                        <i class="bi bi-list-check"></i>
+                        <span>Шаблоны Ф2</span>
+                    </a>
                 </nav>
             </div>
 

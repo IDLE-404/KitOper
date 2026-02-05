@@ -11,6 +11,7 @@ use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\TeacherAbsenceController;
+use App\Http\Controllers\FormTwoTemplateController;
 
 Route::get('/', [FirstCourseSchedulePageController::class, 'index'])->name('home');
 Route::get('/teachers/workload', [TeacherWorkloadController::class, 'index'])->name('teachers.workload');
@@ -51,6 +52,13 @@ Route::prefix('first-course')->group(function () {
     Route::post('/form-two/save', [\App\Http\Controllers\FormTwoController::class, 'save'])->name('first.schedule.form_two.save');
     Route::get('/form-two/export', [\App\Http\Controllers\FormTwoController::class, 'export'])->name('first.schedule.form_two.export');
     Route::get('/form-two/export-semester', [\App\Http\Controllers\FormTwoController::class, 'exportSemester'])->name('first.schedule.form_two.export_semester');
+    Route::get('/form-two/templates', [FormTwoTemplateController::class, 'index'])->name('form_two_templates.index');
+    Route::post('/form-two/templates', [FormTwoTemplateController::class, 'store'])->name('form_two_templates.store');
+    Route::put('/form-two/templates/{id}', [FormTwoTemplateController::class, 'update'])->name('form_two_templates.update');
+    Route::delete('/form-two/templates/{id}', [FormTwoTemplateController::class, 'destroy'])->name('form_two_templates.destroy');
+    Route::post('/form-two/templates/{templateId}/items', [FormTwoTemplateController::class, 'storeItem'])->name('form_two_templates.items.store');
+    Route::put('/form-two/templates/items/{itemId}', [FormTwoTemplateController::class, 'updateItem'])->name('form_two_templates.items.update');
+    Route::delete('/form-two/templates/items/{itemId}', [FormTwoTemplateController::class, 'destroyItem'])->name('form_two_templates.items.destroy');
     Route::get('/teachers', [TeacherController::class, 'index'])->name('teachers.index');
     Route::post('/teachers', [TeacherController::class, 'store'])->name('teachers.store');
     Route::put('/teachers/{id}', [TeacherController::class, 'update'])->name('teachers.update');

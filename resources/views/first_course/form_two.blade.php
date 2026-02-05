@@ -139,8 +139,11 @@
                         📗 Экспорт 2 семестр
                     </a>
                     <button class="btn btn-outline-secondary btn-sm" id="semester2Btn">Ко 2 семестру</button>
-                    <input class="form-check-input d-none" type="checkbox" id="manualToggle">
-                    <button class="btn btn-outline-secondary btn-sm js-correction-toggle" type="button">Режим коррекции</button>
+                    <div class="form-check form-switch correction-switch mb-0">
+                        <input class="form-check-input" type="checkbox" id="manualToggle">
+                        <label class="form-check-label" for="manualToggle">Режим коррекции</label>
+                    </div>
+                    <button class="btn btn-outline-primary btn-sm d-none" id="addSubjectBtn" type="button">Добавить предмет</button>
                     <button class="btn btn-success btn-sm d-none js-correction-save" id="saveBtn" type="button">Сохранить коррекцию</button>
                 </div>
             </div>
@@ -165,14 +168,31 @@
                             <tr data-row="{{ $idx }}">
                                 <td class="col-index">{{ $idx + 1 }}</td>
                                 <td class="col-subject">
-                                    <div class="fw-semibold">{{ $row['subject_name'] ?? '—' }}</div>
-                                    <input type="hidden" class="row-subject" value="{{ $row['subject_id'] }}">
+                                    <div class="d-flex align-items-start justify-content-between gap-2">
+                                        <div class="fw-semibold row-subject-name">{{ $row['subject_name'] ?? '—' }}</div>
+                                        <button type="button" class="btn-close row-delete-btn manual-edit d-none" aria-label="Удалить строку"></button>
+                                    </div>
+                                    <div class="manual-edit d-none mt-2">
+                                        <select class="form-select form-select-sm row-subject">
+                                            <option value="">— выберите предмет</option>
+                                            @foreach($subjects as $s)
+                                                <option value="{{ $s->id }}" @selected(($row['subject_id'] ?? null) == $s->id)>{{ $s->title }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
                                     <input type="hidden" class="row-hours-per-class" value="{{ $row['hours_per_class'] ?? 2 }}">
                                     <input type="hidden" class="row-total-hours" value="{{ $row['total_hours'] ?? 0 }}">
                                 </td>
                                 <td class="col-teacher">
-                                    <div>{{ $row['teacher_name'] ?? '—' }}</div>
-                                    <input type="hidden" class="row-teacher" value="{{ $row['teacher_id'] }}">
+                                    <div class="row-teacher-name">{{ $row['teacher_name'] ?? '—' }}</div>
+                                    <div class="manual-edit d-none mt-2">
+                                        <select class="form-select form-select-sm row-teacher">
+                                            <option value="">— выберите преподавателя</option>
+                                            @foreach($teachers as $t)
+                                                <option value="{{ $t->id }}" @selected(($row['teacher_id'] ?? null) == $t->id)>{{ $t->teacher_name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
                                 </td>
                                 <td class="col-norm">
                                     <div class="small text-muted">{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</div>
@@ -675,6 +695,45 @@
         padding-bottom: 3px;
         font-size: 12px;
     }
+    .manual-edit .form-select {
+        padding-top: 3px;
+        padding-bottom: 3px;
+        font-size: 12px;
+    }
+    .correction-switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border: 1px solid #dbe6ff;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+    }
+    .correction-switch .form-check-input {
+        width: 2.4rem;
+        height: 1.2rem;
+        margin: 0;
+        cursor: pointer;
+    }
+    .correction-switch .form-check-input:checked {
+        background-color: #2563eb;
+        border-color: #2563eb;
+    }
+    .correction-switch .form-check-label {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1e3a8a;
+        cursor: pointer;
+        user-select: none;
+    }
+    .row-new-added {
+        animation: rowFlash 1.1s ease;
+    }
+    @keyframes rowFlash {
+        0% { background: #dcfce7; }
+        100% { background: transparent; }
+    }
     .legend-item {
         display: inline-flex;
         align-items: center;
@@ -716,12 +775,18 @@
     const courseSelect = document.getElementById('courseSelect');
     const reloadBtn = document.getElementById('reloadBtn');
     const saveBtn = document.getElementById('saveBtn');
+    const addSubjectBtn = document.getElementById('addSubjectBtn');
     const semester2Btn = document.getElementById('semester2Btn');
     const formBody = document.getElementById('formBody');
     const replacementTableBody = document.getElementById('replacementTableBody');
     const subgroupTwoBody = document.getElementById('subgroupTwoBody');
     const manualToggle = document.getElementById('manualToggle');
     const semester2Year = Number("{{ $semester2Year ?? ($year ?? now()->year) }}");
+    const days = @json($days ?? []);
+    const weekendDays = @json($weekendDays ?? []);
+    const holidayDays = @json($holidayDays ?? []);
+    const teachersData = @json(($teachers ?? collect())->map(fn ($t) => ['id' => (int) $t->id, 'name' => (string) ($t->teacher_name ?? '')])->values());
+    const subjectsData = @json(($subjects ?? collect())->map(fn ($s) => ['id' => (int) $s->id, 'title' => (string) ($s->title ?? '')])->values());
 
     courseSelect?.addEventListener('change', () => {
         const params = new URLSearchParams(window.location.search);
@@ -770,8 +835,144 @@
     manualToggle?.addEventListener('change', () => {
         const enabled = manualToggle.checked;
         document.querySelectorAll('.manual-norm').forEach(el => el.classList.toggle('d-none', !enabled));
+        document.querySelectorAll('.manual-edit').forEach(el => el.classList.toggle('d-none', !enabled));
+        document.querySelectorAll('.manual-status').forEach(el => el.classList.toggle('d-none', !enabled));
+        document.querySelectorAll('.day-cell .status-chip').forEach(el => el.classList.toggle('d-none', enabled));
         saveBtn?.classList.toggle('d-none', !enabled);
+        addSubjectBtn?.classList.toggle('d-none', !enabled);
         document.querySelectorAll('.js-correction-save').forEach(btn => btn.classList.toggle('d-none', !enabled));
+    });
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+    const reindexRows = () => {
+        formBody?.querySelectorAll('tr[data-row]').forEach((tr, idx) => {
+            tr.dataset.row = String(idx);
+            const indexCell = tr.querySelector('.col-index');
+            if (indexCell) {
+                indexCell.textContent = String(idx + 1);
+            }
+        });
+    };
+
+    addSubjectBtn?.addEventListener('click', () => {
+        if (!formBody) {
+            return;
+        }
+
+        const nextIndex = formBody.querySelectorAll('tr[data-row]').length;
+        const subjectOptions = subjectsData.map((s) => `<option value="${s.id}">${escapeHtml(s.title)}</option>`).join('');
+        const teacherOptions = teachersData.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+        const dayCells = days.map((day) => {
+            const isWeekend = Boolean(weekendDays[String(day)]);
+            const holidayMeta = holidayDays[String(day)] || null;
+            const isHoliday = Boolean(holidayMeta);
+            const dayClasses = ['text-center', 'day-cell', 'col-day'];
+            if (isWeekend) dayClasses.push('weekend');
+            if (isHoliday) dayClasses.push('holiday');
+            const disabledAttr = isHoliday ? 'disabled' : '';
+            const holidayNote = isHoliday ? `<div class="text-warning small mt-1">Редактирование отключено — ${escapeHtml(holidayMeta.name || '')}</div>` : '';
+            return `
+                <td class="${dayClasses.join(' ')}">
+                    <div class="status-chip status-empty d-none"><span class="chip-value">•</span></div>
+                    <div class="manual-status mt-1">
+                        <select class="form-select form-select-sm cell-status" data-day="${day}" ${disabledAttr}>
+                            <option value="empty" selected>—</option>
+                            <option value="normal">Норма</option>
+                            <option value="replaced">Замена (замещённая)</option>
+                            <option value="replacement">Замена (замещающая)</option>
+                        </select>
+                        <select class="form-select form-select-sm cell-repl mt-1" data-day="${day}" ${disabledAttr}>
+                            <option value="">— заменяющий</option>
+                            ${teacherOptions}
+                        </select>
+                        <select class="form-select form-select-sm cell-repl-subject mt-1" data-day="${day}" ${disabledAttr}>
+                            <option value="">— замещающий предмет</option>
+                            ${subjectOptions}
+                        </select>
+                        ${holidayNote}
+                    </div>
+                </td>
+            `;
+        }).join('');
+
+        const tr = document.createElement('tr');
+        tr.dataset.row = String(nextIndex);
+        tr.innerHTML = `
+            <td class="col-index">${nextIndex + 1}</td>
+            <td class="col-subject">
+                <div class="d-flex align-items-start justify-content-between gap-2">
+                    <div class="fw-semibold row-subject-name">Новый предмет</div>
+                    <button type="button" class="btn-close row-delete-btn manual-edit" aria-label="Удалить строку"></button>
+                </div>
+                <input type="hidden" class="row-hours-per-class" value="2">
+                <input type="hidden" class="row-total-hours" value="0">
+                <div class="manual-edit mt-2">
+                    <select class="form-select form-select-sm row-subject" required>
+                        <option value="">— выберите предмет</option>
+                        ${subjectOptions}
+                    </select>
+                </div>
+            </td>
+            <td class="col-teacher">
+                <div class="row-teacher-name">—</div>
+                <div class="manual-edit mt-2">
+                    <select class="form-select form-select-sm row-teacher">
+                        <option value="">— выберите преподавателя</option>
+                        ${teacherOptions}
+                    </select>
+                </div>
+            </td>
+            <td class="col-norm">
+                <div class="small text-muted">0</div>
+                <div class="manual-norm mt-2">
+                    <label class="form-label text-muted small mb-1">Всего часов</label>
+                    <input type="number" class="form-control form-control-sm row-total-hours-input" min="0" step="1" value="0">
+                </div>
+            </td>
+            ${dayCells}
+            <td class="fw-semibold used-cell col-used">0</td>
+            <td class="fw-semibold text-primary col-bonus">0</td>
+            <td class="fw-semibold text-success col-left">0</td>
+        `;
+        formBody.appendChild(tr);
+        tr.classList.add('row-new-added');
+        tr.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        reindexRows();
+    });
+
+    formBody?.addEventListener('click', (event) => {
+        const btn = event.target.closest('.row-delete-btn');
+        if (!btn) {
+            return;
+        }
+        const tr = btn.closest('tr[data-row]');
+        if (!tr) {
+            return;
+        }
+        tr.remove();
+        reindexRows();
+    });
+
+    formBody?.addEventListener('change', (event) => {
+        const subjectSelect = event.target.closest('.row-subject');
+        if (subjectSelect) {
+            const tr = subjectSelect.closest('tr[data-row]');
+            const label = subjectSelect.options[subjectSelect.selectedIndex]?.textContent?.trim() || 'Новый предмет';
+            tr?.querySelector('.row-subject-name')?.replaceChildren(document.createTextNode(label));
+        }
+
+        const teacherSelect = event.target.closest('.row-teacher');
+        if (teacherSelect) {
+            const tr = teacherSelect.closest('tr[data-row]');
+            const label = teacherSelect.options[teacherSelect.selectedIndex]?.textContent?.trim() || '—';
+            tr?.querySelector('.row-teacher-name')?.replaceChildren(document.createTextNode(label));
+        }
     });
 
     saveBtn?.addEventListener('click', async () => {
@@ -893,5 +1094,7 @@
             saveBtn?.click();
         });
     });
+
+    manualToggle?.dispatchEvent(new Event('change'));
 </script>
 @endpush

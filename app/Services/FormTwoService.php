@@ -144,35 +144,39 @@ class FormTwoService
         ];
         $kzGlobalCompetencies = 'Ғаламдық құзыреттер';
         $kzOrderWithGlobal = array_merge($kzOrder, [$kzGlobalCompetencies]);
-
-        $preferredOrder = $this->resolveSpecialtyOrder(
-            $groupRow->group_name ?? '',
-            $useKazakh,
-            $ruOrder,
-            $kzOrder,
-            $kzOrderWithGlobal,
-            $course
-        )
-            ?? ($useKazakh ? $kzOrder : $ruOrder);
-        if ($course === 1 && $this->groupHasToken($groupRow->group_name ?? '', ['БҚЕ', 'БКЕ', 'BKE'])) {
-            $globalCandidates = [
-                'Ғаламдық құзыреттер',
-                'Жаһандық құзыреттілік',
-                'Глобальные компетенции',
-            ];
-            $targetGlobal = null;
-            foreach ($globalCandidates as $candidate) {
-                if ($this->subjectNamesContain($subjectNames, $candidate)) {
-                    $targetGlobal = $candidate;
-                    break;
+        $customTemplate = $this->resolveStoredTemplate($course, (string) ($groupRow->group_name ?? ''));
+        if ($customTemplate && !empty($customTemplate['order'])) {
+            $preferredOrder = $customTemplate['order'];
+        } else {
+            $preferredOrder = $this->resolveSpecialtyOrder(
+                $groupRow->group_name ?? '',
+                $useKazakh,
+                $ruOrder,
+                $kzOrder,
+                $kzOrderWithGlobal,
+                $course
+            )
+                ?? ($useKazakh ? $kzOrder : $ruOrder);
+            if ($course === 1 && $this->groupHasToken($groupRow->group_name ?? '', ['БҚЕ', 'БКЕ', 'BKE'])) {
+                $globalCandidates = [
+                    'Ғаламдық құзыреттер',
+                    'Жаһандық құзыреттілік',
+                    'Глобальные компетенции',
+                ];
+                $targetGlobal = null;
+                foreach ($globalCandidates as $candidate) {
+                    if ($this->subjectNamesContain($subjectNames, $candidate)) {
+                        $targetGlobal = $candidate;
+                        break;
+                    }
                 }
-            }
-            if ($targetGlobal) {
-                $ignoreKeys = array_map(fn (string $name): string => $this->normalizeOrderName($name), $globalCandidates);
-                $preferredOrder = array_values(array_filter($preferredOrder, function (string $name) use ($ignoreKeys): bool {
-                    return !in_array($this->normalizeOrderName($name), $ignoreKeys, true);
-                }));
-                $preferredOrder[] = $targetGlobal;
+                if ($targetGlobal) {
+                    $ignoreKeys = array_map(fn (string $name): string => $this->normalizeOrderName($name), $globalCandidates);
+                    $preferredOrder = array_values(array_filter($preferredOrder, function (string $name) use ($ignoreKeys): bool {
+                        return !in_array($this->normalizeOrderName($name), $ignoreKeys, true);
+                    }));
+                    $preferredOrder[] = $targetGlobal;
+                }
             }
         }
 
@@ -256,24 +260,35 @@ class FormTwoService
                 $key = $this->normalizeOrderName($subjectName);
                 return $key !== '' && isset($allowedNormalized[$key]);
             }));
-            $subgroupTwoRows = $this->applyFirstCourseSubgroupTwoTemplate(
-                $filteredSubgroupTwoRows,
-                $normatives,
-                $subjectNames,
-                $teachers,
-                $days,
-                $useKazakh,
-                $course
-            );
-            $subgroupTwoRows = $this->applySecondCourseSubgroupTwoTemplate(
-                $subgroupTwoRows,
-                $normatives,
-                $subjectNames,
-                $teachers,
-                $days,
-                (string) ($groupRow->group_name ?? ''),
-                $course
-            );
+            if ($customTemplate && !empty($customTemplate['subgroup_two'])) {
+                $subgroupTwoRows = $this->applyStoredSubgroupTwoTemplate(
+                    $filteredSubgroupTwoRows,
+                    $normatives,
+                    $subjectNames,
+                    $teachers,
+                    $days,
+                    $customTemplate['subgroup_two']
+                );
+            } else {
+                $subgroupTwoRows = $this->applyFirstCourseSubgroupTwoTemplate(
+                    $filteredSubgroupTwoRows,
+                    $normatives,
+                    $subjectNames,
+                    $teachers,
+                    $days,
+                    $useKazakh,
+                    $course
+                );
+                $subgroupTwoRows = $this->applySecondCourseSubgroupTwoTemplate(
+                    $subgroupTwoRows,
+                    $normatives,
+                    $subjectNames,
+                    $teachers,
+                    $days,
+                    (string) ($groupRow->group_name ?? ''),
+                    $course
+                );
+            }
             $report['subgroup_two_rows'] = $subgroupTwoRows;
             $report['subgroup_two_totals'] = $this->calculateTotals($subgroupTwoRows, $days);
         } else {
@@ -1392,6 +1407,144 @@ class FormTwoService
         return $result;
     }
 
+    protected function resolveStoredTemplate(int $course, string $groupName): ?array
+    {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('form_two_templates')
+            || !\Illuminate\Support\Facades\Schema::hasTable('form_two_template_items')) {
+            return null;
+        }
+
+        $groupTokens = preg_split('/[\\s\\-\\/]+/u', mb_strtoupper(trim($groupName), 'UTF-8'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if (!$groupTokens) {
+            return null;
+        }
+
+        $templates = DB::table('form_two_templates')
+            ->where('course', $course)
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->get();
+
+        foreach ($templates as $template) {
+            $templateTokens = $this->parseTemplateTokens((string) ($template->group_tokens ?? ''));
+            if (!$templateTokens) {
+                continue;
+            }
+            if (!$this->groupMatchesTemplateTokens($groupTokens, $templateTokens)) {
+                continue;
+            }
+
+            $items = DB::table('form_two_template_items')
+                ->where('template_id', $template->id)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get();
+
+            if ($items->isEmpty()) {
+                continue;
+            }
+
+            $order = [];
+            $subgroupTwo = [];
+            foreach ($items as $item) {
+                $subject = trim((string) ($item->subject_name ?? ''));
+                if ($subject === '') {
+                    continue;
+                }
+                $order[] = $subject;
+                if ((bool) ($item->include_subgroup_two ?? false)) {
+                    $subgroupTwo[] = $subject;
+                }
+            }
+
+            return [
+                'order' => array_values(array_unique($order)),
+                'subgroup_two' => array_values(array_unique($subgroupTwo)),
+            ];
+        }
+
+        return null;
+    }
+
+    protected function parseTemplateTokens(string $raw): array
+    {
+        $parts = preg_split('/[,;\\s]+/u', mb_strtoupper($raw, 'UTF-8'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $parts = array_values(array_unique(array_map('trim', $parts)));
+        return array_values(array_filter($parts, fn (string $part): bool => $part !== ''));
+    }
+
+    protected function groupMatchesTemplateTokens(array $groupTokens, array $templateTokens): bool
+    {
+        foreach ($groupTokens as $groupToken) {
+            if ($this->tokenMatchesPrefix($groupToken, $templateTokens)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function applyStoredSubgroupTwoTemplate(
+        array $rows,
+        Collection $normatives,
+        Collection $subjectNames,
+        Collection $teachers,
+        array $days,
+        array $desiredSubjects
+    ): array {
+        if (!$desiredSubjects) {
+            return [];
+        }
+
+        $bySubject = [];
+        foreach ($rows as $row) {
+            $name = $row['subject_name'] ?? '';
+            if ($name !== '') {
+                $bySubject[$this->normalizeOrderName($name)] = $row;
+            }
+        }
+
+        $subjectIdByName = [];
+        foreach ($subjectNames->all() as $id => $name) {
+            $key = $this->normalizeOrderName((string) $name);
+            if ($key !== '') {
+                $subjectIdByName[$key] = (int) $id;
+            }
+        }
+
+        $normMap = $this->buildNormativeLookup($normatives);
+        $result = [];
+
+        foreach ($desiredSubjects as $subjectName) {
+            $key = $this->normalizeOrderName((string) $subjectName);
+            if ($key === '') {
+                continue;
+            }
+            if (!empty($bySubject[$key])) {
+                $result[] = $bySubject[$key];
+                continue;
+            }
+
+            $subjectId = $subjectIdByName[$key] ?? null;
+            if (!$subjectId) {
+                continue;
+            }
+
+            $norm = $this->matchNormative($normMap, (int) $subjectId, null);
+            $result[] = $this->emptyRow(
+                (int) $subjectId,
+                null,
+                (int) ($norm['total_hours'] ?? 0),
+                (int) ($norm['hours_per_class'] ?? 2),
+                $days,
+                $subjectNames,
+                $teachers
+            );
+        }
+
+        return $result;
+    }
+
     protected function resolveSpecialtyOrder(
         string $groupName,
         bool $useKazakh,
@@ -1442,7 +1595,7 @@ class FormTwoService
         }
         if ($course === 2 && $useKazakh) {
             foreach ($tokens as $token) {
-                if ($this->tokenMatchesPrefix($token, ['БҚЕ', 'BKE'])) {
+                if ($this->tokenMatchesPrefix($token, ['БҚЕ', 'БКЕ', 'BKE'])) {
                     return $this->bkeCourse2OrderKz();
                 }
             }

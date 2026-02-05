@@ -37,7 +37,7 @@
 <div class="container-fluid form-two-container py-3">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <div>
-            <h1 class="h4 mb-1">Форма 2 — 1 курс</h1>
+            <h1 class="h4 mb-1">Форма 2 — {{ $course ?? 1 }} курс</h1>
             <div class="text-muted">Отчёт по фактическим занятиям за месяц</div>
         </div>
         <a href="{{ route('first.schedule.index', ['course' => $course ?? 1]) }}" class="btn btn-outline-secondary">← Расписание</a>

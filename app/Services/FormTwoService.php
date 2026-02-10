@@ -622,29 +622,34 @@ class FormTwoService
         }
 
         if ($payload) {
-            $uniqueBy = ['group_id', 'year', 'month', 'day', 'subject_id', 'mode'];
-
-            DB::table($tables['form_two_records'])->upsert(
-                $payload,
-                $uniqueBy,
-                [
-                    'teacher_id',
-                    'total_hours',
-                    'hours_per_class',
-                    'status',
-                    'replacement_teacher_id',
-                    'replacement_subject_id',
-                    'bonus_hours',
-                    'used_hours',
-                    'absent_reason',
-                    'replacement_comment',
-                    'class_date',
-                    'lesson_number',
-                    'subgroup',
-                    'mode',
-                    'updated_at',
-                ]
-            );
+            $recordsTable = $tables['form_two_records'];
+            foreach ($payload as $row) {
+                $query = DB::table($recordsTable)
+                    ->where('group_id', $row['group_id'])
+                    ->where('year', $row['year'])
+                    ->where('month', $row['month'])
+                    ->where('day', $row['day'])
+                    ->where('subject_id', $row['subject_id']);
+                if (!empty($row['teacher_id'])) {
+                    $query->where('teacher_id', $row['teacher_id']);
+                }
+                $updateData = $row;
+                unset(
+                    $updateData['created_at'],
+                    $updateData['mode'],
+                    $updateData['lesson_number'],
+                    $updateData['subgroup']
+                );
+                if (empty($row['teacher_id'])) {
+                    unset($updateData['teacher_id']);
+                }
+                // Обновляем все записи дня/предмета (и учителя при наличии), чтобы ручная коррекция не дублировала строки.
+                if ($query->exists()) {
+                    $query->update($updateData);
+                } else {
+                    DB::table($recordsTable)->insert($row);
+                }
+            }
         }
 
         $extraNormatives = array_merge($replacementNormatives, $subgroupTwoNormatives);

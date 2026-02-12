@@ -289,6 +289,11 @@ class FormTwoService
                     $course
                 );
             }
+            // Подтягиваем нормативы из основной таблицы, если предмет совпадает.
+            $subgroupTwoRows = $this->applyMainNormativesToSubgroupTwo(
+                $subgroupTwoRows,
+                $mainReport['rows'] ?? []
+            );
             $report['subgroup_two_rows'] = $subgroupTwoRows;
             $report['subgroup_two_totals'] = $this->calculateTotals($subgroupTwoRows, $days);
         } else {
@@ -1410,6 +1415,70 @@ class FormTwoService
         }
 
         return $result;
+    }
+
+    protected function applyMainNormativesToSubgroupTwo(array $subgroupTwoRows, array $mainRows): array
+    {
+        if (!$subgroupTwoRows || !$mainRows) {
+            return $subgroupTwoRows;
+        }
+
+        $bySubject = [];
+        $bySubjectTeacher = [];
+        foreach ($mainRows as $row) {
+            $subjectId = $row['subject_id'] ?? null;
+            if (!$subjectId) {
+                continue;
+            }
+            $teacherId = $row['teacher_id'] ?? null;
+            if (!isset($bySubject[$subjectId])) {
+                $bySubject[$subjectId] = $row;
+            }
+            if ($teacherId) {
+                $bySubjectTeacher[$subjectId][$teacherId] = $row;
+            } elseif (!isset($bySubjectTeacher[$subjectId][0])) {
+                $bySubjectTeacher[$subjectId][0] = $row;
+            }
+        }
+
+        foreach ($subgroupTwoRows as &$row) {
+            $subjectId = $row['subject_id'] ?? null;
+            if (!$subjectId) {
+                continue;
+            }
+            $teacherId = $row['teacher_id'] ?? null;
+            $source = null;
+            if ($teacherId && isset($bySubjectTeacher[$subjectId][$teacherId])) {
+                $source = $bySubjectTeacher[$subjectId][$teacherId];
+            } elseif (isset($bySubjectTeacher[$subjectId][0])) {
+                $source = $bySubjectTeacher[$subjectId][0];
+            } elseif (isset($bySubject[$subjectId])) {
+                $source = $bySubject[$subjectId];
+            }
+            if (!$source) {
+                continue;
+            }
+
+            $newTotal = (int) ($source['total_hours'] ?? 0);
+            $newPerClass = (int) ($source['hours_per_class'] ?? 2);
+
+            $oldTotal = (int) ($row['total_hours'] ?? 0);
+            $oldStart = (int) ($row['hours_left_start'] ?? $oldTotal);
+            $spentBefore = max(0, $oldTotal - $oldStart);
+            $used = (int) ($row['used_hours_total'] ?? 0);
+            $bonus = (int) ($row['bonus_hours_total'] ?? 0);
+            $spentCurrent = $used - $bonus;
+            $newStart = max(0, $newTotal - $spentBefore);
+            $newLeft = max(0, $newStart - $spentCurrent);
+
+            $row['total_hours'] = $newTotal;
+            $row['hours_per_class'] = $newPerClass ?: (int) ($row['hours_per_class'] ?? 2);
+            $row['hours_left_start'] = $newStart;
+            $row['hours_left'] = $newLeft;
+        }
+        unset($row);
+
+        return $subgroupTwoRows;
     }
 
     protected function resolveStoredTemplate(int $course, string $groupName): ?array

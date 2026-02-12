@@ -6,10 +6,18 @@ use App\Support\CourseContext;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class FormTwoService
 {
-    public function buildMonthReport(int $groupId, int $year, int $month, int $course = 1, array $holidayDays = []): array
+    public function buildMonthReport(
+        int $groupId,
+        int $year,
+        int $month,
+        int $course = 1,
+        array $holidayDays = [],
+        bool $includePractice = true
+    ): array
     {
         $tables = CourseContext::tables($course);
         $holidayFlags = $this->normalizeHolidayDays($holidayDays);
@@ -88,6 +96,30 @@ class FormTwoService
             ->where('group_id', $groupId)
             ->whereBetween('class_date', [$studyYearStart->toDateString(), $monthEnd->toDateString()])
             ->get();
+        $practiceRecords = collect();
+        $practiceDates = [];
+        if ($includePractice) {
+            $practiceTable = $tables['form_two_practice_records'] ?? null;
+            if ($practiceTable && Schema::hasTable($practiceTable)) {
+                $practiceRecords = DB::table($practiceTable)
+                    ->where('group_id', $groupId)
+                    ->whereBetween('class_date', [$studyYearStart->toDateString(), $monthEnd->toDateString()])
+                    ->get();
+            }
+            if ($practiceRecords->isNotEmpty()) {
+                $practiceDates = $practiceRecords
+                    ->pluck('class_date')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+                if ($practiceDates) {
+                    $records = $records->filter(function ($rec) use ($practiceDates) {
+                        return !in_array($rec->class_date ?? null, $practiceDates, true);
+                    })->values();
+                }
+            }
+        }
         $records = $this->expandReplacements($records);
         $recordsMain = $records->filter(function ($rec) {
             return $this->subgroupValue($rec) !== 2;
@@ -223,10 +255,44 @@ class FormTwoService
         }));
         $mainReport['totals'] = $this->calculateTotals($mainReport['rows'], $days);
 
+        $practiceRows = [];
+        $practiceTotals = $this->calculateTotals([], $days);
+        if ($includePractice && $practiceRecords->isNotEmpty()) {
+            $practiceReport = $this->buildReportData(
+                $practiceRecords,
+                collect(),
+                $subjectNames,
+                $teachers,
+                $days,
+                $holidayFlags,
+                $monthStart,
+                $monthEnd,
+                $studyYearStart,
+                $year,
+                $month,
+                $daysCount,
+                $preferredOrder,
+                false
+            );
+            $practiceRows = array_values(array_filter($practiceReport['rows'], function (array $row) use ($allowedOrder, $allowedNormalized): bool {
+                $subjectName = $row['subject_name'] ?? '';
+                if (in_array($subjectName, $allowedOrder, true)) {
+                    return true;
+                }
+                $key = $this->normalizeOrderName($subjectName);
+                return $key !== '' && isset($allowedNormalized[$key]);
+            }));
+            $practiceRows = $this->collapseNullTeacherRows($practiceRows);
+            $practiceTotals = $this->calculateTotals($practiceRows, $days);
+        }
+
         $sortedReplacements = $this->sortReplacementRows($mainReport['replacement_rows']);
         $report = [
             'days' => $days,
             'rows' => $mainReport['rows'],
+            'practice_rows' => $practiceRows,
+            'practice_totals' => $practiceTotals,
+            'practice_dates' => $practiceDates,
             'replacement_rows' => $sortedReplacements,
             'replacement_table_rows' => $this->buildReplacementTableRows($sortedReplacements, $days),
         ];
@@ -535,6 +601,20 @@ class FormTwoService
     ): void
     {
         $tables = CourseContext::tables($course);
+        $practiceDates = [];
+        $practiceTable = $tables['form_two_practice_records'] ?? null;
+        if ($practiceTable && \Illuminate\Support\Facades\Schema::hasTable($practiceTable)) {
+            $monthStart = Carbon::create($year, $month, 1)->startOfMonth();
+            $monthEnd = $monthStart->copy()->endOfMonth();
+            $practiceDates = DB::table($practiceTable)
+                ->where('group_id', $groupId)
+                ->whereBetween('class_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+                ->pluck('class_date')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+        }
         $payload = [];
         $normativePayload = [];
         $now = now();
@@ -577,6 +657,9 @@ class FormTwoService
                 $replacementTeacherId = $cell['replacement_teacher_id'] ?? null;
                 $replacementSubjectId = $cell['replacement_subject_id'] ?? null;
                 $classDate = Carbon::create($year, $month, (int) $day)->toDateString();
+                if ($practiceDates && in_array($classDate, $practiceDates, true)) {
+                    continue;
+                }
 
                 $usedHours = 0;
                 $bonusHours = null;

@@ -57,6 +57,9 @@ class FormTwoController extends Controller
         $rows = $report['rows'] ?? [];
         $replacementRows = $report['replacement_rows'] ?? [];
         $replacementTableRows = $report['replacement_table_rows'] ?? [];
+        $practiceRows = $report['practice_rows'] ?? [];
+        $practiceTotals = $report['practice_totals'] ?? ['day_totals' => [], 'column_totals' => []];
+        $practiceDates = $report['practice_dates'] ?? [];
         $subgroupTwoRows = $report['subgroup_two_rows'] ?? [];
         $subgroupTwoTotals = $report['subgroup_two_totals'] ?? ['day_totals' => [], 'column_totals' => []];
         $totals = $report['totals'] ?? ['day_totals' => [], 'column_totals' => []];
@@ -68,6 +71,13 @@ class FormTwoController extends Controller
             'left' => 0,
         ];
         $replacementTotals = $this->service->calculateReplacementTotals($replacementTableRows, $days);
+        $practiceDayTotals = $practiceTotals['day_totals'] ?? [];
+        $practiceColumnTotals = $practiceTotals['column_totals'] ?? [
+            'normative' => 0,
+            'used' => 0,
+            'bonus' => 0,
+            'left' => 0,
+        ];
         $replacementDayTotals = $replacementTotals['day_totals'] ?? [];
         $replacementColumnTotals = $replacementTotals['column_totals'] ?? [
             'normative' => 0,
@@ -78,6 +88,11 @@ class FormTwoController extends Controller
         foreach ($days as $day) {
             if (!isset($dayTotals[$day])) {
                 $dayTotals[$day] = 0;
+            }
+        }
+        foreach ($days as $day) {
+            if (!isset($practiceDayTotals[$day])) {
+                $practiceDayTotals[$day] = 0;
             }
         }
         $subgroupTwoDayTotals = $subgroupTwoTotals['day_totals'] ?? [];
@@ -139,6 +154,10 @@ class FormTwoController extends Controller
             'replacementTableRows' => $replacementTableRows,
             'replacementDayTotals' => $replacementDayTotals,
             'replacementColumnTotals' => $replacementColumnTotals,
+            'practiceRows' => $practiceRows,
+            'practiceDayTotals' => $practiceDayTotals,
+            'practiceColumnTotals' => $practiceColumnTotals,
+            'practiceDates' => $practiceDates,
             'subgroupTwoRows' => $subgroupTwoRows,
             'subgroupTwoDayTotals' => $subgroupTwoDayTotals,
             'subgroupTwoColumnTotals' => $subgroupTwoColumnTotals,

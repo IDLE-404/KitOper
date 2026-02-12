@@ -7,6 +7,7 @@ use App\Support\CourseContext;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Services\KazakhstanHolidayService;
 
 class PracticeService
@@ -109,13 +110,16 @@ class PracticeService
             ];
         }
 
-        DB::table($tables['form_two_records'])
-            ->where('group_id', $period->group_id)
-            ->whereBetween('class_date', [$start->toDateString(), $end->toDateString()])
-            ->delete();
+        $practiceTable = $tables['form_two_practice_records'] ?? null;
+        if ($practiceTable && Schema::hasTable($practiceTable)) {
+            DB::table($practiceTable)
+                ->where('group_id', $period->group_id)
+                ->whereBetween('class_date', [$start->toDateString(), $end->toDateString()])
+                ->delete();
 
-        if ($payload) {
-            DB::table($tables['form_two_records'])->insert($payload);
+            if ($payload) {
+                DB::table($practiceTable)->insert($payload);
+            }
         }
     }
 
@@ -132,11 +136,14 @@ class PracticeService
             if ($period->subject_id) {
                 $subjectIds = [(int) $period->subject_id];
             }
-            DB::table($tables['form_two_records'])
-                ->where('group_id', $period->group_id)
-                ->whereBetween('class_date', [$start->toDateString(), $end->toDateString()])
-                ->whereIn('subject_id', $subjectIds)
-                ->delete();
+            $practiceTable = $tables['form_two_practice_records'] ?? null;
+            if ($practiceTable && Schema::hasTable($practiceTable)) {
+                DB::table($practiceTable)
+                    ->where('group_id', $period->group_id)
+                    ->whereBetween('class_date', [$start->toDateString(), $end->toDateString()])
+                    ->whereIn('subject_id', $subjectIds)
+                    ->delete();
+            }
         }
 
         /** @var ScheduleToFormTwoSyncService $sync */

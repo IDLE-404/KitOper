@@ -21,7 +21,7 @@ class FormTwoExportService
         $formTwoService = new FormTwoService();
         $holidayService = new KazakhstanHolidayService();
         $holidayDays = $holidayService->getMonthHolidays($year, $month);
-        $report = $formTwoService->buildMonthReport($groupId, $year, $month, $course, $holidayDays);
+        $report = $formTwoService->buildMonthReport($groupId, $year, $month, $course, $holidayDays, false);
 
         $rows = $report['rows'] ?? [];
         $days = $report['days'] ?? [];
@@ -172,7 +172,7 @@ class FormTwoExportService
             $maxDay = $monthEnd->isSameMonth($end) ? (int) $end->day : (int) $monthEnd->day;
 
             $holidayDays = $holidayService->getMonthHolidays($yearValue, $month);
-            $report = $formTwoService->buildMonthReport($groupId, $yearValue, $month, $course, $holidayDays);
+            $report = $formTwoService->buildMonthReport($groupId, $yearValue, $month, $course, $holidayDays, false);
 
             [$report, $holidayDays] = $this->sliceReportByDays(
                 $report,

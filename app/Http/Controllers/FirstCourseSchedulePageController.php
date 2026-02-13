@@ -3247,13 +3247,13 @@ class FirstCourseSchedulePageController extends Controller
             }
 
             if ($conflict) {
-                $groupName = $this->groupNameById($conflict->group_id ?? null, $courseTables['groups'] ?? null) ?? 'другой группы';
+                $groupName = $this->groupNameById($this->rowValue($conflict, 'group_id') ?? null, $courseTables['groups'] ?? null) ?? 'другой группы';
                 $subjectTitlesOther = $this->subjectTitlesByIds(
                     [
-                        $conflict->subject_id ?? null,
-                        $conflict->subject_id_2 ?? null,
-                        $conflict->subject_id_denominator ?? null,
-                        $conflict->subject_id_denominator_2 ?? null,
+                        $this->rowValue($conflict, 'subject_id') ?? null,
+                        $this->rowValue($conflict, 'subject_id_2') ?? null,
+                        $this->rowValue($conflict, 'subject_id_denominator') ?? null,
+                        $this->rowValue($conflict, 'subject_id_denominator_2') ?? null,
                     ],
                     $courseTables['subjects'] ?? null
                 );
@@ -3568,36 +3568,41 @@ class FirstCourseSchedulePageController extends Controller
         return $subjectTitles[$subjectId] ?? 'предмет не указан';
     }
 
-    protected function resolveSubjectIdForTeacherRow(object $row, ?int $teacherId): ?int
+    protected function resolveSubjectIdForTeacherRow(object|array $row, ?int $teacherId): ?int
     {
         if (!$teacherId) {
             return null;
         }
-        if (($row->teacher_id ?? null) == $teacherId) {
-            return $row->subject_id ?? null;
+        if (($this->rowValue($row, 'teacher_id') ?? null) == $teacherId) {
+            return $this->rowValue($row, 'subject_id') ?? null;
         }
-        if (($row->teacher_id_2 ?? null) == $teacherId) {
-            return $row->subject_id_2 ?? null;
+        if (($this->rowValue($row, 'teacher_id_2') ?? null) == $teacherId) {
+            return $this->rowValue($row, 'subject_id_2') ?? null;
         }
-        if (($row->teacher_id_denominator ?? null) == $teacherId) {
-            return $row->subject_id_denominator ?? null;
+        if (($this->rowValue($row, 'teacher_id_denominator') ?? null) == $teacherId) {
+            return $this->rowValue($row, 'subject_id_denominator') ?? null;
         }
-        if (($row->teacher_id_denominator_2 ?? null) == $teacherId) {
-            return $row->subject_id_denominator_2 ?? null;
+        if (($this->rowValue($row, 'teacher_id_denominator_2') ?? null) == $teacherId) {
+            return $this->rowValue($row, 'subject_id_denominator_2') ?? null;
         }
 
         return null;
     }
 
-    protected function resolveSubgroupLabelForTeacherRow(object $row, ?int $teacherId): string
+    protected function resolveSubgroupLabelForTeacherRow(object|array $row, ?int $teacherId): string
     {
         if (!$teacherId) {
             return 'без подгруппы';
         }
-        if (($row->teacher_id_2 ?? null) == $teacherId || ($row->teacher_id_denominator_2 ?? null) == $teacherId) {
+        if (($this->rowValue($row, 'teacher_id_2') ?? null) == $teacherId || ($this->rowValue($row, 'teacher_id_denominator_2') ?? null) == $teacherId) {
             return 'подгр. 2';
         }
         return 'подгр. 1';
+    }
+
+    protected function rowValue(object|array $row, string $key)
+    {
+        return is_array($row) ? ($row[$key] ?? null) : ($row->$key ?? null);
     }
 
     protected function resolveTeacherIdForRowMatch(object $row, array $matchingTeacherIds): ?int

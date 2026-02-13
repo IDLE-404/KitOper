@@ -235,7 +235,7 @@ class TeacherController extends Controller
     {
         $initialsInput = $initialsInput !== null ? trim($initialsInput) : null;
         if ($initialsInput !== null && $initialsInput !== '') {
-            return $initialsInput;
+            return $this->limitInitialsLength($initialsInput);
         }
 
         $clean = trim(preg_replace('/\s+/u', ' ', $teacherName));
@@ -243,12 +243,12 @@ class TeacherController extends Controller
             return null;
         }
         if (mb_strpos($clean, '.') !== false) {
-            return $clean;
+            return $this->limitInitialsLength($clean);
         }
 
         $parts = array_values(array_filter(explode(' ', $clean), fn($part) => $part !== ''));
         if (count($parts) < 2) {
-            return $clean;
+            return $this->limitInitialsLength($clean);
         }
 
         $surname = array_shift($parts);
@@ -257,7 +257,19 @@ class TeacherController extends Controller
             $initials .= mb_substr($part, 0, 1) . '.';
         }
 
-        return trim($initials);
+        return $this->limitInitialsLength(trim($initials));
+    }
+
+    private function limitInitialsLength(string $initials, int $max = 20): string
+    {
+        $initials = trim($initials);
+        if ($initials === '') {
+            return $initials;
+        }
+        if (mb_strlen($initials) <= $max) {
+            return $initials;
+        }
+        return rtrim(mb_substr($initials, 0, $max));
     }
 
     private function teacherWithInitialsExists(string $table, string $initials, ?int $excludeId = null): bool

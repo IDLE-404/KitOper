@@ -115,7 +115,7 @@ class TeacherController extends Controller
         $hasDefaultRoom = Schema::hasColumn($tables['teachers'], 'default_room_id');
         $data = $request->validate([
             'teacher_name' => 'required|string|max:255',
-            'initials' => $hasInitials ? 'nullable|string|max:20' : 'nullable',
+            'initials' => $hasInitials ? 'nullable|string|max:255' : 'nullable',
             'subjects_by_course_mode' => 'sometimes|boolean',
             'subject_ids' => 'sometimes|array',
             'subject_ids.*' => 'integer',
@@ -167,7 +167,7 @@ class TeacherController extends Controller
         $hasDefaultRoom = Schema::hasColumn($tables['teachers'], 'default_room_id');
         $data = $request->validate([
             'teacher_name' => 'required|string|max:255',
-            'initials' => $hasInitials ? 'nullable|string|max:20' : 'nullable',
+            'initials' => $hasInitials ? 'nullable|string|max:255' : 'nullable',
             'subjects_by_course_mode' => 'sometimes|boolean',
             'subject_ids' => 'sometimes|array',
             'subject_ids.*' => 'integer',
@@ -235,7 +235,7 @@ class TeacherController extends Controller
     {
         $initialsInput = $initialsInput !== null ? trim($initialsInput) : null;
         if ($initialsInput !== null && $initialsInput !== '') {
-            return $this->limitInitialsLength($initialsInput);
+            return $initialsInput;
         }
 
         $clean = trim(preg_replace('/\s+/u', ' ', $teacherName));
@@ -243,12 +243,12 @@ class TeacherController extends Controller
             return null;
         }
         if (mb_strpos($clean, '.') !== false) {
-            return $this->limitInitialsLength($clean);
+            return $clean;
         }
 
         $parts = array_values(array_filter(explode(' ', $clean), fn($part) => $part !== ''));
         if (count($parts) < 2) {
-            return $this->limitInitialsLength($clean);
+            return $clean;
         }
 
         $surname = array_shift($parts);
@@ -257,19 +257,7 @@ class TeacherController extends Controller
             $initials .= mb_substr($part, 0, 1) . '.';
         }
 
-        return $this->limitInitialsLength(trim($initials));
-    }
-
-    private function limitInitialsLength(string $initials, int $max = 20): string
-    {
-        $initials = trim($initials);
-        if ($initials === '') {
-            return $initials;
-        }
-        if (mb_strlen($initials) <= $max) {
-            return $initials;
-        }
-        return rtrim(mb_substr($initials, 0, $max));
+        return trim($initials);
     }
 
     private function teacherWithInitialsExists(string $table, string $initials, ?int $excludeId = null): bool

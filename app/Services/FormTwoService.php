@@ -1216,7 +1216,7 @@ class FormTwoService
     {
         $value = trim($value);
         $value = preg_replace('/\\s+/u', ' ', $value);
-        $value = preg_replace('/^(?:ООМ|ПМ|БМ|РО|PO)\\s*\\d+(?:\\.\\d+)?\\.?\\s+/iu', '', $value);
+        $value = preg_replace('/^(?:ООМ|ПМ|БМ|РО|PO|ОН|ON)\\s*\\d+(?:\\.\\d+)?\\.?\\s+/iu', '', $value);
         $value = rtrim($value, '. ');
         $value = str_ireplace('видеонабледния', 'видеонаблюдения', $value);
         $value = str_replace(['ё', 'Ё'], ['е', 'Е'], $value);
@@ -1232,7 +1232,7 @@ class FormTwoService
         }
 
         $code = null;
-        if (preg_match('/^(РО|PO)\\s*\\d+(?:\\.\\d+)?/iu', $subjectName, $matches) === 1) {
+        if (preg_match('/^(РО|PO|ОН|ON)\\s*\\d+(?:\\.\\d+)?/iu', $subjectName, $matches) === 1) {
             $code = mb_strtoupper($matches[0], 'UTF-8');
         }
 

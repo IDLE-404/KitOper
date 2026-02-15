@@ -62,6 +62,10 @@
                             <i class="bi bi-clipboard-check"></i>
                             <span>Отсутствия</span>
                         </a>
+                        <a class="ko-nav-item {{ request()->routeIs('teachers.workload') ? 'is-active' : '' }}" href="{{ route('teachers.workload') }}">
+                            <i class="bi bi-table"></i>
+                            <span>Занятость</span>
+                        </a>
                         <a class="ko-nav-item {{ request()->routeIs('first.schedule.form_two') ? 'is-active' : '' }}" href="{{ route('first.schedule.form_two') }}">
                             <i class="bi bi-file-earmark-text"></i>
                             <span>Форма 2</span>

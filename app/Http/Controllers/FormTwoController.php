@@ -179,6 +179,7 @@ class FormTwoController extends Controller
             'rows' => 'required|array',
             'replacement_normatives' => 'nullable|array',
             'subgroup_two_normatives' => 'nullable|array',
+            'subgroup_two_rows' => 'nullable|array',
             'allow_manual' => 'nullable|boolean',
             'course' => 'nullable|integer|min:1|max:4',
         ]);
@@ -188,6 +189,21 @@ class FormTwoController extends Controller
         }
 
         $course = CourseContext::normalize($data['course'] ?? $request->integer('course') ?? 1);
+        $tables = CourseContext::tables($course);
+        $subjectsMap = DB::table($tables['subjects'])
+            ->select('id', 'subject_name', 'name_ru', 'name_kz')
+            ->get()
+            ->mapWithKeys(function ($row) {
+                $name = $row->name_ru ?: ($row->name_kz ?: $row->subject_name);
+                return [(int) $row->id => (string) $name];
+            });
+
+        $dupErrors = $this->validateDuplicateSubjectsRequireTeacher($data['rows'] ?? [], $subjectsMap, 'основной таблице');
+        $dupSubErrors = $this->validateDuplicateSubjectsRequireTeacher($data['subgroup_two_rows'] ?? [], $subjectsMap, 'подвоении');
+        $dupErrors = array_merge($dupErrors, $dupSubErrors);
+        if ($dupErrors) {
+            return response()->json(['message' => $dupErrors[0]], 422);
+        }
 
         $holidayDays = $this->holidayService->getMonthHolidays($data['year'], $data['month']);
 
@@ -199,10 +215,46 @@ class FormTwoController extends Controller
             $course,
             $holidayDays,
             $data['replacement_normatives'] ?? [],
-            $data['subgroup_two_normatives'] ?? []
+            $data['subgroup_two_normatives'] ?? [],
+            $data['subgroup_two_rows'] ?? []
         );
 
         return response()->json(['status' => 'ok']);
+    }
+
+    private function validateDuplicateSubjectsRequireTeacher(array $rows, $subjectsMap, string $tableLabel): array
+    {
+        if (!$rows) {
+            return [];
+        }
+
+        $subjectCounts = [];
+        foreach ($rows as $row) {
+            $subjectId = (int) ($row['subject_id'] ?? 0);
+            if (!$subjectId) {
+                continue;
+            }
+            $subjectCounts[$subjectId] = ($subjectCounts[$subjectId] ?? 0) + 1;
+        }
+
+        $errors = [];
+        foreach ($rows as $row) {
+            $subjectId = (int) ($row['subject_id'] ?? 0);
+            if (!$subjectId) {
+                continue;
+            }
+            if (($subjectCounts[$subjectId] ?? 0) <= 1) {
+                continue;
+            }
+            $teacherId = $row['teacher_id'] ?? null;
+            if (!$teacherId) {
+                $subjectName = $subjectsMap[$subjectId] ?? ('ID ' . $subjectId);
+                $errors[] = "Для повторяющегося предмета \"{$subjectName}\" в {$tableLabel} нужно выбрать преподавателя.";
+                break;
+            }
+        }
+
+        return $errors;
     }
 
     public function export(Request $request)

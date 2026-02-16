@@ -593,14 +593,28 @@
                                 <tr data-row="{{ $idx }}">
                                     <td class="col-index">{{ $idx + 1 }}</td>
                                     <td class="col-subject">
-                                        <div class="fw-semibold">{{ $row['subject_name'] ?? '—' }}</div>
-                                        <input type="hidden" class="row-subject" value="{{ $row['subject_id'] }}">
+                                        <div class="fw-semibold row-subject-name">{{ $row['subject_name'] ?? '—' }}</div>
+                                        <div class="manual-edit d-none mt-2">
+                                            <select class="form-select form-select-sm row-subject">
+                                                <option value="">— выберите предмет</option>
+                                                @foreach($subjects as $s)
+                                                    <option value="{{ $s->id }}" @selected(($row['subject_id'] ?? null) == $s->id)>{{ $s->title }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                         <input type="hidden" class="row-hours-per-class" value="{{ $row['hours_per_class'] ?? 2 }}">
                                         <input type="hidden" class="row-total-hours" value="{{ $row['total_hours'] ?? 0 }}">
                                     </td>
                                     <td class="col-teacher">
-                                        <div>{{ $row['teacher_name'] ?? '—' }}</div>
-                                        <input type="hidden" class="row-teacher" value="{{ $row['teacher_id'] }}">
+                                        <div class="row-teacher-name">{{ $row['teacher_name'] ?? '—' }}</div>
+                                        <div class="manual-edit d-none mt-2">
+                                            <select class="form-select form-select-sm row-teacher">
+                                                <option value="">— выберите преподавателя</option>
+                                                @foreach($teachers as $t)
+                                                    <option value="{{ $t->id }}" @selected(($row['teacher_id'] ?? null) == $t->id)>{{ $t->teacher_name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </td>
                                     <td class="col-norm">
                                         <div class="small text-muted">{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</div>
@@ -660,6 +674,29 @@
                                         <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">
                                             <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
                                                 <span class="chip-value">{{ $value }}</span>
+                                            </div>
+                                            <div class="manual-status d-none mt-1">
+                                                <select class="form-select form-select-sm cell-status" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
+                                                    <option value="empty" @selected($status === 'empty')>—</option>
+                                                    <option value="normal" @selected($status === 'normal')>Норма</option>
+                                                    <option value="replaced" @selected($status === 'replaced')>Замена (замещённая)</option>
+                                                    <option value="replacement" @selected($status === 'replacement')>Замена (замещающая)</option>
+                                                </select>
+                                                <select class="form-select form-select-sm cell-repl mt-1" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
+                                                    <option value="">— заменяющий</option>
+                                                    @foreach($teachers as $t)
+                                                        <option value="{{ $t->id }}" @selected(($cell['replacement_teacher_id'] ?? null) == $t->id)>{{ $t->teacher_name }}</option>
+                                                    @endforeach
+                                                </select>
+                                                <select class="form-select form-select-sm cell-repl-subject mt-1" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
+                                                    <option value="">— замещающий предмет</option>
+                                                    @foreach($subjects as $s)
+                                                        <option value="{{ $s->id }}" @selected(($cell['replacement_subject_id'] ?? null) == $s->id)>{{ $s->title }}</option>
+                                                    @endforeach
+                                                </select>
+                                                @if(isset($holidayDays[$d]))
+                                                    <div class="text-warning small mt-1">Редактирование отключено — {{ $holidayDays[$d]['name'] }}</div>
+                                                @endif
                                             </div>
                                         </td>
                                     @endforeach
@@ -1109,6 +1146,22 @@
         }
     });
 
+    subgroupTwoBody?.addEventListener('change', (event) => {
+        const subjectSelect = event.target.closest('.row-subject');
+        if (subjectSelect) {
+            const tr = subjectSelect.closest('tr[data-row]');
+            const label = subjectSelect.options[subjectSelect.selectedIndex]?.textContent?.trim() || 'Новый предмет';
+            tr?.querySelector('.row-subject-name')?.replaceChildren(document.createTextNode(label));
+        }
+
+        const teacherSelect = event.target.closest('.row-teacher');
+        if (teacherSelect) {
+            const tr = teacherSelect.closest('tr[data-row]');
+            const label = teacherSelect.options[teacherSelect.selectedIndex]?.textContent?.trim() || '—';
+            tr?.querySelector('.row-teacher-name')?.replaceChildren(document.createTextNode(label));
+        }
+    });
+
     saveBtn?.addEventListener('click', async () => {
         if (!manualToggle.checked) {
             return;
@@ -1164,6 +1217,7 @@
         });
 
         const subgroupTwoNormatives = [];
+        const subgroupTwoRows = [];
         subgroupTwoBody?.querySelectorAll('tr[data-row]').forEach((tr) => {
             const subjectId = Number(tr.querySelector('.row-subject')?.value);
             if (!subjectId) return;
@@ -1180,6 +1234,24 @@
                 total_hours: totalHours,
                 hours_per_class: hoursPerClass,
             });
+
+            const days = {};
+            tr.querySelectorAll('.cell-status').forEach((sel) => {
+                const day = sel.dataset.day;
+                const status = sel.value;
+                const replSel = tr.querySelector(`.cell-repl[data-day="${day}"]`);
+                const replSubjectSel = tr.querySelector(`.cell-repl-subject[data-day="${day}"]`);
+                const replacement_teacher_id = replSel && replSel.value ? Number(replSel.value) : null;
+                const replacement_subject_id = replSubjectSel && replSubjectSel.value ? Number(replSubjectSel.value) : null;
+                days[day] = { status, replacement_teacher_id, replacement_subject_id };
+            });
+            subgroupTwoRows.push({
+                subject_id: subjectId,
+                teacher_id: teacherId,
+                total_hours: totalHours,
+                hours_per_class: hoursPerClass,
+                days,
+            });
         });
 
         const payload = {
@@ -1191,6 +1263,7 @@
             rows,
             replacement_normatives: replacementNormatives,
             subgroup_two_normatives: subgroupTwoNormatives,
+            subgroup_two_rows: subgroupTwoRows,
         };
 
         try {

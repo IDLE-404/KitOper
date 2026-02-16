@@ -177,18 +177,25 @@ class FormTwoService
         $kzGlobalCompetencies = 'Ғаламдық құзыреттер';
         $kzOrderWithGlobal = array_merge($kzOrder, [$kzGlobalCompetencies]);
         $customTemplate = $this->resolveStoredTemplate($course, (string) ($groupRow->group_name ?? ''));
+        $applyOrderFilter = false;
         if ($customTemplate && !empty($customTemplate['order'])) {
             $preferredOrder = $customTemplate['order'];
+            $applyOrderFilter = true;
         } else {
-            $preferredOrder = $this->resolveSpecialtyOrder(
+            $specialtyOrder = $this->resolveSpecialtyOrder(
                 $groupRow->group_name ?? '',
                 $useKazakh,
                 $ruOrder,
                 $kzOrder,
                 $kzOrderWithGlobal,
                 $course
-            )
-                ?? ($useKazakh ? $kzOrder : $ruOrder);
+            );
+            if ($specialtyOrder) {
+                $preferredOrder = $specialtyOrder;
+                $applyOrderFilter = true;
+            } else {
+                $preferredOrder = [];
+            }
             if ($course === 1 && $this->groupHasToken($groupRow->group_name ?? '', ['БҚЕ', 'БКЕ', 'BKE'])) {
                 $globalCandidates = [
                     'Ғаламдық құзыреттер',
@@ -228,31 +235,33 @@ class FormTwoService
             $preferredOrder,
             true
         );
-        $allowedOrder = $preferredOrder;
-        $allowedNormalized = [];
-        foreach ($allowedOrder as $name) {
-            $key = $this->normalizeOrderName($name);
-            if ($key !== '') {
-                $allowedNormalized[$key] = true;
+        if ($applyOrderFilter) {
+            $allowedOrder = $preferredOrder;
+            $allowedNormalized = [];
+            foreach ($allowedOrder as $name) {
+                $key = $this->normalizeOrderName($name);
+                if ($key !== '') {
+                    $allowedNormalized[$key] = true;
+                }
             }
+            $mainReport['rows'] = array_values(array_filter($mainReport['rows'], function (array $row) use ($allowedOrder, $allowedNormalized): bool {
+                $subjectName = $row['subject_name'] ?? '';
+                if (in_array($subjectName, $allowedOrder, true)) {
+                    return true;
+                }
+                $key = $this->normalizeOrderName($subjectName);
+                return $key !== '' && isset($allowedNormalized[$key]);
+            }));
+            $mainReport['replacement_rows'] = array_values(array_filter($mainReport['replacement_rows'], function (array $row) use ($allowedOrder, $allowedNormalized): bool {
+                $subjectName = $row['subject_name'] ?? '';
+                if (in_array($subjectName, $allowedOrder, true)) {
+                    return true;
+                }
+                $key = $this->normalizeOrderName($subjectName);
+                return $key !== '' && isset($allowedNormalized[$key]);
+            }));
         }
-        $mainReport['rows'] = array_values(array_filter($mainReport['rows'], function (array $row) use ($allowedOrder, $allowedNormalized): bool {
-            $subjectName = $row['subject_name'] ?? '';
-            if (in_array($subjectName, $allowedOrder, true)) {
-                return true;
-            }
-            $key = $this->normalizeOrderName($subjectName);
-            return $key !== '' && isset($allowedNormalized[$key]);
-        }));
         $mainReport['rows'] = $this->collapseNullTeacherRows($mainReport['rows']);
-        $mainReport['replacement_rows'] = array_values(array_filter($mainReport['replacement_rows'], function (array $row) use ($allowedOrder, $allowedNormalized): bool {
-            $subjectName = $row['subject_name'] ?? '';
-            if (in_array($subjectName, $allowedOrder, true)) {
-                return true;
-            }
-            $key = $this->normalizeOrderName($subjectName);
-            return $key !== '' && isset($allowedNormalized[$key]);
-        }));
         $mainReport['totals'] = $this->calculateTotals($mainReport['rows'], $days);
 
         $practiceRows = [];
@@ -274,14 +283,17 @@ class FormTwoService
                 $preferredOrder,
                 false
             );
-            $practiceRows = array_values(array_filter($practiceReport['rows'], function (array $row) use ($allowedOrder, $allowedNormalized): bool {
-                $subjectName = $row['subject_name'] ?? '';
-                if (in_array($subjectName, $allowedOrder, true)) {
-                    return true;
-                }
-                $key = $this->normalizeOrderName($subjectName);
-                return $key !== '' && isset($allowedNormalized[$key]);
-            }));
+            $practiceRows = $practiceReport['rows'];
+            if ($applyOrderFilter) {
+                $practiceRows = array_values(array_filter($practiceRows, function (array $row) use ($allowedOrder, $allowedNormalized): bool {
+                    $subjectName = $row['subject_name'] ?? '';
+                    if (in_array($subjectName, $allowedOrder, true)) {
+                        return true;
+                    }
+                    $key = $this->normalizeOrderName($subjectName);
+                    return $key !== '' && isset($allowedNormalized[$key]);
+                }));
+            }
             $practiceRows = $this->collapseNullTeacherRows($practiceRows);
             $practiceTotals = $this->calculateTotals($practiceRows, $days);
         }
@@ -318,14 +330,16 @@ class FormTwoService
             );
             // В подвоении показываем только строки с активностью в текущем месяце.
             $filteredSubgroupTwoRows = $this->filterRowsByActivity($subgroupTwoReport['rows'], $days);
-            $filteredSubgroupTwoRows = array_values(array_filter($filteredSubgroupTwoRows, function (array $row) use ($allowedOrder, $allowedNormalized): bool {
-                $subjectName = $row['subject_name'] ?? '';
-                if (in_array($subjectName, $allowedOrder, true)) {
-                    return true;
-                }
-                $key = $this->normalizeOrderName($subjectName);
-                return $key !== '' && isset($allowedNormalized[$key]);
-            }));
+            if ($applyOrderFilter) {
+                $filteredSubgroupTwoRows = array_values(array_filter($filteredSubgroupTwoRows, function (array $row) use ($allowedOrder, $allowedNormalized): bool {
+                    $subjectName = $row['subject_name'] ?? '';
+                    if (in_array($subjectName, $allowedOrder, true)) {
+                        return true;
+                    }
+                    $key = $this->normalizeOrderName($subjectName);
+                    return $key !== '' && isset($allowedNormalized[$key]);
+                }));
+            }
             if ($customTemplate && !empty($customTemplate['subgroup_two'])) {
                 $subgroupTwoRows = $this->applyStoredSubgroupTwoTemplate(
                     $filteredSubgroupTwoRows,
@@ -360,6 +374,7 @@ class FormTwoService
                 $subgroupTwoRows,
                 $mainReport['rows'] ?? []
             );
+            $subgroupTwoRows = $this->collapseNullTeacherRows($subgroupTwoRows);
             $report['subgroup_two_rows'] = $subgroupTwoRows;
             $report['subgroup_two_totals'] = $this->calculateTotals($subgroupTwoRows, $days);
         } else {
@@ -597,7 +612,8 @@ class FormTwoService
         int $course = 1,
         array $holidayDays = [],
         array $replacementNormatives = [],
-        array $subgroupTwoNormatives = []
+        array $subgroupTwoNormatives = [],
+        array $subgroupTwoRows = []
     ): void
     {
         $tables = CourseContext::tables($course);
@@ -620,14 +636,23 @@ class FormTwoService
         $now = now();
         $holidayFlags = $this->normalizeHolidayDays($holidayDays);
         $rowSubjectIds = [];
+        $keepPairs = [];
+        $keepPairsNorm = [];
+
+        $pairKey = function (int $subjectId, ?int $teacherId): string {
+            return $subjectId . ':' . ($teacherId ?: 0);
+        };
 
         foreach ($rows as $row) {
             $subjectId = $row['subject_id'] ?? null;
             if (!$subjectId) {
                 continue;
             }
-            $rowSubjectIds[(int) $subjectId] = true;
             $teacherId = $row['teacher_id'] ?? null;
+            $key = $pairKey((int) $subjectId, $teacherId ? (int) $teacherId : null);
+            $keepPairs[$key] = true;
+            $keepPairsNorm[$key] = true;
+            $rowSubjectIds[(int) $subjectId] = true;
             $totalHours = $row['total_hours'] ?? 0;
             $hoursPerClass = $row['hours_per_class'] ?? 2;
             $days = $row['days'] ?? [];
@@ -705,12 +730,77 @@ class FormTwoService
             }
         }
 
+        foreach ($replacementNormatives as $row) {
+            $subjectId = $row['subject_id'] ?? null;
+            if (!$subjectId) {
+                continue;
+            }
+            $teacherId = $row['teacher_id'] ?? null;
+            $key = $pairKey((int) $subjectId, $teacherId ? (int) $teacherId : null);
+            $keepPairsNorm[$key] = true;
+        }
+
+        foreach ($subgroupTwoNormatives as $row) {
+            $subjectId = $row['subject_id'] ?? null;
+            if (!$subjectId) {
+                continue;
+            }
+            $teacherId = $row['teacher_id'] ?? null;
+            $key = $pairKey((int) $subjectId, $teacherId ? (int) $teacherId : null);
+            $keepPairsNorm[$key] = true;
+        }
+
+        // Удаляем нормативы и записи, если строка удалена вручную.
+        $normativesTable = $tables['form_two_normatives'];
+        $recordsTable = $tables['form_two_records'];
+        $existingNorms = DB::table($normativesTable)
+            ->select('id', 'subject_id', 'teacher_id')
+            ->where('group_id', $groupId)
+            ->where('month', $month)
+            ->where('year', $year)
+            ->get();
+        foreach ($existingNorms as $norm) {
+            $key = $pairKey((int) $norm->subject_id, $norm->teacher_id ? (int) $norm->teacher_id : null);
+            if (!isset($keepPairsNorm[$key])) {
+                DB::table($normativesTable)->where('id', $norm->id)->delete();
+            }
+        }
+
+        $existingPairs = DB::table($recordsTable)
+            ->select('subject_id', 'teacher_id')
+            ->distinct()
+            ->where('group_id', $groupId)
+            ->where('month', $month)
+            ->where('year', $year)
+            ->get();
+        foreach ($existingPairs as $pair) {
+            $key = $pairKey((int) $pair->subject_id, $pair->teacher_id ? (int) $pair->teacher_id : null);
+            if (isset($keepPairs[$key])) {
+                continue;
+            }
+            $query = DB::table($recordsTable)
+                ->where('group_id', $groupId)
+                ->where('month', $month)
+                ->where('year', $year)
+                ->where('subject_id', $pair->subject_id)
+                ->where(function ($q) {
+                    $q->whereNull('subgroup')
+                        ->orWhere('subgroup', 1)
+                        ->orWhere('subgroup', '1');
+                });
+            if (!empty($pair->teacher_id)) {
+                $query->where('teacher_id', $pair->teacher_id);
+            } else {
+                $query->whereNull('teacher_id');
+            }
+            $query->delete();
+        }
+
         if ($normativePayload) {
-            $this->persistNormatives($tables['form_two_normatives'], $normativePayload);
+            $this->persistNormatives($normativesTable, $normativePayload);
         }
 
         if ($payload) {
-            $recordsTable = $tables['form_two_records'];
             foreach ($payload as $row) {
                 $query = DB::table($recordsTable)
                     ->where('group_id', $row['group_id'])
@@ -736,6 +826,109 @@ class FormTwoService
                     $query->update($updateData);
                 } else {
                     DB::table($recordsTable)->insert($row);
+                }
+            }
+        }
+
+        if ($subgroupTwoRows) {
+            $subPayload = [];
+            foreach ($subgroupTwoRows as $row) {
+                $subjectId = $row['subject_id'] ?? null;
+                if (!$subjectId) {
+                    continue;
+                }
+                $teacherId = $row['teacher_id'] ?? null;
+                $totalHours = $row['total_hours'] ?? 0;
+                $hoursPerClass = $row['hours_per_class'] ?? 2;
+                $days = $row['days'] ?? [];
+
+                foreach ($days as $day => $cell) {
+                    $dayIndex = (int) $day;
+                    if (isset($holidayFlags[$dayIndex])) {
+                        continue;
+                    }
+                    $status = $cell['status'] ?? 'normal';
+                    if ($status === 'empty') {
+                        continue;
+                    }
+                    $replacementTeacherId = $cell['replacement_teacher_id'] ?? null;
+                    $replacementSubjectId = $cell['replacement_subject_id'] ?? null;
+                    $classDate = Carbon::create($year, $month, (int) $day)->toDateString();
+                    if ($practiceDates && in_array($classDate, $practiceDates, true)) {
+                        continue;
+                    }
+
+                    $usedHours = 0;
+                    $bonusHours = null;
+
+                    if ($status === 'normal') {
+                        $usedHours = $hoursPerClass;
+                        $bonusHours = null;
+                        $replacementTeacherId = null;
+                        $replacementSubjectId = null;
+                    } elseif ($status === 'sick') {
+                        $usedHours = 0;
+                        $bonusHours = null;
+                        $replacementTeacherId = null;
+                        $replacementSubjectId = null;
+                    } elseif ($status === 'replacement') {
+                        $usedHours = 0;
+                        $bonusHours = $cell['bonus_hours'] ?? $hoursPerClass;
+                    }
+
+                    $subPayload[] = [
+                        'group_id' => $groupId,
+                        'year' => $year,
+                        'month' => $month,
+                        'day' => (int) $day,
+                        'class_date' => $classDate,
+                        'subject_id' => $subjectId,
+                        'teacher_id' => $teacherId,
+                        'lesson_number' => $cell['lesson_number'] ?? null,
+                        'subgroup' => 2,
+                        'total_hours' => $totalHours,
+                        'hours_per_class' => $hoursPerClass,
+                        'status' => $status,
+                        'replacement_teacher_id' => $replacementTeacherId,
+                        'replacement_subject_id' => $replacementSubjectId,
+                        'bonus_hours' => $bonusHours,
+                        'used_hours' => $usedHours,
+                        'absent_reason' => $cell['absent_reason'] ?? null,
+                        'replacement_comment' => $cell['replacement_comment'] ?? null,
+                        'mode' => $cell['mode'] ?? 'single',
+                        'updated_at' => $now,
+                        'created_at' => $now,
+                    ];
+                }
+            }
+
+            if ($subPayload) {
+                $recordsTable = $tables['form_two_records'];
+                foreach ($subPayload as $row) {
+                    $query = DB::table($recordsTable)
+                        ->where('group_id', $row['group_id'])
+                        ->where('year', $row['year'])
+                        ->where('month', $row['month'])
+                        ->where('day', $row['day'])
+                        ->where('subject_id', $row['subject_id'])
+                        ->where('subgroup', 2);
+                    if (!empty($row['teacher_id'])) {
+                        $query->where('teacher_id', $row['teacher_id']);
+                    }
+                    $updateData = $row;
+                    unset(
+                        $updateData['created_at'],
+                        $updateData['mode'],
+                        $updateData['lesson_number']
+                    );
+                    if (empty($row['teacher_id'])) {
+                        unset($updateData['teacher_id']);
+                    }
+                    if ($query->exists()) {
+                        $query->update($updateData);
+                    } else {
+                        DB::table($recordsTable)->insert($row);
+                    }
                 }
             }
         }
@@ -1288,22 +1481,63 @@ class FormTwoService
                 $teacherRows[] = $index;
             }
 
-            if ($nullIndex !== null && count($teacherRows) >= 1) {
-                if (count($teacherRows) === 1) {
-                    $targetIndex = $teacherRows[0];
-                    $target = $subjectRows[$targetIndex];
-                    $nullRow = $subjectRows[$nullIndex];
-                    $target['total_hours'] = max((int) ($target['total_hours'] ?? 0), (int) ($nullRow['total_hours'] ?? 0));
-                    $target['hours_per_class'] = $target['hours_per_class'] ?? $nullRow['hours_per_class'] ?? 2;
-                    $target['hours_left_start'] = max(
-                        (int) ($target['hours_left_start'] ?? 0),
-                        (int) ($nullRow['hours_left_start'] ?? 0)
-                    );
-                    $used = (int) ($target['used_hours_total'] ?? 0);
-                    $bonus = (int) ($target['bonus_hours_total'] ?? 0);
-                    $target['hours_left'] = max(0, (int) $target['hours_left_start'] - ($used - $bonus));
-                    $subjectRows[$targetIndex] = $target;
+            if ($nullIndex !== null && count($teacherRows) === 1) {
+                $targetIndex = $teacherRows[0];
+                $target = $subjectRows[$targetIndex];
+                $nullRow = $subjectRows[$nullIndex];
+                $target['total_hours'] = max((int) ($target['total_hours'] ?? 0), (int) ($nullRow['total_hours'] ?? 0));
+                $target['hours_per_class'] = $target['hours_per_class'] ?? $nullRow['hours_per_class'] ?? 2;
+                $target['hours_left_start'] = max(
+                    (int) ($target['hours_left_start'] ?? 0),
+                    (int) ($nullRow['hours_left_start'] ?? 0)
+                );
+
+                $statusPriority = [
+                    'empty' => 0,
+                    'normal' => 1,
+                    'replaced' => 2,
+                    'sick' => 2,
+                    'replacement' => 3,
+                ];
+
+                foreach (($nullRow['days'] ?? []) as $day => $cell) {
+                    if (!isset($target['days'][$day])) {
+                        $target['days'][$day] = $cell;
+                        continue;
+                    }
+                    $targetCell = $target['days'][$day];
+                    $targetCell['used_hours'] = (int) ($targetCell['used_hours'] ?? 0) + (int) ($cell['used_hours'] ?? 0);
+                    $targetCell['bonus_hours'] = (int) ($targetCell['bonus_hours'] ?? 0) + (int) ($cell['bonus_hours'] ?? 0);
+                    $targetDetails = $targetCell['details'] ?? [];
+                    $nullDetails = $cell['details'] ?? [];
+                    if ($nullDetails) {
+                        $targetCell['details'] = array_merge($targetDetails, $nullDetails);
+                    }
+                    $incomingStatus = $cell['status'] ?? 'empty';
+                    $currentStatus = $targetCell['status'] ?? 'empty';
+                    $incomingPriority = $statusPriority[$incomingStatus] ?? 0;
+                    $currentPriority = $statusPriority[$currentStatus] ?? 0;
+                    if ($incomingPriority > $currentPriority) {
+                        $targetCell['status'] = $incomingStatus;
+                        $targetCell['replacement_teacher_id'] = $cell['replacement_teacher_id'] ?? $targetCell['replacement_teacher_id'] ?? null;
+                        $targetCell['replacement_teacher_name'] = $cell['replacement_teacher_name'] ?? $targetCell['replacement_teacher_name'] ?? null;
+                        $targetCell['replacement_subject_id'] = $cell['replacement_subject_id'] ?? $targetCell['replacement_subject_id'] ?? null;
+                        $targetCell['replacement_subject_name'] = $cell['replacement_subject_name'] ?? $targetCell['replacement_subject_name'] ?? null;
+                        $targetCell['replacement_comment'] = $cell['replacement_comment'] ?? $targetCell['replacement_comment'] ?? null;
+                    }
+                    $target['days'][$day] = $targetCell;
                 }
+
+                $used = 0;
+                $bonus = 0;
+                foreach ($target['days'] as $cell) {
+                    $used += (int) ($cell['used_hours'] ?? 0);
+                    $bonus += (int) ($cell['bonus_hours'] ?? 0);
+                }
+                $target['used_hours_total'] = $used;
+                $target['bonus_hours_total'] = $bonus;
+                $target['hours_left'] = max(0, (int) $target['hours_left_start'] - ($used - $bonus));
+                $subjectRows[$targetIndex] = $target;
                 unset($subjectRows[$nullIndex]);
             }
 
@@ -1757,6 +1991,11 @@ class FormTwoService
                 }
             }
             foreach ($tokens as $token) {
+                if ($this->tokenMatchesPrefix($token, ['М', 'M'])) {
+                    return $this->mCourse2OrderKz();
+                }
+            }
+            foreach ($tokens as $token) {
                 if ($this->tokenMatchesPrefix($token, ['АКЖ', 'АҚЖ'])) {
                     return $this->sibCourse2OrderKz();
                 }
@@ -1912,6 +2151,23 @@ class FormTwoService
             'Устанавливать и поддерживать контакты с клиентами',
             'Подбирать оптимальные программы продвижения',
             'Создавать, поддерживать, контролировать и осуществлять постоянный мониторинг социальных сетей',
+        ];
+    }
+
+    protected function mCourse2OrderKz(): array
+    {
+        return [
+            'Денсаулықты нығайту және салауатты өмір салты қағидаттарын сақтау',
+            'Толеранттылық пен белсенді жеке ұстанымды қалыптастыратын моральдық құндылықтар мен нормаларды түсіну',
+            'Қазақстан Республикасы халықтары мәдениетінің әлемдік өркениеттегі рөлі мен орнын түсіну',
+            'Құқықтың негізгі салалары туралы мәліметтерді білу',
+            'Әлеуметтану мен саясаттанудың негізгі ұғымдарын меңгеру',
+            'Сату көлемін ұлғайту мақсатында, оның ішінде Интернет арқылы клиенттерді тарту стратегияларын әзірлеу',
+            'Сатылым кезеңін бақылау және болжау',
+            'Сатуды ынталандыру үшін өнімнің презентацияларының, PR акцияларының, жарнамалық акцияларының жоспарларын жасау',
+            'Клиенттермен байланыс орнату және қолдау',
+            'Оңтайлы жарнамалық бағдарламаларды тандап алу',
+            'Әлеуметтік желілердің мониторингін қүру, қолдау, бақылау және үздіксіз іске асыру',
         ];
     }
 }

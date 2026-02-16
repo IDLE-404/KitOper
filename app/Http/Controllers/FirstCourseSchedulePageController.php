@@ -2271,6 +2271,7 @@ class FirstCourseSchedulePageController extends Controller
         $hasSub2 = $request->boolean('has_sub2') || (bool) $prev2;
 
         // Проверка занятости учителей
+        $vacancyTeacherId = $this->findVacancyTeacherId($tables);
         $possibleTeachers = [
             $data['teacher_id'] ?? null,
             $data['teacher_id_2'] ?? null,
@@ -2278,7 +2279,13 @@ class FirstCourseSchedulePageController extends Controller
             $data['den_teacher_id_2'] ?? null,
         ];
 
-        $teacherIdsToCheck = array_values(array_filter($possibleTeachers));
+        $teacherIdsToCheck = collect($possibleTeachers)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->reject(fn (int $id) => $this->isVacancyTeacherId($id, $vacancyTeacherId))
+            ->values()
+            ->all();
 
         if ($teacherIdsToCheck) {
             $conflict = DB::table($tables['schedules'])
@@ -2290,7 +2297,8 @@ class FirstCourseSchedulePageController extends Controller
                 ->where(function ($q) use ($teacherIdsToCheck) {
                     $q->whereIn('teacher_id', $teacherIdsToCheck)
                         ->orWhereIn('teacher_id_2', $teacherIdsToCheck)
-                        ->orWhereIn('teacher_id_denominator', $teacherIdsToCheck);
+                        ->orWhereIn('teacher_id_denominator', $teacherIdsToCheck)
+                        ->orWhereIn('teacher_id_denominator_2', $teacherIdsToCheck);
                 })
                 ->first();
 
@@ -3026,7 +3034,7 @@ class FirstCourseSchedulePageController extends Controller
 
         $teacherTable = $tables['teachers'];
         $vacancyId = DB::table($teacherTable)
-            ->where('teacher_name', 'Вакансия')
+            ->whereRaw('LOWER(TRIM(teacher_name)) = ?', ['вакансия'])
             ->value('id');
 
         return $vacancyId ? (int) $vacancyId : null;

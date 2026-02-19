@@ -1135,7 +1135,9 @@ class FirstCourseSchedulePageController extends Controller
                         $lessonNumber,
                         $weekStart,
                         $courseTables['schedules'],
-                        $courseTables['groups'] ?? null
+                        $courseTables['groups'] ?? null,
+                        null,
+                        $vacancyTeacherId
                     );
                     if ($conflict) {
                         $subjectTitles = $this->subjectTitlesByIds([$conflict['subject_id'] ?? null], $courseTables['subjects'] ?? null);
@@ -3019,11 +3021,34 @@ class FirstCourseSchedulePageController extends Controller
 
     protected function isVacancyTeacherId(?int $teacherId, ?int $vacancyTeacherId): bool
     {
-        if (!$teacherId || !$vacancyTeacherId) {
+        if (!$teacherId) {
             return false;
         }
 
-        return (int) $teacherId === (int) $vacancyTeacherId;
+        if ($vacancyTeacherId && (int) $teacherId === (int) $vacancyTeacherId) {
+            return true;
+        }
+
+        static $vacancyTeacherIds = null;
+        if ($vacancyTeacherIds === null) {
+            $vacancyTeacherIds = [];
+            if (Schema::hasTable('teachers')) {
+                $vacancyTeacherIds = DB::table('teachers')
+                    ->select('id', 'teacher_name')
+                    ->get()
+                    ->filter(function ($row) {
+                        $name = mb_strtolower(trim((string) ($row->teacher_name ?? '')));
+                        return $name === 'вакансия';
+                    })
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->all();
+            }
+        }
+
+        return in_array((int) $teacherId, $vacancyTeacherIds, true);
     }
 
     protected function findVacancyTeacherId(array $tables): ?int
@@ -3246,7 +3271,9 @@ class FirstCourseSchedulePageController extends Controller
                     $lessonNumber,
                     $weekStart,
                     $courseTables['schedules'],
-                    $courseTables['groups'] ?? null
+                    $courseTables['groups'] ?? null,
+                    null,
+                    $vacancyTeacherId
                 );
                 if ($conflict) {
                     $matchTeacherId = (int) $matchingId;

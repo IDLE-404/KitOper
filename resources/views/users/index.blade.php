@@ -48,7 +48,7 @@
                             <td class="fw-semibold">{{ $user->name }}</td>
                             <td class="text-muted">{{ $user->email }}</td>
                             <td>
-                                <span class="badge bg-{{ $user->role === 'dispatcher' ? 'primary' : 'secondary' }}">
+                                <span class="badge bg-{{ $user->role === 'dispatcher' ? 'primary' : ($user->role === 'teacher' ? 'info' : 'secondary') }}">
                                     {{ $roles[$user->role] ?? $user->role }}
                                 </span>
                             </td>

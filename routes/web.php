@@ -6,6 +6,7 @@ use App\Http\Controllers\FirstCourseSchedulePageController;
 use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TeacherWorkloadController;
+use App\Http\Controllers\TeacherDashboardController;
 use App\Http\Controllers\PracticeController;
 use App\Http\Controllers\FieldCampController;
 use App\Http\Controllers\HolidayController;
@@ -27,6 +28,10 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->n
 
 Route::middleware(['auth', 'audit'])->group(function () {
     Route::get('/', [FirstCourseSchedulePageController::class, 'index'])->name('home');
+
+    Route::middleware('role:teacher')->group(function () {
+        Route::get('/teacher/today', [TeacherDashboardController::class, 'today'])->name('teacher.today');
+    });
 
     Route::prefix('first-course')->group(function () {
         Route::get('/schedule', [FirstCourseSchedulePageController::class, 'index'])->name('first.schedule.index');

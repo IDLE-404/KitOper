@@ -28,6 +28,7 @@ class UserController extends Controller
         $users = $query->paginate(30)->withQueryString();
         $roles = [
             User::ROLE_STUDENT => 'Ученик',
+            User::ROLE_TEACHER => 'Преподаватель',
             User::ROLE_DISPATCHER => 'Диспетчер',
         ];
 
@@ -41,7 +42,7 @@ class UserController extends Controller
     public function updateRole(Request $request, User $user): RedirectResponse
     {
         $data = $request->validate([
-            'role' => 'required|in:' . implode(',', [User::ROLE_STUDENT, User::ROLE_DISPATCHER]),
+            'role' => 'required|in:' . implode(',', [User::ROLE_STUDENT, User::ROLE_TEACHER, User::ROLE_DISPATCHER]),
         ]);
 
         $newRole = $data['role'];

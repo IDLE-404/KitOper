@@ -12,6 +12,7 @@
     @stack('styles')
 </head>
 <body class="ko-body">
+    @php($currentUser = auth()->user())
     <div class="ko-app">
         <aside class="ko-sidebar">
             <div class="ko-brand">
@@ -24,12 +25,11 @@
             <div>
                 <div class="ko-section-title">Меню</div>
                 <nav class="ko-nav">
-                    <a class="ko-nav-item {{ request()->routeIs('home', 'first.schedule.*') ? 'is-active' : '' }}" href="{{ route('home') }}">
-                        <i class="bi bi-speedometer2"></i>
-                        <span>Расписание</span>
-                    </a>
-
-                    @if(auth()->user()?->isDispatcher())
+                    @if($currentUser?->isDispatcher())
+                        <a class="ko-nav-item {{ request()->routeIs('home', 'first.schedule.*') ? 'is-active' : '' }}" href="{{ route('home') }}">
+                            <i class="bi bi-speedometer2"></i>
+                            <span>Расписание</span>
+                        </a>
                         <a class="ko-nav-item {{ request()->routeIs('groups.*') ? 'is-active' : '' }}" href="{{ route('groups.index') }}">
                             <i class="bi bi-people"></i>
                             <span>Группы</span>
@@ -82,6 +82,16 @@
                             <i class="bi bi-clipboard-data"></i>
                             <span>Журнал изменений</span>
                         </a>
+                    @elseif($currentUser?->isTeacher())
+                        <a class="ko-nav-item {{ request()->routeIs('teacher.today') ? 'is-active' : '' }}" href="{{ route('teacher.today') }}">
+                            <i class="bi bi-calendar3"></i>
+                            <span>Сегодняшние пары</span>
+                        </a>
+                    @else
+                        <a class="ko-nav-item {{ request()->routeIs('home', 'first.schedule.*') ? 'is-active' : '' }}" href="{{ route('home') }}">
+                            <i class="bi bi-speedometer2"></i>
+                            <span>Расписание</span>
+                        </a>
                     @endif
                 </nav>
             </div>
@@ -89,8 +99,16 @@
             <div class="ko-spacer"></div>
 
             <div class="px-3 pb-2 text-muted small">
-                {{ auth()->user()->name }}
-                <div>{{ auth()->user()->role === 'dispatcher' ? 'Диспетчер' : 'Ученик' }}</div>
+                {{ $currentUser?->name }}
+                <div>
+                    @if($currentUser?->role === 'dispatcher')
+                        Диспетчер
+                    @elseif($currentUser?->role === 'teacher')
+                        Преподаватель
+                    @else
+                        Ученик
+                    @endif
+                </div>
             </div>
 
             <form method="POST" action="{{ route('logout') }}" class="ko-nav">

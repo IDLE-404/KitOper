@@ -2272,44 +2272,9 @@ class FirstCourseSchedulePageController extends Controller
 
         $hasSub2 = $request->boolean('has_sub2') || (bool) $prev2;
 
-        // Проверка занятости учителей
-        $vacancyTeacherId = $this->findVacancyTeacherId($tables);
-        $possibleTeachers = [
-            $data['teacher_id'] ?? null,
-            $data['teacher_id_2'] ?? null,
-            $data['den_teacher_id'] ?? null,
-            $data['den_teacher_id_2'] ?? null,
-        ];
-
-        $teacherIdsToCheck = collect($possibleTeachers)
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->reject(fn (int $id) => $this->isVacancyTeacherId($id, $vacancyTeacherId))
-            ->values()
-            ->all();
-
-        if ($teacherIdsToCheck) {
-            $conflict = DB::table($tables['schedules'])
-                ->select('group_id')
-                ->where('study_day', $day)
-                ->where('lesson_number', $lesson)
-                ->where('group_id', '<>', $groupId)
-                ->whereDate('week_start', $weekStart->toDateString())
-                ->where(function ($q) use ($teacherIdsToCheck) {
-                    $q->whereIn('teacher_id', $teacherIdsToCheck)
-                        ->orWhereIn('teacher_id_2', $teacherIdsToCheck)
-                        ->orWhereIn('teacher_id_denominator', $teacherIdsToCheck)
-                        ->orWhereIn('teacher_id_denominator_2', $teacherIdsToCheck);
-                })
-                ->first();
-
-            if ($conflict) {
-                $groupName = $this->groupNameById($conflict->group_id ?? null, $tables['groups'] ?? null) ?? 'другой группы';
-                $pairLabel = sprintf('%s, пара %d', $day, $lesson);
-                return response()->json(['message' => 'Выбранный преподаватель занят на ' . $pairLabel . ' у группы ' . $groupName], 422);
-            }
-        }
+        // Ранний mode-agnostic поиск конфликтов по teacher_id* даёт ложные срабатывания
+        // (например, знаменатель против числителя). Ниже используем только
+        // validateTeachersOrFail(), где проверка идёт по точным слотам и режимам.
 
         $hasSub2Numerator = $hasSub2 && (
             ($data['subject_id_2'] ?? null)
@@ -3243,67 +3208,77 @@ class FirstCourseSchedulePageController extends Controller
             return;
         }
 
-        $teacherNames = $this->teacherNamesByIds($teacherIds, $teacherTable);
-        $normalizedNames = $this->normalizeNames($teacherNames);
-        if (empty($normalizedNames)) {
-            return;
-        }
+        foreach ($slots as $slot) {
+            $teacherId = (int) ($slot['id'] ?? 0);
+            if (!$teacherId || $this->isVacancyTeacherId($teacherId, $vacancyTeacherId)) {
+                continue;
+            }
 
-        foreach ([1, 2, 3, 4] as $course) {
-            if ($course === $currentCourse) {
+            $slotMode = ($slot['mode'] ?? 'numerator') === 'denominator' ? 'denominator' : 'numerator';
+            $teacherName = $teacherNameById[$teacherId] ?? null;
+            $normalizedName = mb_strtolower(trim((string) $teacherName));
+            if ($normalizedName === '') {
                 continue;
             }
-            $courseTables = CourseContext::tables($course);
-            if (!Schema::hasTable($courseTables['schedules']) || !Schema::hasTable($courseTables['teachers'])) {
-                continue;
-            }
-            $matchingTeacherIds = $this->teacherIdsByNames($courseTables['teachers'], $normalizedNames);
-            if (empty($matchingTeacherIds)) {
-                continue;
-            }
-            $conflict = null;
-            $matchTeacherId = null;
-            foreach ($matchingTeacherIds as $matchingId) {
-                $conflict = $this->teacherBusyInTable(
-                    (int) $matchingId,
-                    ($mode ?? 'numerator') === 'denominator' ? 'denominator' : 'numerator',
-                    $studyDay,
-                    $lessonNumber,
-                    $weekStart,
-                    $courseTables['schedules'],
-                    $courseTables['groups'] ?? null,
-                    null,
-                    $vacancyTeacherId
-                );
-                if ($conflict) {
-                    $matchTeacherId = (int) $matchingId;
-                    break;
+
+            foreach ([1, 2, 3, 4] as $course) {
+                if ($course === $currentCourse) {
+                    continue;
                 }
-            }
+                $courseTables = CourseContext::tables($course);
+                if (!Schema::hasTable($courseTables['schedules']) || !Schema::hasTable($courseTables['teachers'])) {
+                    continue;
+                }
 
-            if ($conflict) {
-                $groupName = $this->groupNameById($this->rowValue($conflict, 'group_id') ?? null, $courseTables['groups'] ?? null) ?? 'другой группы';
-                $subjectTitlesOther = $this->subjectTitlesByIds(
-                    [
-                        $this->rowValue($conflict, 'subject_id') ?? null,
-                        $this->rowValue($conflict, 'subject_id_2') ?? null,
-                        $this->rowValue($conflict, 'subject_id_denominator') ?? null,
-                        $this->rowValue($conflict, 'subject_id_denominator_2') ?? null,
-                    ],
-                    $courseTables['subjects'] ?? null
-                );
-                $subjectId = $this->resolveSubjectIdForTeacherRow($conflict, $matchTeacherId ?? 0);
-                $subjectTitle = $this->subjectTitleFromMap($subjectId, $subjectTitlesOther);
-                $subgroupLabel = $this->resolveSubgroupLabelForTeacherRow($conflict, $matchTeacherId ?? 0);
-                throw ValidationException::withMessages([
-                    'teacher_id' => sprintf(
-                        'Преподаватель занят на %s на другом курсе (группа %s, %s, %s)',
-                        $pairLabel,
-                        $groupName,
-                        $subgroupLabel,
-                        $subjectTitle
-                    ),
-                ]);
+                $matchingTeacherIds = $this->teacherIdsByNames($courseTables['teachers'], [$normalizedName]);
+                if (empty($matchingTeacherIds)) {
+                    continue;
+                }
+
+                $conflict = null;
+                $matchTeacherId = null;
+                foreach ($matchingTeacherIds as $matchingId) {
+                    $conflict = $this->teacherBusyInTable(
+                        (int) $matchingId,
+                        $slotMode,
+                        $studyDay,
+                        $lessonNumber,
+                        $weekStart,
+                        $courseTables['schedules'],
+                        $courseTables['groups'] ?? null,
+                        null,
+                        $vacancyTeacherId
+                    );
+                    if ($conflict) {
+                        $matchTeacherId = (int) $matchingId;
+                        break;
+                    }
+                }
+
+                if ($conflict) {
+                    $groupName = $this->groupNameById($this->rowValue($conflict, 'group_id') ?? null, $courseTables['groups'] ?? null) ?? 'другой группы';
+                    $subjectTitlesOther = $this->subjectTitlesByIds(
+                        [
+                            $this->rowValue($conflict, 'subject_id') ?? null,
+                            $this->rowValue($conflict, 'subject_id_2') ?? null,
+                            $this->rowValue($conflict, 'subject_id_denominator') ?? null,
+                            $this->rowValue($conflict, 'subject_id_denominator_2') ?? null,
+                        ],
+                        $courseTables['subjects'] ?? null
+                    );
+                    $subjectId = $this->resolveSubjectIdForTeacherRow($conflict, $matchTeacherId ?? 0);
+                    $subjectTitle = $this->subjectTitleFromMap($subjectId, $subjectTitlesOther);
+                    $subgroupLabel = $this->resolveSubgroupLabelForTeacherRow($conflict, $matchTeacherId ?? 0);
+                    throw ValidationException::withMessages([
+                        'teacher_id' => sprintf(
+                            'Преподаватель занят на %s на другом курсе (группа %s, %s, %s)',
+                            $pairLabel,
+                            $groupName,
+                            $subgroupLabel,
+                            $subjectTitle
+                        ),
+                    ]);
+                }
             }
         }
     }

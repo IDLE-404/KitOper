@@ -6,6 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ config('app.name', 'KitOper') }} — Вход</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap">
     <style>
         :root {
@@ -158,30 +159,61 @@
         }
 
         .role-switch {
+            --active-index: 0;
+            position: relative;
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 8px;
+            gap: 0;
+            border: 1px solid var(--auth-border);
+            border-radius: 14px;
+            padding: 4px;
+            background: #fff;
+            isolation: isolate;
+        }
+
+        .role-switch::before {
+            content: "";
+            position: absolute;
+            z-index: 0;
+            top: 4px;
+            bottom: 4px;
+            left: 4px;
+            width: calc((100% - 8px) / 3);
+            border-radius: 10px;
+            background: linear-gradient(135deg, #2e5ae9 0%, #4f79ff 100%);
+            box-shadow: 0 10px 24px rgba(48, 89, 229, 0.28);
+            transform: translateX(calc(var(--active-index, 0) * 100%));
+            transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
         .role-option {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            border: 1px solid var(--auth-border);
+            gap: 6px;
+            border: 0;
             border-radius: 12px;
-            padding: 10px 8px;
-            background: #fff;
+            padding: 10px 4px;
+            background: transparent;
             color: #344256;
             font-size: 0.92rem;
             font-weight: 600;
-            transition: all 0.18s ease;
+            position: relative;
+            z-index: 1;
+            transition: color 0.22s ease, transform 0.22s ease;
+        }
+
+        .role-option i {
+            font-size: 0.9rem;
         }
 
         .btn-check:checked + .role-option {
-            background: var(--auth-primary-soft);
-            border-color: #8ca7ff;
-            color: #203a8f;
-            box-shadow: 0 8px 18px rgba(60, 99, 226, 0.18);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .btn-check:not(:checked) + .role-option:hover {
+            color: #2a3f7b;
         }
 
         .auth-submit {
@@ -212,6 +244,22 @@
             color: var(--auth-muted);
         }
 
+        .teacher-field-wrap {
+            overflow: hidden;
+            max-height: 180px;
+            opacity: 1;
+            transform: translateY(0);
+            transition: max-height 0.28s ease, opacity 0.24s ease, transform 0.24s ease, margin 0.24s ease;
+        }
+
+        .teacher-field-wrap.is-hidden {
+            max-height: 0;
+            opacity: 0;
+            transform: translateY(-4px);
+            margin-bottom: 0 !important;
+            pointer-events: none;
+        }
+
         @media (max-width: 991px) {
             .auth-intro {
                 margin-bottom: 14px;
@@ -223,8 +271,10 @@
                 padding: 22px 18px;
             }
 
-            .role-switch {
-                grid-template-columns: 1fr;
+            .role-option {
+                font-size: 0.78rem;
+                gap: 4px;
+                padding: 9px 2px;
             }
         }
     </style>
@@ -256,5 +306,23 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (() => {
+            const roleValueToIndex = { student: 0, teacher: 1, dispatcher: 2 };
+            document.querySelectorAll('.role-switch').forEach((switchEl) => {
+                const radios = Array.from(switchEl.querySelectorAll('input[type="radio"][name="role"]'));
+                if (!radios.length) return;
+
+                const sync = () => {
+                    const selected = radios.find((el) => el.checked)?.value || 'student';
+                    const index = roleValueToIndex[selected] ?? 0;
+                    switchEl.style.setProperty('--active-index', String(index));
+                };
+
+                radios.forEach((radio) => radio.addEventListener('change', sync));
+                sync();
+            });
+        })();
+    </script>
 </body>
 </html>

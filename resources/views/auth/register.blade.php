@@ -10,13 +10,22 @@
             <label class="form-label auth-label">Тип аккаунта</label>
             <div class="role-switch" role="group" aria-label="Тип аккаунта">
                 <input type="radio" class="btn-check" name="role" id="register_role_student" value="student" autocomplete="off" @checked($selectedRole === 'student')>
-                <label class="role-option" for="register_role_student">1 Ученик</label>
+                <label class="role-option" for="register_role_student">
+                    <i class="bi bi-mortarboard"></i>
+                    <span>1 Ученик</span>
+                </label>
 
                 <input type="radio" class="btn-check" name="role" id="register_role_teacher" value="teacher" autocomplete="off" @checked($selectedRole === 'teacher')>
-                <label class="role-option" for="register_role_teacher">2 Учитель</label>
+                <label class="role-option" for="register_role_teacher">
+                    <i class="bi bi-person-workspace"></i>
+                    <span>2 Учитель</span>
+                </label>
 
                 <input type="radio" class="btn-check" name="role" id="register_role_dispatcher" value="dispatcher" autocomplete="off" @checked($selectedRole === 'dispatcher')>
-                <label class="role-option" for="register_role_dispatcher">3 Диспетчер</label>
+                <label class="role-option" for="register_role_dispatcher">
+                    <i class="bi bi-diagram-3"></i>
+                    <span>3 Диспетчер</span>
+                </label>
             </div>
             @error('role')
                 <div class="text-danger small mt-1">{{ $message }}</div>
@@ -29,7 +38,7 @@
                 <div class="text-danger small mt-1">{{ $message }}</div>
             @enderror
         </div>
-        <div class="mb-3" id="teacherSurnameWrap">
+        <div class="mb-3 teacher-field-wrap {{ $selectedRole !== 'teacher' ? 'is-hidden' : '' }}" id="teacherSurnameWrap">
             <label class="form-label auth-label">Фамилия преподавателя</label>
             <input type="text" name="teacher_surname" id="teacherSurnameInput" class="form-control auth-input" value="{{ old('teacher_surname') }}" placeholder="Например: Сулейменова">
             <div class="teacher-field-hint mt-1">Поле обязательно только для роли преподавателя. Фамилия должна совпадать со справочником преподавателей.</div>
@@ -71,7 +80,7 @@
             const syncTeacherField = () => {
                 const selected = roleInputs.find((el) => el.checked)?.value || 'student';
                 const isTeacher = selected === 'teacher';
-                wrap.style.display = isTeacher ? '' : 'none';
+                wrap.classList.toggle('is-hidden', !isTeacher);
                 input.required = isTeacher;
             };
 

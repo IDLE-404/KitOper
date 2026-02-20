@@ -10,13 +10,22 @@
             <label class="form-label auth-label">Тип аккаунта</label>
             <div class="role-switch" role="group" aria-label="Тип аккаунта">
                 <input type="radio" class="btn-check" name="role" id="login_role_student" value="student" autocomplete="off" @checked($selectedRole === 'student')>
-                <label class="role-option" for="login_role_student">1 Ученик</label>
+                <label class="role-option" for="login_role_student">
+                    <i class="bi bi-mortarboard"></i>
+                    <span>1 Ученик</span>
+                </label>
 
                 <input type="radio" class="btn-check" name="role" id="login_role_teacher" value="teacher" autocomplete="off" @checked($selectedRole === 'teacher')>
-                <label class="role-option" for="login_role_teacher">2 Учитель</label>
+                <label class="role-option" for="login_role_teacher">
+                    <i class="bi bi-person-workspace"></i>
+                    <span>2 Учитель</span>
+                </label>
 
                 <input type="radio" class="btn-check" name="role" id="login_role_dispatcher" value="dispatcher" autocomplete="off" @checked($selectedRole === 'dispatcher')>
-                <label class="role-option" for="login_role_dispatcher">3 Диспетчер</label>
+                <label class="role-option" for="login_role_dispatcher">
+                    <i class="bi bi-diagram-3"></i>
+                    <span>3 Диспетчер</span>
+                </label>
             </div>
             @error('role')
                 <div class="text-danger small mt-1">{{ $message }}</div>

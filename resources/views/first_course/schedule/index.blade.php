@@ -699,24 +699,16 @@
                                             @php
                                                 $practiceType = $practiceInfo['type'] ?? '';
                                                 $practiceTitle = $practiceType === 'field_camp' ? 'Полевые сборы' : 'На практике';
-                                                $practiceLabel = $practiceType === 'educational'
-                                                    ? 'Учебная'
-                                                    : ($practiceType === 'production' ? 'Производственная' : null);
+                                                $showRoom = !empty($practiceInfo['room_id']) && in_array($practiceType, ['educational', 'field_camp'], true);
                                             @endphp
                                             <div class="practice-label" title="{{ $practiceTitle }}">
                                                 {{ $practiceTitle }}
                                             </div>
-                                            <div class="practice-meta text-muted">
-                                                @if($practiceLabel)
-                                                    {{ $practiceLabel }}
-                                                @endif
-                                                @if(!empty($practiceInfo['teacher_id']))
-                                                    — {{ $teacherDisplay[$practiceInfo['teacher_id']] ?? 'Преподаватель' }}
-                                                @endif
-                                                @if(!empty($practiceInfo['room_id']))
-                                                    (каб. {{ $practiceInfo['room_id'] }})
-                                                @endif
-                                            </div>
+                                            @if($showRoom)
+                                                <div class="practice-meta text-muted">
+                                                    Каб. {{ $practiceInfo['room_id'] }}
+                                                </div>
+                                            @endif
                                         @elseif(!$holidayMeta)
                                             <a href="#"
                                                class="cell-edit"
@@ -945,24 +937,16 @@
                                         @php
                                             $practiceType = $practiceInfo['type'] ?? '';
                                             $practiceTitle = $practiceType === 'field_camp' ? 'Полевые сборы' : 'На практике';
-                                            $practiceLabel = $practiceType === 'educational'
-                                                ? 'Учебная'
-                                                : ($practiceType === 'production' ? 'Производственная' : null);
+                                            $showRoom = !empty($practiceInfo['room_id']) && in_array($practiceType, ['educational', 'field_camp'], true);
                                         @endphp
                                         <div class="practice-label" title="{{ $practiceTitle }}">
                                             {{ $practiceTitle }}
                                         </div>
-                                        <div class="practice-meta text-muted">
-                                            @if($practiceLabel)
-                                                {{ $practiceLabel }}
-                                            @endif
-                                            @if(!empty($practiceInfo['teacher_id']))
-                                                — {{ $teacherDisplay[$practiceInfo['teacher_id']] ?? 'Преподаватель' }}
-                                            @endif
-                                            @if(!empty($practiceInfo['room_id']))
-                                                (каб. {{ $practiceInfo['room_id'] }})
-                                            @endif
-                                        </div>
+                                        @if($showRoom)
+                                            <div class="practice-meta text-muted">
+                                                Каб. {{ $practiceInfo['room_id'] }}
+                                            </div>
+                                        @endif
                                     @elseif(!$holidayMeta)
                                         <a href="#"
                                            class="cell-edit"

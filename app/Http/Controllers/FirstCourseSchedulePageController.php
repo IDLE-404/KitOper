@@ -181,9 +181,7 @@ class FirstCourseSchedulePageController extends Controller
                     }
                     $practiceMap[$period->group_id][$dateKey] = [
                         'type' => $period->type,
-                        'teacher_id' => $period->teacher_id,
                         'room_id' => $period->room_id,
-                        'hours_per_day' => $period->hours_per_day,
                     ];
                 }
             }

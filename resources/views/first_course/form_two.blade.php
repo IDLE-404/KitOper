@@ -12,9 +12,6 @@
     $replacementTableRows = $replacementTableRows ?? [];
     $replacementDayTotals = $replacementDayTotals ?? [];
     $replacementColumnTotals = $replacementColumnTotals ?? ['normative' => 0, 'used' => 0, 'bonus' => 0, 'left' => 0];
-    $practiceRows = $practiceRows ?? [];
-    $practiceDayTotals = $practiceDayTotals ?? [];
-    $practiceColumnTotals = $practiceColumnTotals ?? ['normative' => 0, 'used' => 0, 'bonus' => 0, 'left' => 0];
     $practiceDates = $practiceDates ?? [];
     $practiceDateSet = [];
     foreach ($practiceDates as $date) {
@@ -115,6 +112,10 @@
             <div class="legend-item">
                 <span class="status-chip holiday-chip">П</span>
                 <span class="text-muted ms-2 small">Национальный праздник</span>
+            </div>
+            <div class="legend-item">
+                <span class="status-chip status-practice-legend">Практика</span>
+                <span class="text-muted ms-2 small">День практики</span>
             </div>
             <div class="ms-auto text-muted small">
                 Статусы поступают из расписания. Ручная коррекция — только в исключительных случаях.
@@ -261,11 +262,12 @@
                                         $cellDate = \Carbon\Carbon::create($year, $month, $d)->toDateString();
                                         $isPractice = isset($practiceDateSet[$cellDate]);
                                         $titleParts = array_filter([$tooltip, $holidayNote]);
-                                        $cellTitle = $titleParts ? implode(' | ', $titleParts) : 'Нет записи';
+                                        $defaultTitle = $isPractice ? 'Практика' : 'Нет записи';
+                                        $cellTitle = $titleParts ? implode(' | ', $titleParts) : $defaultTitle;
                                     @endphp
                                     <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }} {{ $isPractice ? 'practice' : '' }}">
                                         <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
-                                            <span class="chip-value">{{ $isPractice ? '' : $value }}</span>
+                                            <span class="chip-value">{{ $isPractice ? 'Практика' : $value }}</span>
                                         </div>
                                         <div class="manual-status d-none mt-1">
                                             <select class="form-select form-select-sm cell-status" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
@@ -316,120 +318,6 @@
             </div>
         </div>
     </div>
-
-    @if(!empty($practiceRows))
-        <div class="card shadow-sm mt-3">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
-                    <div>
-                        <div class="fw-semibold">Практика (отдельная таблица)</div>
-                        <div class="text-muted small">цифры в основной таблице убраны на даты практики</div>
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle form-two-table">
-                        <thead>
-                            <tr>
-                                <th class="text-muted col-index">#</th>
-                                <th class="text-muted col-subject">Предмет</th>
-                                <th class="text-muted col-teacher">Преподаватель</th>
-                                <th class="text-muted col-norm">Часы</th>
-                                @foreach($days as $d)
-                                    <th class="text-center text-muted day-head col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
-                                @endforeach
-                                <th class="text-muted col-used">Использовано</th>
-                                <th class="text-muted col-bonus">Бонус</th>
-                                <th class="text-muted col-left">Остаток</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($practiceRows as $idx => $row)
-                                <tr>
-                                    <td class="col-index">{{ $idx + 1 }}</td>
-                                    <td class="col-subject">
-                                        <div class="fw-semibold">{{ $row['subject_name'] ?? '—' }}</div>
-                                    </td>
-                                    <td class="col-teacher">
-                                        <div>{{ $row['teacher_name'] ?? '—' }}</div>
-                                    </td>
-                                    <td class="col-norm">
-                                        <div class="small text-muted">{{ $row['hours_left_start'] ?? $row['total_hours'] ?? 0 }}</div>
-                                    </td>
-                                    @foreach($days as $d)
-                                        @php
-                                            $cell = $row['days'][$d] ?? [];
-                                            $status = $cell['status'] ?? 'empty';
-                                            $value = '';
-                                            if ($status === 'normal') {
-                                                $value = $cell['used_hours'] ?? $row['hours_per_class'] ?? '2';
-                                            } elseif ($status === 'replacement') {
-                                                $value = $cell['bonus_hours'] ?? $row['hours_per_class'] ?? '2';
-                                            } elseif ($status === 'replaced') {
-                                                $value = '■';
-                                            } elseif ($status === 'sick') {
-                                                $value = 'Б';
-                                            }
-                                            $tooltip = collect($cell['details'] ?? [])->map(function ($detail) {
-                                                $parts = [];
-                                                if (!empty($detail['lesson_number'])) {
-                                                    $parts[] = 'Пара ' . $detail['lesson_number'];
-                                                }
-                                                if (!empty($detail['subgroup'])) {
-                                                    $parts[] = 'подгр. ' . $detail['subgroup'];
-                                                }
-                                                if (!empty($detail['mode'])) {
-                                                    $parts[] = 'режим: ' . $detail['mode'];
-                                                }
-                                                if (!empty($detail['status'])) {
-                                                    $parts[] = 'статус: ' . $detail['status'];
-                                                }
-                                                if (!empty($detail['replacement_teacher_name'])) {
-                                                    $parts[] = 'замена: ' . $detail['replacement_teacher_name'];
-                                                }
-                                                if (!empty($detail['replacement_subject_name'])) {
-                                                    $parts[] = 'предмет: ' . $detail['replacement_subject_name'];
-                                                }
-                                                return implode(', ', $parts);
-                                            })->filter()->implode(' | ');
-                                        $holidayMeta = $holidayDays[$d] ?? null;
-                                        $holidayNote = $holidayMeta ? ('Праздник: ' . $holidayMeta['name']) : null;
-                                        $cellDate = \Carbon\Carbon::create($year, $month, $d)->toDateString();
-                                        $isPractice = isset($practiceDateSet[$cellDate]);
-                                        $titleParts = array_filter([$tooltip, $holidayNote]);
-                                        $defaultTitle = $status === 'empty' ? '—' : 'Нет записи';
-                                        $cellTitle = $titleParts ? implode(' | ', $titleParts) : $defaultTitle;
-                                    @endphp
-                                    <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }} {{ $isPractice ? 'practice' : '' }}">
-                                        <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
-                                            <span class="chip-value">{{ $status === 'empty' ? '' : $value }}</span>
-                                        </div>
-                                    </td>
-                                    @endforeach
-                                    <td class="fw-semibold used-cell col-used">{{ $row['used_hours_total'] ?? 0 }}</td>
-                                    <td class="fw-semibold text-primary col-bonus">{{ $row['bonus_hours_total'] ?? 0 }}</td>
-                                    <td class="fw-semibold text-success col-left">{{ $row['hours_left'] ?? 0 }}</td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="{{ 7 + $daysCount }}" class="text-center text-muted">Данных нет</td></tr>
-                            @endforelse
-                        </tbody>
-                        <tfoot>
-                            <tr class="column-totals-row">
-                                <td colspan="3" class="text-end text-muted small">Итого:</td>
-                                <td class="text-center totals-cell text-primary col-norm">{{ $practiceColumnTotals['normative'] ?? 0 }}</td>
-                                @foreach($days as $d)
-                                    <td class="text-center totals-cell text-primary col-day">{{ $practiceDayTotals[$d] ?? 0 }}</td>
-                                @endforeach
-                                <td class="fw-semibold col-used">{{ $practiceColumnTotals['used'] ?? 0 }}</td>
-                                <td class="fw-semibold text-primary col-bonus">{{ $practiceColumnTotals['bonus'] ?? 0 }}</td>
-                                <td class="fw-semibold text-success col-left">{{ $practiceColumnTotals['left'] ?? 0 }}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </div>
-        </div>
-    @endif
 
     <div class="card shadow-sm mt-3">
         <div class="card-body">
@@ -804,6 +692,16 @@
         border-color: #fb923c;
         background: #fff7ed;
         color: #9a3412;
+        width: auto;
+        min-width: 50px;
+        height: auto;
+        min-height: 36px;
+        padding: 4px 6px;
+    }
+    .day-cell.practice .chip-value {
+        font-size: 11px;
+        line-height: 1.1;
+        white-space: normal;
     }
     .totals-row {
         background: #e0f2fe;
@@ -855,6 +753,10 @@
         background: #fff8d5;
         color: #92400e;
         border-color: #fcd34d;
+    }
+    .status-chip.status-practice-legend {
+        width: auto;
+        min-width: 50px;
     }
     .chip-value {
         display: inline-block;

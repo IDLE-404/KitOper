@@ -65,7 +65,7 @@ class PracticeService
         $tables = CourseContext::tables($course);
         $subjectId = $period->subject_id
             ? (int) $period->subject_id
-            : $this->ensurePracticeSubjectId($course, $period->type);
+            : $this->ensurePracticeSubjectId($course);
 
         $start = Carbon::parse($period->start_date);
         $end = Carbon::parse($period->end_date);
@@ -88,7 +88,7 @@ class PracticeService
             $payload[] = [
                 'group_id' => $period->group_id,
                 'subject_id' => $subjectId,
-                'teacher_id' => $period->teacher_id,
+                'teacher_id' => null,
                 'class_date' => $cursor->toDateString(),
                 'year' => (int) $cursor->year,
                 'month' => (int) $cursor->month,
@@ -96,12 +96,12 @@ class PracticeService
                 'lesson_number' => null,
                 'subgroup' => 1,
                 'total_hours' => 0,
-                'hours_per_class' => (int) $period->hours_per_day,
+                'hours_per_class' => 0,
                 'status' => 'normal',
                 'replacement_teacher_id' => null,
                 'replacement_subject_id' => null,
                 'bonus_hours' => null,
-                'used_hours' => (int) $period->hours_per_day,
+                'used_hours' => 0,
                 'absent_reason' => null,
                 'replacement_comment' => null,
                 'mode' => 'single',
@@ -127,23 +127,16 @@ class PracticeService
     {
         $course = (int) $period->course;
         $tables = CourseContext::tables($course);
-        $subjectIds = $this->practiceSubjectIds($course);
 
         $start = Carbon::parse($period->start_date);
         $end = Carbon::parse($period->end_date);
 
-        if ($subjectIds) {
-            if ($period->subject_id) {
-                $subjectIds = [(int) $period->subject_id];
-            }
-            $practiceTable = $tables['form_two_practice_records'] ?? null;
-            if ($practiceTable && Schema::hasTable($practiceTable)) {
-                DB::table($practiceTable)
-                    ->where('group_id', $period->group_id)
-                    ->whereBetween('class_date', [$start->toDateString(), $end->toDateString()])
-                    ->whereIn('subject_id', $subjectIds)
-                    ->delete();
-            }
+        $practiceTable = $tables['form_two_practice_records'] ?? null;
+        if ($practiceTable && Schema::hasTable($practiceTable)) {
+            DB::table($practiceTable)
+                ->where('group_id', $period->group_id)
+                ->whereBetween('class_date', [$start->toDateString(), $end->toDateString()])
+                ->delete();
         }
 
         /** @var ScheduleToFormTwoSyncService $sync */
@@ -156,11 +149,11 @@ class PracticeService
         }
     }
 
-    protected function ensurePracticeSubjectId(int $course, string $type): int
+    protected function ensurePracticeSubjectId(int $course): int
     {
         $tables = CourseContext::tables($course);
         $table = $tables['subjects'];
-        $subjectName = $type === 'educational' ? 'Учебная практика' : 'Производственная практика';
+        $subjectName = 'Практика';
 
         $existing = DB::table($table)
             ->where('name_ru', $subjectName)
@@ -185,19 +178,5 @@ class PracticeService
             ->where('name_ru', $subjectName)
             ->orWhere('subject_name', $subjectName)
             ->value('id');
-    }
-
-    protected function practiceSubjectIds(int $course): array
-    {
-        $tables = CourseContext::tables($course);
-        $table = $tables['subjects'];
-        $names = ['Учебная практика', 'Производственная практика'];
-
-        return DB::table($table)
-            ->whereIn('name_ru', $names)
-            ->orWhereIn('subject_name', $names)
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
     }
 }

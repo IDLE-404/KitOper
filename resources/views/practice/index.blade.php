@@ -61,10 +61,6 @@
 @php
     $course = $course ?? 2;
     $groupMap = $groups->pluck('group_name', 'id');
-    $teacherMap = $teachers->pluck('teacher_name', 'id');
-    $subjectMap = $subjects->mapWithKeys(function ($subject) {
-        return [$subject->id => ($subject->subject_name ?? $subject->name_ru ?? $subject->name_kz ?? '—')];
-    });
 @endphp
 
 <div class="schedule-shell compact">
@@ -115,7 +111,7 @@
                     <label>Группа</label>
                     <select class="search-input" name="group_id" required>
                         @foreach($groups as $g)
-                            <option value="{{ $g->id }}">{{ $g->group_name }}</option>
+                            <option value="{{ $g->id }}" @selected((string) old('group_id') === (string) $g->id)>{{ $g->group_name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -123,44 +119,22 @@
                     <label>Тип практики</label>
                     <select class="search-input" name="type" id="practiceType">
                         @if($course == 2)
-                            <option value="educational">Учебная</option>
+                            <option value="educational" @selected(old('type', 'educational') === 'educational')>Учебная</option>
                         @endif
-                        <option value="production">Производственная</option>
-                    </select>
-                </div>
-                <div class="form-field">
-                    <label>Предмет</label>
-                    <select class="search-input" name="subject_id" id="practiceSubject" required>
-                        @foreach($subjects as $subject)
-                            @php $subjectTitle = $subject->subject_name ?? $subject->name_ru ?? $subject->name_kz; @endphp
-                            <option value="{{ $subject->id }}" @selected(old('subject_id') == $subject->id)>{{ $subjectTitle }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="form-field">
-                    <label>Преподаватель</label>
-                    <select class="search-input" name="teacher_id" id="practiceTeacher" required>
-                        <option value="">Выберите преподавателя</option>
-                        @foreach($teachers as $t)
-                            <option value="{{ $t->id }}" @selected((string) old('teacher_id') === (string) $t->id)>{{ $t->teacher_name }}</option>
-                        @endforeach
+                        <option value="production" @selected(old('type', $course == 2 ? 'educational' : 'production') === 'production')>Производственная</option>
                     </select>
                 </div>
                 <div class="form-field" id="roomBlock">
                     <label>Кабинет (учебная)</label>
-                    <input type="text" class="search-input" name="room_id" placeholder="101">
+                    <input type="text" class="search-input" name="room_id" placeholder="101" value="{{ old('room_id') }}">
                 </div>
                 <div class="form-field">
                     <label>Начало практики</label>
-                    <input type="date" class="search-input" name="start_date" required>
+                    <input type="date" class="search-input" name="start_date" value="{{ old('start_date') }}" required>
                 </div>
                 <div class="form-field">
                     <label>Окончание</label>
-                    <input type="date" class="search-input" name="end_date" required>
-                </div>
-                <div class="form-field">
-                    <label>Часов в день</label>
-                    <input type="number" class="search-input" name="hours_per_day" value="6" min="1" max="10">
+                    <input type="date" class="search-input" name="end_date" value="{{ old('end_date') }}" required>
                 </div>
                 <div class="form-field form-field--actions">
                     <button class="btn-pill primary" type="submit">Сохранить</button>
@@ -177,11 +151,8 @@
                     <tr>
                         <th>Группа</th>
                         <th>Тип</th>
-                        <th>Предмет</th>
-                        <th>Преподаватель</th>
                         <th>Кабинет</th>
                         <th>Период</th>
-                        <th>Часы/день</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -190,11 +161,8 @@
                         <tr>
                             <td>{{ $groupMap[$period->group_id] ?? '—' }}</td>
                             <td>{{ $period->type === 'educational' ? 'Учебная' : 'Производственная' }}</td>
-                            <td>{{ $subjectMap[$period->subject_id] ?? ($period->type === 'educational' ? 'Учебная практика' : 'Производственная практика') }}</td>
-                            <td>{{ $teacherMap[$period->teacher_id] ?? '—' }}</td>
-                            <td>{{ $period->room_id ?? '—' }}</td>
+                            <td>{{ $period->type === 'educational' ? ($period->room_id ?? '—') : '—' }}</td>
                             <td>{{ $period->start_date }} → {{ $period->end_date }}</td>
-                            <td>{{ $period->hours_per_day }}</td>
                             <td class="text-end">
                                 <form method="POST" action="{{ route('practice.destroy', $period->id) }}" onsubmit="return confirm('Удалить период практики?');">
                                     @csrf
@@ -205,7 +173,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="empty-note">Периоды не добавлены</td>
+                            <td colspan="5" class="empty-note">Периоды не добавлены</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -219,13 +187,14 @@
     const courseSelectForm = document.getElementById('courseSelectForm');
     const practiceType = document.getElementById('practiceType');
     const roomBlock = document.getElementById('roomBlock');
-    const practiceSubject = document.getElementById('practiceSubject');
-    const practiceTeacher = document.getElementById('practiceTeacher');
-    const teacherSubjectMap = @json($teacherSubjectMap ?? []);
+    const roomInput = roomBlock?.querySelector('input[name="room_id"]');
 
     const toggleRoom = () => {
         const isEducational = practiceType && practiceType.value === 'educational';
         roomBlock?.classList.toggle('d-none', !isEducational);
+        if (!isEducational && roomInput) {
+            roomInput.value = '';
+        }
     };
 
     if (courseSelect) {
@@ -248,43 +217,6 @@
         practiceType.addEventListener('change', toggleRoom);
     }
 
-    const filterTeachersBySubject = () => {
-        if (!practiceTeacher) return;
-
-        const subjectId = practiceSubject?.value || '';
-        const allowedIds = new Set(((teacherSubjectMap[String(subjectId)] || [])).map(String));
-        let visibleCount = 0;
-
-        Array.from(practiceTeacher.options).forEach((option) => {
-            if (!option.value) {
-                option.hidden = false;
-                option.disabled = false;
-                return;
-            }
-
-            const allowed = allowedIds.has(String(option.value));
-            option.hidden = !allowed;
-            option.disabled = !allowed;
-            if (allowed) visibleCount += 1;
-        });
-
-        if (!subjectId || visibleCount === 0) {
-            practiceTeacher.value = '';
-            practiceTeacher.setAttribute('disabled', 'disabled');
-            return;
-        }
-
-        if (practiceTeacher.value && !allowedIds.has(String(practiceTeacher.value))) {
-            practiceTeacher.value = '';
-        }
-        practiceTeacher.removeAttribute('disabled');
-    };
-
-    if (practiceSubject) {
-        practiceSubject.addEventListener('change', filterTeachersBySubject);
-    }
-
     toggleRoom();
-    filterTeachersBySubject();
 </script>
 @endsection

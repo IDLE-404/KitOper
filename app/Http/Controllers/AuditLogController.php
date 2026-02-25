@@ -71,6 +71,7 @@ class AuditLogController extends Controller
             'teacher_absences.destroy' => 'Удалено отсутствие преподавателя',
             'first.schedule.week.save' => 'Сохранена неделя расписания',
             'first.schedule.semester.expand' => 'Расписание развернуто на семестр',
+            'first.schedule.week.duplicate.store' => 'Выполнен дубликат недели',
             'first.schedule.pair.update' => 'Изменена пара',
             'first.schedule.pair.delete' => 'Удалена пара',
             'first.schedule.auto_assign_rooms_day' => 'Автоназначение кабинетов',

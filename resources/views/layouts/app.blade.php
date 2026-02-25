@@ -30,6 +30,10 @@
                             <i class="bi bi-speedometer2"></i>
                             <span>Расписание</span>
                         </a>
+                        <a class="ko-nav-item {{ request()->routeIs('first.schedule.week.duplicate', 'first.schedule.week.duplicate.store') ? 'is-active' : '' }}" href="{{ route('first.schedule.week.duplicate', ['course' => request()->integer('course') ?: 1]) }}">
+                            <i class="bi bi-files"></i>
+                            <span>Дубликат недели</span>
+                        </a>
                         <a class="ko-nav-item {{ request()->routeIs('groups.*') ? 'is-active' : '' }}" href="{{ route('groups.index') }}">
                             <i class="bi bi-people"></i>
                             <span>Группы</span>

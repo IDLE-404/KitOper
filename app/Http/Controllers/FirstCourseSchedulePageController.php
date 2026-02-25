@@ -965,6 +965,122 @@ class FirstCourseSchedulePageController extends Controller
     }
 
     /**
+     * Отдельная страница для дублирования недели на период.
+     * Неделя начала периода используется как неделя-шаблон.
+     */
+    public function duplicateWeekPage(Request $request)
+    {
+        $course = CourseContext::normalize($request->integer('course') ?? 1);
+        $tables = CourseContext::tables($course);
+
+        $groups = DB::table($tables['groups'])
+            ->select('id', 'group_name')
+            ->orderBy('group_name')
+            ->get();
+
+        $defaultStart = now()->startOfWeek(Carbon::MONDAY);
+        $periodStart = (string) old(
+            'period_start',
+            (string) ($request->input('period_start') ?: $defaultStart->toDateString())
+        );
+        $templateWeekStart = (string) old(
+            'template_week_start',
+            (string) ($request->input('template_week_start') ?: $periodStart)
+        );
+        $periodEnd = (string) old(
+            'period_end',
+            (string) ($request->input('period_end') ?: $defaultStart->copy()->addWeeks(8)->toDateString())
+        );
+
+        $selectedGroupId = (int) old(
+            'group_id',
+            (int) ($request->input('group_id') ?: ($groups->first()->id ?? 0))
+        );
+
+        return view('first_course.schedule.duplicate_week', [
+            'course' => $course,
+            'groups' => $groups,
+            'selectedGroupId' => $selectedGroupId,
+            'templateWeekStart' => $templateWeekStart,
+            'periodStart' => $periodStart,
+            'periodEnd' => $periodEnd,
+            'skipExisting' => (bool) old('skip_existing', false),
+            'syncFormTwo' => (bool) old('sync_form_two', true),
+        ]);
+    }
+
+    /**
+     * Дублирует расписание недели начала периода на указанный диапазон.
+     */
+    public function duplicateWeekApply(Request $request, SemesterScheduleService $semesterService)
+    {
+        $data = $request->validate([
+            'group_id' => 'required|integer',
+            'template_week_start' => 'required|date',
+            'period_start' => 'required|date',
+            'period_end' => 'required|date',
+            'skip_existing' => 'sometimes|boolean',
+            'sync_form_two' => 'sometimes|boolean',
+            'course' => 'nullable|integer|min:1|max:4',
+        ]);
+
+        $course = CourseContext::normalize($data['course'] ?? $request->integer('course') ?? 1);
+        $tables = CourseContext::tables($course);
+        $groupId = (int) $data['group_id'];
+
+        $groupExists = DB::table($tables['groups'])->where('id', $groupId)->exists();
+        if (!$groupExists) {
+            return back()->withErrors(['group_id' => 'Группа не найдена для выбранного курса.'])->withInput();
+        }
+
+        $periodStart = Carbon::parse($data['period_start'])->startOfWeek(Carbon::MONDAY);
+        $periodEnd = Carbon::parse($data['period_end'])->startOfWeek(Carbon::MONDAY);
+        $templateWeek = Carbon::parse($data['template_week_start'])->startOfWeek(Carbon::MONDAY);
+
+        if ($periodEnd->lt($periodStart)) {
+            return back()->withErrors(['period_end' => 'Дата окончания периода не может быть раньше начала.'])->withInput();
+        }
+
+        $skipExisting = $request->boolean('skip_existing');
+        $syncFormTwo = $request->boolean('sync_form_two', true);
+
+        $result = $semesterService->expandFromTemplate(
+            $groupId,
+            $templateWeek,
+            $periodStart,
+            $periodEnd,
+            $skipExisting,
+            $syncFormTwo,
+            $course
+        );
+
+        if ($result['inserted_weeks'] === 0 && empty($result['skipped_weeks'])) {
+            return back()->withErrors([
+                'template_week_start' => 'На выбранной неделе-шаблоне нет расписания для выбранной группы.',
+            ])->withInput();
+        }
+
+        $message = sprintf(
+            'Дубликат выполнен: %d недель (%d строк).',
+            $result['inserted_weeks'],
+            $result['inserted_rows']
+        );
+        if (!empty($result['skipped_weeks'])) {
+            $message .= ' Пропущены (уже есть): ' . implode(', ', $result['skipped_weeks']);
+        }
+
+        return redirect()
+            ->route('first.schedule.week.duplicate', [
+                'course' => $course,
+                'group_id' => $groupId,
+                'template_week_start' => $templateWeek->toDateString(),
+                'period_start' => $periodStart->toDateString(),
+                'period_end' => $periodEnd->toDateString(),
+            ])
+            ->with('success', $message);
+    }
+
+    /**
      * Проверка занятости преподавателей и кабинетов в реальном времени.
      */
     public function availability(Request $request)

@@ -71,10 +71,12 @@ Route::middleware(['auth', 'audit'])->group(function () {
 
         Route::prefix('first-course')->group(function () {
             Route::get('/schedule/week', [FirstCourseSchedulePageController::class, 'week'])->name('first.schedule.week');
+            Route::get('/schedule/week-duplicate', [FirstCourseSchedulePageController::class, 'duplicateWeekPage'])->name('first.schedule.week.duplicate');
             Route::get('/schedule/availability', [FirstCourseSchedulePageController::class, 'availability'])->name('first.schedule.availability');
             Route::get('/schedule/free-teachers', [FirstCourseSchedulePageController::class, 'freeTeachers'])->name('first.schedule.free_teachers');
             Route::get('/schedule/free-rooms', [FirstCourseSchedulePageController::class, 'freeRooms'])->name('first.schedule.free_rooms');
             Route::post('/schedule/week', [FirstCourseSchedulePageController::class, 'weekSave'])->name('first.schedule.week.save');
+            Route::post('/schedule/week-duplicate', [FirstCourseSchedulePageController::class, 'duplicateWeekApply'])->name('first.schedule.week.duplicate.store');
             Route::post('/schedule/expand-semester', [FirstCourseSchedulePageController::class, 'expandSemester'])->name('first.schedule.semester.expand');
             Route::post('/schedule/update-pair', [FirstCourseSchedulePageController::class, 'updatePair'])->name('first.schedule.pair.update');
             Route::post('/schedule/delete-pair', [FirstCourseSchedulePageController::class, 'deletePair'])->name('first.schedule.pair.delete');

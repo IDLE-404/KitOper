@@ -104,7 +104,25 @@
             </table>
         </div>
         <div class="card-footer">
-            {{ $logs->links() }}
+            @if ($logs->hasPages())
+                <nav aria-label="Пагинация журнала изменений">
+                    <ul class="pagination pagination-sm mb-0 justify-content-center flex-wrap">
+                        <li class="page-item {{ $logs->onFirstPage() ? 'disabled' : '' }}">
+                            <a class="page-link" href="{{ $logs->previousPageUrl() ?: '#' }}" tabindex="{{ $logs->onFirstPage() ? '-1' : '0' }}" aria-disabled="{{ $logs->onFirstPage() ? 'true' : 'false' }}">Назад</a>
+                        </li>
+
+                        @foreach ($logs->getUrlRange(1, $logs->lastPage()) as $page => $url)
+                            <li class="page-item {{ $page === $logs->currentPage() ? 'active' : '' }}">
+                                <a class="page-link" href="{{ $url }}">{{ $page }}</a>
+                            </li>
+                        @endforeach
+
+                        <li class="page-item {{ $logs->hasMorePages() ? '' : 'disabled' }}">
+                            <a class="page-link" href="{{ $logs->nextPageUrl() ?: '#' }}" tabindex="{{ $logs->hasMorePages() ? '0' : '-1' }}" aria-disabled="{{ $logs->hasMorePages() ? 'false' : 'true' }}">Вперёд</a>
+                        </li>
+                    </ul>
+                </nav>
+            @endif
         </div>
     </div>
 @endsection

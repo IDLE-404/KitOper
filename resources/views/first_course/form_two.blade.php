@@ -266,8 +266,8 @@
                                         $cellTitle = $titleParts ? implode(' | ', $titleParts) : $defaultTitle;
                                     @endphp
                                     <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }} {{ $isPractice ? 'practice' : '' }}">
-                                        <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
-                                            <span class="chip-value">{{ $isPractice ? 'Практика' : $value }}</span>
+                                        <div class="status-chip status-{{ $status }} {{ $isPractice ? 'status-practice' : '' }}" title="{{ $cellTitle }}">
+                                            <span class="chip-value">{{ $isPractice ? '' : $value }}</span>
                                         </div>
                                         <div class="manual-status d-none mt-1">
                                             <select class="form-select form-select-sm cell-status" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
@@ -556,12 +556,15 @@
                                             })->filter()->implode(' | ');
                                             $holidayMeta = $holidayDays[$d] ?? null;
                                             $holidayNote = $holidayMeta ? ('Праздник: ' . $holidayMeta['name']) : null;
+                                            $cellDate = \Carbon\Carbon::create($year, $month, $d)->toDateString();
+                                            $isPractice = isset($practiceDateSet[$cellDate]);
                                             $titleParts = array_filter([$tooltip, $holidayNote]);
-                                            $cellTitle = $titleParts ? implode(' | ', $titleParts) : 'Нет записи';
+                                            $defaultTitle = $isPractice ? 'Практика' : 'Нет записи';
+                                            $cellTitle = $titleParts ? implode(' | ', $titleParts) : $defaultTitle;
                                         @endphp
-                                        <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">
-                                            <div class="status-chip status-{{ $status }}" title="{{ $cellTitle }}">
-                                                <span class="chip-value">{{ $value }}</span>
+                                        <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }} {{ $isPractice ? 'practice' : '' }}">
+                                            <div class="status-chip status-{{ $status }} {{ $isPractice ? 'status-practice' : '' }}" title="{{ $cellTitle }}">
+                                                <span class="chip-value">{{ $isPractice ? '' : $value }}</span>
                                             </div>
                                             <div class="manual-status d-none mt-1">
                                                 <select class="form-select form-select-sm cell-status" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
@@ -686,22 +689,16 @@
         background: #fff8d5;
     }
     .day-cell.practice {
-        background-color: #fff1e6 !important;
+        background-color: #fef9c3 !important;
     }
     .day-cell.practice .status-chip {
-        border-color: #fb923c;
-        background: #fff7ed;
-        color: #9a3412;
-        width: auto;
-        min-width: 50px;
-        height: auto;
-        min-height: 36px;
-        padding: 4px 6px;
+        border-color: #facc15;
+        background: #fef08a;
+        color: #854d0e;
     }
     .day-cell.practice .chip-value {
-        font-size: 11px;
-        line-height: 1.1;
-        white-space: normal;
+        color: transparent;
+        user-select: none;
     }
     .totals-row {
         background: #e0f2fe;
@@ -757,6 +754,12 @@
     .status-chip.status-practice-legend {
         width: auto;
         min-width: 50px;
+        border-color: #facc15;
+        background: #fef08a;
+        color: #854d0e;
+    }
+    .status-chip.status-practice {
+        display: inline-flex;
     }
     .chip-value {
         display: inline-block;

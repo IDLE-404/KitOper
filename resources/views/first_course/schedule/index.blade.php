@@ -673,6 +673,8 @@
                                         || ($sub2['is_absent'] ?? false)
                                         || ($sub2['is_replacement'] ?? false);
                                     $hasLesson = $hasPractice ? true : ($mainHasActive || $sub2HasActive);
+                                    $cellFilled = $hasPractice || ($hasLesson && !$holidayMeta);
+                                    $renderLesson = $hasLesson && !$hasPractice && !$holidayMeta;
                                     $hasConflict = ($pair['sub1']['active_conflict'] ?? false) || ($pair['sub2']['active_conflict'] ?? false);
                                     $hasSubgroupsAny = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
                                     $hasSubgroupsCurrentWeek = $sub2HasActive;
@@ -689,7 +691,7 @@
                                     }
                                 @endphp
                                 <td class="day-grid-cell">
-                                    <div class="pair-cell {{ $hasLesson ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}{{ $holidayMeta ? ' holiday-cell' : '' }}"
+                                    <div class="pair-cell {{ $cellFilled ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}{{ $holidayMeta ? ' holiday-cell' : '' }}"
                                          data-group="{{ $groupId }}"
                                          data-day="{{ $dayToShow ?? '' }}"
                                          data-day-key="{{ $dayToShow ? ($dayDetails[$dayToShow]['key'] ?? '') : '' }}"
@@ -764,7 +766,7 @@
                                                 🎉 {{ $holidayMeta['label'] }} ({{ $holidayMeta['day'] ?? '' }})
                                             </div>
                                         @endif
-                                        @if ($hasLesson && !$hasPractice)
+                                        @if ($renderLesson)
                                             @if($mainHasActive)
                                                 <div class="cell-line main-line sub-line">
                                                     <span class="pill badge-sub">1</span>
@@ -912,6 +914,8 @@
                                         || ($sub2['is_absent'] ?? false)
                                         || ($sub2['is_replacement'] ?? false);
                                     $hasLesson = $hasPractice ? true : ($mainHasActive || $sub2HasActive);
+                                    $cellFilled = $hasPractice || ($hasLesson && !$holidayMeta);
+                                    $renderLesson = $hasLesson && !$hasPractice && !$holidayMeta;
                                     $hasConflict = ($pair['sub1']['active_conflict'] ?? false) || ($pair['sub2']['active_conflict'] ?? false);
                                     $hasSubgroupsAny = ($pair['sub2']['has_den'] ?? false) || ($pair['sub2']['has_num'] ?? false);
                                     $hasSubgroupsCurrentWeek = $sub2HasActive;
@@ -927,7 +931,7 @@
                                         $pairStatus = 'pair-absence';
                                     }
                                 @endphp
-                                <div class="grid-cell pair-cell {{ $hasLesson ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}{{ $holidayMeta ? ' holiday-cell' : '' }}"
+                                <div class="grid-cell pair-cell {{ $cellFilled ? 'filled' : 'empty' }} {{ $hasConflict ? 'conflict' : '' }} {{ $pairStatus }}{{ $holidayMeta ? ' holiday-cell' : '' }}"
                                      data-group="{{ $groupId }}"
                                      data-day="{{ $day }}"
                                      data-day-key="{{ $dayDetails[$day]['key'] ?? '' }}"
@@ -1002,7 +1006,7 @@
                                             🎉 {{ $holidayMeta['label'] }} ({{ $holidayMeta['day'] ?? '' }})
                                         </div>
                                     @endif
-                                    @if ($hasLesson && !$hasPractice)
+                                    @if ($renderLesson)
                                         @if($mainHasActive)
                                             <div class="cell-line main-line sub-line">
                                                 <span class="pill badge-sub">1</span>

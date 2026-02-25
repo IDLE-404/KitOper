@@ -5,6 +5,7 @@ namespace App\Services;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Services\FieldCampService;
+use App\Services\KazakhstanHolidayService;
 
 class ScheduleToFormTwoSyncService
 {
@@ -32,6 +33,19 @@ class ScheduleToFormTwoSyncService
             /** @var FieldCampService $fieldCampService */
             $fieldCampService = app(FieldCampService::class);
             $campDates = $fieldCampService->campDatesForRange($course, $groupId, $classWeekStart, $weekEnd);
+        }
+        $holidayDates = [];
+        /** @var KazakhstanHolidayService $holidayService */
+        $holidayService = app(KazakhstanHolidayService::class);
+        $holidayCache = [];
+        for ($cursor = $classWeekStart->copy(); $cursor->lte($weekEnd); $cursor->addDay()) {
+            $monthKey = $cursor->format('Y-m');
+            if (!isset($holidayCache[$monthKey])) {
+                $holidayCache[$monthKey] = $holidayService->getMonthHolidays($cursor->year, $cursor->month);
+            }
+            if (isset($holidayCache[$monthKey][$cursor->day])) {
+                $holidayDates[$cursor->toDateString()] = true;
+            }
         }
 
         $dayOffset = [
@@ -82,6 +96,9 @@ class ScheduleToFormTwoSyncService
 
             $lessonNumber = (int) $row->lesson_number;
             $classDate = $classWeekStart->copy()->addDays($dayOffset[$dayName]);
+            if (isset($holidayDates[$classDate->toDateString()])) {
+                continue;
+            }
             if ($practiceDates && in_array($classDate->toDateString(), $practiceDates, true)) {
                 continue;
             }

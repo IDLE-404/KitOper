@@ -456,6 +456,7 @@
                         <div class="text-muted small">только записи со второй подгруппой</div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-outline-primary btn-sm d-none" id="addSubgroupTwoSubjectBtn" type="button">Добавить предмет</button>
                         <button class="btn btn-outline-secondary btn-sm js-correction-toggle" type="button">Режим коррекции</button>
                         <button class="btn btn-success btn-sm d-none js-correction-save" type="button">Сохранить коррекцию</button>
                     </div>
@@ -852,6 +853,7 @@
     const reloadBtn = document.getElementById('reloadBtn');
     const saveBtn = document.getElementById('saveBtn');
     const addSubjectBtn = document.getElementById('addSubjectBtn');
+    const addSubgroupTwoSubjectBtn = document.getElementById('addSubgroupTwoSubjectBtn');
     const semester2Btn = document.getElementById('semester2Btn');
     const formBody = document.getElementById('formBody');
     const replacementTableBody = document.getElementById('replacementTableBody');
@@ -916,6 +918,7 @@
         document.querySelectorAll('.day-cell .status-chip').forEach(el => el.classList.toggle('d-none', enabled));
         saveBtn?.classList.toggle('d-none', !enabled);
         addSubjectBtn?.classList.toggle('d-none', !enabled);
+        addSubgroupTwoSubjectBtn?.classList.toggle('d-none', !enabled);
         document.querySelectorAll('.js-correction-save').forEach(btn => btn.classList.toggle('d-none', !enabled));
     });
 
@@ -928,6 +931,16 @@
 
     const reindexRows = () => {
         formBody?.querySelectorAll('tr[data-row]').forEach((tr, idx) => {
+            tr.dataset.row = String(idx);
+            const indexCell = tr.querySelector('.col-index');
+            if (indexCell) {
+                indexCell.textContent = String(idx + 1);
+            }
+        });
+    };
+
+    const reindexSubgroupTwoRows = () => {
+        subgroupTwoBody?.querySelectorAll('tr[data-row]').forEach((tr, idx) => {
             tr.dataset.row = String(idx);
             const indexCell = tr.querySelector('.col-index');
             if (indexCell) {
@@ -1022,6 +1035,92 @@
         reindexRows();
     });
 
+    addSubgroupTwoSubjectBtn?.addEventListener('click', () => {
+        if (!subgroupTwoBody) {
+            return;
+        }
+
+        const nextIndex = subgroupTwoBody.querySelectorAll('tr[data-row]').length;
+        const subjectOptions = subjectsData.map((s) => `<option value="${s.id}">${escapeHtml(s.title)}</option>`).join('');
+        const teacherOptions = teachersData.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+        const dayCells = days.map((day) => {
+            const isWeekend = Boolean(weekendDays[String(day)]);
+            const holidayMeta = holidayDays[String(day)] || null;
+            const isHoliday = Boolean(holidayMeta);
+            const dayClasses = ['text-center', 'day-cell', 'col-day'];
+            if (isWeekend) dayClasses.push('weekend');
+            if (isHoliday) dayClasses.push('holiday');
+            const disabledAttr = isHoliday ? 'disabled' : '';
+            const holidayNote = isHoliday ? `<div class="text-warning small mt-1">Редактирование отключено — ${escapeHtml(holidayMeta.name || '')}</div>` : '';
+            return `
+                <td class="${dayClasses.join(' ')}">
+                    <div class="status-chip status-empty d-none"><span class="chip-value">•</span></div>
+                    <div class="manual-status mt-1">
+                        <select class="form-select form-select-sm cell-status" data-day="${day}" ${disabledAttr}>
+                            <option value="empty" selected>—</option>
+                            <option value="normal">Норма</option>
+                            <option value="replaced">Замена (замещённая)</option>
+                            <option value="replacement">Замена (замещающая)</option>
+                        </select>
+                        <select class="form-select form-select-sm cell-repl mt-1" data-day="${day}" ${disabledAttr}>
+                            <option value="">— заменяющий</option>
+                            ${teacherOptions}
+                        </select>
+                        <select class="form-select form-select-sm cell-repl-subject mt-1" data-day="${day}" ${disabledAttr}>
+                            <option value="">— замещающий предмет</option>
+                            ${subjectOptions}
+                        </select>
+                        ${holidayNote}
+                    </div>
+                </td>
+            `;
+        }).join('');
+
+        const tr = document.createElement('tr');
+        tr.dataset.row = String(nextIndex);
+        tr.innerHTML = `
+            <td class="col-index">${nextIndex + 1}</td>
+            <td class="col-subject">
+                <div class="d-flex align-items-start justify-content-between gap-2">
+                    <div class="fw-semibold row-subject-name">Новый предмет</div>
+                    <button type="button" class="btn-close row-delete-btn manual-edit" aria-label="Удалить строку"></button>
+                </div>
+                <input type="hidden" class="row-hours-per-class" value="2">
+                <input type="hidden" class="row-total-hours" value="0">
+                <div class="manual-edit mt-2">
+                    <select class="form-select form-select-sm row-subject" required>
+                        <option value="">— выберите предмет</option>
+                        ${subjectOptions}
+                    </select>
+                </div>
+            </td>
+            <td class="col-teacher">
+                <div class="row-teacher-name">—</div>
+                <div class="manual-edit mt-2">
+                    <select class="form-select form-select-sm row-teacher">
+                        <option value="">— выберите преподавателя</option>
+                        ${teacherOptions}
+                    </select>
+                </div>
+            </td>
+            <td class="col-norm">
+                <div class="small text-muted">0</div>
+                <div class="manual-norm mt-2">
+                    <label class="form-label text-muted small mb-1">Всего часов</label>
+                    <input type="number" class="form-control form-control-sm row-total-hours-input" min="0" step="1" value="0">
+                </div>
+            </td>
+            ${dayCells}
+            <td class="fw-semibold used-cell col-used">0</td>
+            <td class="fw-semibold text-primary col-bonus">0</td>
+            <td class="fw-semibold text-success col-left">0</td>
+        `;
+        subgroupTwoBody.appendChild(tr);
+        tr.classList.add('row-new-added');
+        tr.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        reindexSubgroupTwoRows();
+    });
+
     formBody?.addEventListener('click', (event) => {
         const btn = event.target.closest('.row-delete-btn');
         if (!btn) {
@@ -1049,6 +1148,19 @@
             const label = teacherSelect.options[teacherSelect.selectedIndex]?.textContent?.trim() || '—';
             tr?.querySelector('.row-teacher-name')?.replaceChildren(document.createTextNode(label));
         }
+    });
+
+    subgroupTwoBody?.addEventListener('click', (event) => {
+        const btn = event.target.closest('.row-delete-btn');
+        if (!btn) {
+            return;
+        }
+        const tr = btn.closest('tr[data-row]');
+        if (!tr) {
+            return;
+        }
+        tr.remove();
+        reindexSubgroupTwoRows();
     });
 
     subgroupTwoBody?.addEventListener('change', (event) => {

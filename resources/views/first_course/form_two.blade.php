@@ -276,17 +276,17 @@
                                                 <option value="replaced" @selected($status === 'replaced')>Замена (замещённая)</option>
                                                 <option value="replacement" @selected($status === 'replacement')>Замена (замещающая)</option>
                                             </select>
-                                            <select class="form-select form-select-sm cell-repl mt-1" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
+                                            <select class="form-select form-select-sm cell-repl js-teacher-select mt-1"
+                                                    data-day="{{ $d }}"
+                                                    data-selected="{{ $cell['replacement_teacher_id'] ?? '' }}"
+                                                    @disabled(isset($holidayDays[$d]))>
                                                 <option value="">— заменяющий</option>
-                                                @foreach($teachers as $t)
-                                                    <option value="{{ $t->id }}" @selected(($cell['replacement_teacher_id'] ?? null) == $t->id)>{{ $t->teacher_name }}</option>
-                                                @endforeach
                                             </select>
-                                            <select class="form-select form-select-sm cell-repl-subject mt-1" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
+                                            <select class="form-select form-select-sm cell-repl-subject js-subject-select mt-1"
+                                                    data-day="{{ $d }}"
+                                                    data-selected="{{ $cell['replacement_subject_id'] ?? '' }}"
+                                                    @disabled(isset($holidayDays[$d]))>
                                                 <option value="">— замещающий предмет</option>
-                                                @foreach($subjects as $s)
-                                                    <option value="{{ $s->id }}" @selected(($cell['replacement_subject_id'] ?? null) == $s->id)>{{ $s->title }}</option>
-                                                @endforeach
                                             </select>
                                             @if(isset($holidayDays[$d]))
                                                 <div class="text-warning small mt-1">Редактирование отключено — {{ $holidayDays[$d]['name'] }}</div>
@@ -574,17 +574,17 @@
                                                     <option value="replaced" @selected($status === 'replaced')>Замена (замещённая)</option>
                                                     <option value="replacement" @selected($status === 'replacement')>Замена (замещающая)</option>
                                                 </select>
-                                                <select class="form-select form-select-sm cell-repl mt-1" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
+                                                <select class="form-select form-select-sm cell-repl js-teacher-select mt-1"
+                                                        data-day="{{ $d }}"
+                                                        data-selected="{{ $cell['replacement_teacher_id'] ?? '' }}"
+                                                        @disabled(isset($holidayDays[$d]))>
                                                     <option value="">— заменяющий</option>
-                                                    @foreach($teachers as $t)
-                                                        <option value="{{ $t->id }}" @selected(($cell['replacement_teacher_id'] ?? null) == $t->id)>{{ $t->teacher_name }}</option>
-                                                    @endforeach
                                                 </select>
-                                                <select class="form-select form-select-sm cell-repl-subject mt-1" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
+                                                <select class="form-select form-select-sm cell-repl-subject js-subject-select mt-1"
+                                                        data-day="{{ $d }}"
+                                                        data-selected="{{ $cell['replacement_subject_id'] ?? '' }}"
+                                                        @disabled(isset($holidayDays[$d]))>
                                                     <option value="">— замещающий предмет</option>
-                                                    @foreach($subjects as $s)
-                                                        <option value="{{ $s->id }}" @selected(($cell['replacement_subject_id'] ?? null) == $s->id)>{{ $s->title }}</option>
-                                                    @endforeach
                                                 </select>
                                                 @if(isset($holidayDays[$d]))
                                                     <div class="text-warning small mt-1">Редактирование отключено — {{ $holidayDays[$d]['name'] }}</div>
@@ -865,6 +865,9 @@
     const holidayDays = @json($holidayDays ?? []);
     const teachersData = @json(($teachers ?? collect())->map(fn ($t) => ['id' => (int) $t->id, 'name' => (string) ($t->teacher_name ?? '')])->values());
     const subjectsData = @json(($subjects ?? collect())->map(fn ($s) => ['id' => (int) $s->id, 'title' => (string) ($s->title ?? '')])->values());
+    const teacherOptionsHtml = teachersData.map((t) => `<option value="${t.id}">${String(t.name ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')}</option>`).join('');
+    const subjectOptionsHtml = subjectsData.map((s) => `<option value="${s.id}">${String(s.title ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')}</option>`).join('');
+    let dynamicOptionsHydrated = false;
 
     courseSelect?.addEventListener('change', () => {
         const params = new URLSearchParams(window.location.search);
@@ -910,8 +913,43 @@
         reloadBtn?.click();
     });
 
+    const hydrateDynamicManualOptions = () => {
+        if (dynamicOptionsHydrated) {
+            return;
+        }
+
+        document.querySelectorAll('.js-teacher-select').forEach((select) => {
+            if (select.dataset.optionsReady === '1') {
+                return;
+            }
+            const selected = String(select.dataset.selected ?? select.value ?? '');
+            select.insertAdjacentHTML('beforeend', teacherOptionsHtml);
+            if (selected !== '') {
+                select.value = selected;
+            }
+            select.dataset.optionsReady = '1';
+        });
+
+        document.querySelectorAll('.js-subject-select').forEach((select) => {
+            if (select.dataset.optionsReady === '1') {
+                return;
+            }
+            const selected = String(select.dataset.selected ?? select.value ?? '');
+            select.insertAdjacentHTML('beforeend', subjectOptionsHtml);
+            if (selected !== '') {
+                select.value = selected;
+            }
+            select.dataset.optionsReady = '1';
+        });
+
+        dynamicOptionsHydrated = true;
+    };
+
     manualToggle?.addEventListener('change', () => {
         const enabled = manualToggle.checked;
+        if (enabled) {
+            hydrateDynamicManualOptions();
+        }
         document.querySelectorAll('.manual-norm').forEach(el => el.classList.toggle('d-none', !enabled));
         document.querySelectorAll('.manual-edit').forEach(el => el.classList.toggle('d-none', !enabled));
         document.querySelectorAll('.manual-status').forEach(el => el.classList.toggle('d-none', !enabled));

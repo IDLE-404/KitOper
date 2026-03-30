@@ -63,32 +63,13 @@ class AiAgentController extends Controller
         $normalizedMessage = $this->normalizeUserMessage($message);
         $this->rememberConversationContext($normalizedMessage);
 
+        // Только подтверждение ожидающих действий (update/delete) обрабатывается отдельно
         $pendingReply = $this->handlePendingActionFlow($normalizedMessage);
         if ($pendingReply !== null) {
             return $pendingReply;
         }
 
-        $pendingClarificationReply = $this->handlePendingClarificationFlow($normalizedMessage);
-        if ($pendingClarificationReply !== null) {
-            return $pendingClarificationReply;
-        }
-
-        $clarification = $this->buildClarificationQuestion($normalizedMessage);
-        if ($clarification !== null) {
-            return $clarification;
-        }
-
-        $capabilitiesReply = $this->buildCapabilitiesReply($normalizedMessage);
-        if ($capabilitiesReply !== null) {
-            return $capabilitiesReply;
-        }
-
-        $scenarioAction = $this->buildScenarioAction($normalizedMessage, $message);
-        if ($scenarioAction !== null) {
-            return $this->handleActionWithConfirmation($scenarioAction);
-        }
-
-        // Build conversation context
+        // Всё остальное — через LLM
         $context = '';
         foreach (array_slice($history, -6) as $msg) {
             $role     = $msg['role'] === 'user' ? 'Пользователь' : 'Ассистент';
@@ -96,15 +77,12 @@ class AiAgentController extends Controller
         }
 
         $workContext = $this->formatContextForPrompt($this->getConversationContext());
-        $fullPrompt = $systemPrompt . "\n\n";
-        $fullPrompt .= "Текущий рабочий контекст диспетчера: {$workContext}\n";
-        $fullPrompt .= "Словарь проекта: пары=занятия, кабинет=аудитория, дисциплина=предмет, нагрузка=часы.\n\n";
+        $fullPrompt  = $systemPrompt . "\n\n";
+        $fullPrompt .= "Текущий контекст: {$workContext}\n";
         if ($context) {
             $fullPrompt .= "История диалога:\n{$context}\n";
         }
-        $fullPrompt .= "Пользователь: {$message}\n";
-        $fullPrompt .= "Нормализованный вариант запроса: {$normalizedMessage}\n";
-        $fullPrompt .= "Ассистент:";
+        $fullPrompt .= "Пользователь: {$message}\nАссистент:";
 
         $raw = $this->callOllama($fullPrompt);
 
@@ -883,31 +861,52 @@ class AiAgentController extends Controller
         }
 
         $sectionName = $this->tableDisplayName($table);
-        $lines = ["Что найдено: раздел «{$sectionName}», записей {$rows->count()}."];
+        $skipCols    = ['created_at', 'updated_at', 'password', 'remember_token'];
 
-        foreach ($rows as $i => $row) {
-            $parts = [];
-            foreach ((array) $row as $col => $value) {
-                if (in_array($col, ['created_at', 'updated_at', 'password', 'remember_token'], true)) {
+        // Build display rows with human-readable values
+        $displayRows = [];
+        foreach ($rows as $row) {
+            $rowArr  = (array) $row;
+            $cells   = [];
+            foreach ($rowArr as $col => $value) {
+                if (in_array($col, $skipCols, true)) {
                     continue;
                 }
-                $label = $this->columnDisplayName($col);
-                $humanValue = $this->resolveHumanValue($table, (array) $row, (string) $col, $value);
-                $parts[] = "{$label}: {$humanValue}";
+                $cells[$col] = $this->resolveHumanValue($table, $rowArr, (string) $col, $value);
             }
-
-            if (!$parts) {
-                continue;
+            if (!empty($cells)) {
+                $displayRows[] = $cells;
             }
+        }
 
-            $lines[] = ($i + 1) . '. ' . implode('; ', $parts) . '.';
+        if (empty($displayRows)) {
+            return "Данные найдены, но нечего отобразить.";
+        }
+
+        $colKeys     = array_keys($displayRows[0]);
+        $headerCells = array_map(fn($k) => $this->columnDisplayName($k), $colKeys);
+        $separator   = array_fill(0, count($colKeys), '---');
+
+        $count = count($displayRows);
+        $lines = ["**{$sectionName}** — найдено: **{$count}**", ''];
+        $lines[] = '| ' . implode(' | ', $headerCells) . ' |';
+        $lines[] = '| ' . implode(' | ', $separator) . ' |';
+
+        foreach ($displayRows as $row) {
+            $cells   = array_map(
+                fn($k) => str_replace(['|', "\n", "\r"], [' ', ' ', ''], (string) ($row[$k] ?? '—')),
+                $colKeys
+            );
+            $lines[] = '| ' . implode(' | ', $cells) . ' |';
         }
 
         if ($hasMore) {
-            $lines[] = "Показаны первые {$maxRows} записей. Если нужно, уточните запрос для сужения списка.";
+            $lines[] = '';
+            $lines[] = "*Показаны первые {$maxRows} записей. Уточните запрос для сужения.*";
         }
 
-        $lines[] = "Что дальше: могу отфильтровать список точнее по фамилии, группе, курсу или периоду.";
+        $lines[] = '';
+        $lines[] = "Могу отфильтровать точнее или показать другой раздел.";
 
         return implode("\n", $lines);
     }
@@ -923,69 +922,115 @@ class AiAgentController extends Controller
         $holidays = $this->safeTableCount('holidays');
 
         return <<<PROMPT
-Ты — помощник диспетчера учебной части в системе KitOper.
-Пиши только на русском и только понятным человеческим языком.
-Твоя аудитория — сотрудник без технической подготовки.
+Ты — ИИ-ассистент диспетчера учебной части в системе KitOper.
+Отвечай ТОЛЬКО на русском языке. Обращайся по-человечески, без технических терминов.
 
-Главные правила общения:
-1) Не используй технические термины (JSON, SQL, БД, таблица, поле, API и т.д.) в обычном текстовом ответе.
-2) По умолчанию пиши коротко и по делу: 1-4 предложения. Если пользователь просит «развернуто» или «подробно», давай структурированный подробный ответ.
-3) Если запрос неоднозначный, задай один уточняющий вопрос простыми словами.
-4) Когда пользователь просит посмотреть/добавить/изменить/удалить данные, верни ТОЛЬКО ОДИН JSON-объект без пояснений и без markdown.
+═══════════════════════════════════════════
+РЕЖИМ 1 — ДЕЙСТВИЕ С ДАННЫМИ (возвращай ТОЛЬКО JSON)
+═══════════════════════════════════════════
+Используй этот режим, если пользователь ЯВНО командует:
+«покажи», «найди», «выведи», «добавь», «измени», «удали», «сколько», «список», «все записи»
 
-Формат JSON:
-{"action":"select|insert|update|delete","table":"имя_таблицы","where":{},"data":[],"limit":20}
+Формат ответа — строго один JSON-объект, без слов до и после:
+{"action":"select","table":"<имя>","where":{},"data":["col1","col2"],"limit":50}
+{"action":"insert","table":"<имя>","where":{},"data":{"col":"val"},"limit":1}
+{"action":"update","table":"<имя>","where":{"id":N},"data":{"col":"val"},"limit":1}
+{"action":"delete","table":"<имя>","where":{"id":N},"data":{},"limit":1}
 
-Важно для select:
-- В where используй точные значения или LIKE-шаблон с % (например "%Иванов%").
-- В data указывай только нужные колонки.
-- Если лимит не указан пользователем, используй limit 20.
+ВАЖНО: если выбран режим 1 — никакого текста, ТОЛЬКО JSON. Без ```json``` маркеров.
 
-Доступные разделы данных:
-- teachers: id, teacher_name, initials (преподаватели, {$teachers})
-- first_course_group: id, group_name, group_number (1 курс, {$groups1})
-- second_course_group: id, group_name, group_number (2 курс, {$groups2})
-- third_course_group: id, group_name, group_number (3 курс, {$groups3})
-- fourth_course_group: id, group_name, group_number (4 курс, {$groups4})
-- first_course_subjects: id, subject_name
-- second_course_subjects: id, subject_name
-- third_course_subjects: id, subject_name
-- fourth_course_subjects: id, subject_name
-- form_two_normatives: id, group_id, subject_id, teacher_id, month, year, total_hours
-- second_form_two_normatives: id, group_id, subject_id, teacher_id, month, year, total_hours
-- third_form_two_normatives: id, group_id, subject_id, teacher_id, month, year, total_hours
-- fourth_form_two_normatives: id, group_id, subject_id, teacher_id, month, year, total_hours
-- holidays: id, name, start_date, end_date (праздники, {$holidays})
-- rooms: id, code, title, room_type (аудитории, {$rooms})
-- teacher_absences: id, teacher_id, absence_type, start_date, end_date
-- practice_periods: id, group_id, course, type, room_id, start_date, end_date
-- users: id, name, email, role
+═══════════════════════════════════════════
+РЕЖИМ 2 — РАЗГОВОР (возвращай обычный текст)
+═══════════════════════════════════════════
+Используй этот режим для:
+- вопросов («как ты работаешь?», «что умеешь?», «объясни»)
+- гипотетических ситуаций («а если бы», «можешь ли», «как бы ты»)
+- приветствий, благодарностей, разговора
+- запросов без явной команды к данным
 
-Примеры:
-Запрос: "Покажи всех преподавателей"
-Ответ:
-{"action":"select","table":"teachers","where":{},"data":["id","teacher_name","initials"],"limit":50}
+Стиль: коротко (1–4 предложения), дружелюбно, без слов JSON/SQL/таблица/поле/БД.
+Для перечислений используй «- пункт» с новой строки.
 
-Запрос: "Найди Иванова"
-Ответ:
-{"action":"select","table":"teachers","where":{"teacher_name":"%Иванов%"},"data":["id","teacher_name","initials"],"limit":20}
+Форматирование текста:
+- **жирный** — названия разделов, ключевые слова
+- ==текст== — важные числа, имена, даты, итоги (двойные знаки равно)
+- > текст — важная заметка или предупреждение (знак > в начале строки)
+- *курсив* — уточнения, примечания
 
-Запрос: "Переименуй преподавателя с id 5 в Петров Иван Иванович"
-Ответ:
-{"action":"update","table":"teachers","where":{"id":5},"data":{"teacher_name":"Петров Иван Иванович"},"limit":1}
+Примеры использования выделения:
+«Всего ==47 преподавателей== в системе.»
+«Изменение затронет ==3 записи==. Подтвердите действие.»
+«> Внимание: удаление необратимо. Укажите ID для точного удаления.»
+«Нагрузка за ==март 2025==: **Иванов** — ==120 часов==.»
 
-Если это не действие с данными, отвечай обычным простым текстом без JSON.
+═══════════════════════════════════════════
+ДОСТУПНЫЕ ДАННЫЕ (сейчас в системе)
+═══════════════════════════════════════════
+teachers           — Преподаватели ({$teachers} чел.): id, teacher_name, initials
+first_course_group  — Группы 1 курса ({$groups1}): id, group_name, group_number
+second_course_group — Группы 2 курса ({$groups2}): id, group_name, group_number
+third_course_group  — Группы 3 курса ({$groups3}): id, group_name, group_number
+fourth_course_group — Группы 4 курса ({$groups4}): id, group_name, group_number
+first_course_subjects   — Дисциплины 1 курса: id, subject_name
+second_course_subjects  — Дисциплины 2 курса: id, subject_name
+third_course_subjects   — Дисциплины 3 курса: id, subject_name
+fourth_course_subjects  — Дисциплины 4 курса: id, subject_name
+form_two_normatives          — Нагрузка 1 курса: id, group_id, subject_id, teacher_id, month, year, total_hours
+second_form_two_normatives   — Нагрузка 2 курса: (те же поля)
+third_form_two_normatives    — Нагрузка 3 курса: (те же поля)
+fourth_form_two_normatives   — Нагрузка 4 курса: (те же поля)
+holidays         — Праздники ({$holidays}): id, name, start_date, end_date
+rooms            — Аудитории ({$rooms}): id, code, title, room_type
+teacher_absences — Отсутствия: id, teacher_id, absence_type, start_date, end_date
+practice_periods — Практика: id, group_id, course, type, room_id, start_date, end_date
+users            — Пользователи: id, name, email, role
+
+═══════════════════════════════════════════
+ПРИМЕРЫ
+═══════════════════════════════════════════
+Вопрос: «Покажи всех преподавателей»
+Ответ: {"action":"select","table":"teachers","where":{},"data":["id","teacher_name","initials"],"limit":50}
+
+Вопрос: «Найди Иванова»
+Ответ: {"action":"select","table":"teachers","where":{"teacher_name":"%Иванов%"},"data":["id","teacher_name","initials"],"limit":20}
+
+Вопрос: «Покажи группы 3 курса»
+Ответ: {"action":"select","table":"third_course_group","where":{},"data":["id","group_name","group_number"],"limit":50}
+
+Вопрос: «Покажи дисциплины 2 курса»
+Ответ: {"action":"select","table":"second_course_subjects","where":{},"data":["id","subject_name"],"limit":50}
+
+Вопрос: «Сколько преподавателей?»
+Ответ: {"action":"select","table":"teachers","where":{},"data":["id","teacher_name"],"limit":500}
+
+Вопрос: «Переименуй преподавателя с id 5 в Петров Иван Иванович»
+Ответ: {"action":"update","table":"teachers","where":{"id":5},"data":{"teacher_name":"Петров Иван Иванович"},"limit":1}
+
+Вопрос: «Удали преподавателя с id 12»
+Ответ: {"action":"delete","table":"teachers","where":{"id":12},"data":{},"limit":1}
+
+Вопрос: «Как бы ты переименовал преподавателя?»
+Ответ: Чтобы переименовать преподавателя, скажите его ID и новое имя. Например: «Переименуй преподавателя с id 5 в Иванов Иван Иванович». Я покажу план и попрошу подтверждение.
+
+Вопрос: «Привет! Чем ты можешь помочь?»
+Ответ: Привет! Я помогаю работать с данными учебной части: показываю списки преподавателей, групп, дисциплин, аудиторий, ищу нужные записи и могу изменять данные по команде. Спрашивайте!
+
+Вопрос: «Какие аудитории есть?»
+Ответ: {"action":"select","table":"rooms","where":{},"data":["id","code","title","room_type"],"limit":50}
 PROMPT;
     }
 
     private function sanitizeAssistantText(string $text): string
     {
-        $text = preg_replace('/```(?:json)?/iu', '', $text);
+        // Убираем только маркеры ```json и ``` без контента внутри (артефакты модели)
+        $text = preg_replace('/^```json\s*$/mu', '', $text);
+        $text = preg_replace('/^```\s*$/mu', '', $text);
+        // Убираем префикс "Ассистент:" если модель его добавила
         $text = preg_replace('/^\s*Ассистент:\s*/u', '', (string) $text);
         $text = trim((string) $text);
 
         if ($text === '') {
-            return 'Уточните, пожалуйста, что именно нужно сделать.';
+            return 'Не могу ответить на этот вопрос. Попробуйте переформулировать.';
         }
 
         return $text;
@@ -1666,6 +1711,11 @@ PROMPT;
                 'model'  => $model,
                 'prompt' => $prompt,
                 'stream' => false,
+                'options' => [
+                    'temperature' => 0.2,   // низкая = точнее JSON и инструкции
+                    'top_p'       => 0.9,
+                    'repeat_penalty' => 1.1, // убирает зацикливание текста
+                ],
             ]),
             CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
             CURLOPT_RETURNTRANSFER => true,

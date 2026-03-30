@@ -1,0 +1,377 @@
+/* ─── AI Chat Widget ───────────────────────────────────────────────────── */
+:root {
+    --aw-primary: #4f7cff;
+    --aw-accent:  #7a6bff;
+    --aw-text:    #0f172a;
+    --aw-muted:   #6b7280;
+    --aw-border:  #e5e7eb;
+    --aw-bg:      #f8f9fc;
+    --aw-panel:   #ffffff;
+    --aw-shadow:  0 12px 48px rgba(43, 63, 116, 0.18);
+}
+
+/* ─── Floating button ─────────────────────────────────────────────────── */
+.aw-btn {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--aw-primary), var(--aw-accent));
+    color: #fff;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1035;
+    box-shadow: 0 4px 20px rgba(79, 124, 255, 0.45);
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s;
+    border: none;
+    outline: none;
+}
+
+.aw-btn:hover {
+    transform: scale(1.08) translateY(-2px);
+    box-shadow: 0 8px 28px rgba(79, 124, 255, 0.55);
+}
+
+.aw-btn.open {
+    transform: rotate(20deg) scale(0.9);
+    box-shadow: 0 4px 16px rgba(79, 124, 255, 0.35);
+}
+
+/* ─── Panel ───────────────────────────────────────────────────────────── */
+.aw-panel {
+    position: fixed;
+    bottom: 96px;
+    right: 28px;
+    width: 370px;
+    height: 510px;
+    background: var(--aw-panel);
+    border-radius: 20px;
+    box-shadow: var(--aw-shadow);
+    border: 1px solid var(--aw-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1034;
+    transform: scale(0.9) translateY(24px);
+    transform-origin: bottom right;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.26s;
+}
+
+.aw-panel.open {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────── */
+.aw-header {
+    padding: 14px 16px;
+    background: linear-gradient(135deg, var(--aw-primary), var(--aw-accent));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.aw-hd-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.aw-hd-icon {
+    width: 36px;
+    height: 36px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.aw-hd-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    font-family: "Unbounded", sans-serif;
+    line-height: 1.2;
+}
+
+.aw-hd-hint {
+    font-size: 11px;
+    color: rgba(255,255,255,0.65);
+    margin-top: 2px;
+}
+
+.aw-hd-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.aw-hd-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: none;
+    background: rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.9);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: background 0.15s;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.aw-hd-btn:hover {
+    background: rgba(255,255,255,0.28);
+    color: #fff;
+}
+
+/* ─── Messages ────────────────────────────────────────────────────────── */
+.aw-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: var(--aw-bg);
+    scroll-behavior: smooth;
+}
+
+.aw-messages::-webkit-scrollbar { width: 4px; }
+.aw-messages::-webkit-scrollbar-thumb { background: var(--aw-border); border-radius: 4px; }
+
+/* Empty state */
+.aw-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 20px;
+    text-align: center;
+}
+
+.aw-empty-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--aw-primary), var(--aw-accent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(79, 124, 255, 0.3);
+}
+
+.aw-empty p {
+    font-size: 13px;
+    margin: 0;
+    color: var(--aw-muted);
+    font-weight: 500;
+}
+
+/* Message row */
+.aw-msg {
+    display: flex;
+    gap: 8px;
+    padding: 3px 0;
+    animation: aw-in 0.2s ease both;
+}
+
+@keyframes aw-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.aw-msg.user { flex-direction: row-reverse; }
+
+.aw-msg-av {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 3px;
+    background: linear-gradient(135deg, var(--aw-primary), var(--aw-accent));
+    color: #fff;
+}
+
+.aw-msg-bubble {
+    max-width: 80%;
+    padding: 9px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    word-break: break-word;
+}
+
+.aw-msg.user .aw-msg-bubble {
+    background: linear-gradient(135deg, var(--aw-primary), var(--aw-accent));
+    color: #fff;
+    border-radius: 12px 12px 4px 12px;
+}
+
+.aw-msg.assistant .aw-msg-bubble {
+    background: var(--aw-panel);
+    color: var(--aw-text);
+    border: 1px solid var(--aw-border);
+    border-radius: 4px 12px 12px 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* Markdown inside bubbles */
+.aw-msg-bubble strong { font-weight: 700; }
+.aw-msg-bubble em { font-style: italic; }
+
+.aw-msg-bubble code {
+    background: rgba(0,0,0,0.07);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: "Cascadia Code", monospace;
+}
+
+.aw-msg.user .aw-msg-bubble code { background: rgba(255,255,255,0.2); }
+
+.aw-msg-bubble mark.ai-hl {
+    background: rgba(255,214,0,0.3);
+    border-radius: 3px;
+    padding: 1px 3px;
+    color: inherit;
+    font-weight: 600;
+}
+
+.aw-msg.user .aw-msg-bubble mark.ai-hl { background: rgba(255,255,255,0.25); }
+
+.aw-msg-bubble blockquote.ai-quote {
+    margin: 6px 0;
+    padding: 6px 10px;
+    border-left: 3px solid rgba(79, 124, 255, 0.5);
+    background: rgba(79, 124, 255, 0.06);
+    border-radius: 0 6px 6px 0;
+    font-size: 12.5px;
+}
+
+.aw-msg-bubble ul,
+.aw-msg-bubble ol {
+    margin: 4px 0 4px 16px;
+    padding: 0;
+}
+
+.aw-msg-bubble li { margin: 2px 0; }
+
+/* Typing indicator */
+.aw-typing {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 4px 2px;
+}
+
+.aw-typing span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--aw-muted);
+    animation: aw-bounce 0.9s infinite;
+}
+.aw-typing span:nth-child(2) { animation-delay: 0.15s; }
+.aw-typing span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes aw-bounce {
+    0%,60%,100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-5px); opacity: 1; }
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────── */
+.aw-footer {
+    padding: 10px 12px 14px;
+    background: var(--aw-panel);
+    border-top: 1px solid var(--aw-border);
+    flex-shrink: 0;
+}
+
+.aw-input-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    background: var(--aw-bg);
+    border-radius: 12px;
+    padding: 8px 8px 8px 12px;
+    border: 1.5px solid var(--aw-border);
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.aw-input-row:focus-within {
+    border-color: var(--aw-primary);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(79, 124, 255, 0.08);
+}
+
+.aw-ta {
+    flex: 1;
+    border: none;
+    background: transparent;
+    outline: none;
+    resize: none;
+    font-size: 13.5px;
+    line-height: 1.5;
+    font-family: inherit;
+    color: var(--aw-text);
+    min-height: 22px;
+    max-height: 90px;
+    overflow-y: auto;
+}
+
+.aw-ta::placeholder { color: #adb5bd; }
+
+.aw-send-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--aw-primary), var(--aw-accent));
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(79, 124, 255, 0.35);
+    outline: none;
+}
+
+.aw-send-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(79, 124, 255, 0.5);
+}
+
+.aw-send-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}

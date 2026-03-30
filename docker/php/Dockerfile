@@ -11,10 +11,15 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www
 
 
-RUN chown -R www-data:www-data /var/www \
-    && chmod -R 775 /var/www/storage /var/www/bootstrap/cache
+RUN mkdir -p /var/www/storage /var/www/bootstrap/cache
 
 # PHP-FPM должен слушать на всех интерфейсах, чтобы nginx из другого контейнера мог подключиться
 RUN sed -i 's/listen = 127.0.0.1:9000/listen = 0.0.0.0:9000/' /usr/local/etc/php-fpm.d/www.conf
 
+COPY docker/php/php.ini /usr/local/etc/php/conf.d/app.ini
+
+COPY docker/php/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["php-fpm"]

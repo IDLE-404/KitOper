@@ -4,10 +4,9 @@
     <link rel="stylesheet" href="{{ asset('css/ai-agent.css') }}?v={{ filemtime(public_path('css/ai-agent.css')) }}">
     <style>
         /* Убираем отступы layout-а для чат-страницы */
-        .ko-main { padding: 0 !important; }
-        .ko-main-inner { padding: 0 !important; height: 100%; }
-        .ko-content { overflow: hidden; }
-        .ko-main { height: calc(100vh - 48px); overflow: hidden; }
+        .ko-main { padding: 0 !important; height: calc(100vh - 48px); overflow: hidden; }
+        .ko-main-inner { padding: 0 !important; height: 100%; display: flex; flex-direction: column; }
+        .ko-content { overflow: hidden; flex: 1; min-height: 0; }
     </style>
 @endpush
 
@@ -21,95 +20,99 @@
 
 <div class="ai-page">
 
-    {{-- ─── Top bar ──────────────────────────────────────────────── --}}
-    <div class="ai-topbar">
-        <div class="ai-topbar-title">
-            <div class="ai-topbar-icon"><i class="bi bi-stars"></i></div>
-            ИИ-Агент
+    {{-- ─── Sidebar ────────────────────────────────────────────────── --}}
+    <div class="ai-sidebar" id="ai-sidebar">
+        <div class="ai-sidebar-header">
+            <span class="ai-sidebar-title">История</span>
+            <button class="ai-new-chat-btn" id="ai-new-chat-btn">
+                <i class="bi bi-plus-lg"></i> Новый чат
+            </button>
         </div>
-
-        <div class="ai-topbar-right">
-            <div class="ai-status-dot {{ $ollamaStatus ? 'online' : 'offline' }}" id="ai-status-dot">
-                <span class="dot"></span>
-                <span id="ai-status-text">{{ $ollamaStatus ? 'Ollama работает' : 'Ollama недоступна' }}</span>
-            </div>
-
-            @if($ollamaModels)
-            <select class="ai-model-select" id="ai-model-select">
-                @foreach($ollamaModels as $model)
-                    <option value="{{ $model }}">{{ $model }}</option>
-                @endforeach
-            </select>
-            @else
-            <select class="ai-model-select" id="ai-model-select">
-                <option value="llama3.2:3b">llama3.2:3b</option>
-            </select>
-            @endif
-        </div>
+        <div class="ai-sidebar-list" id="ai-sidebar-list"></div>
     </div>
 
-    {{-- ─── Chat ────────────────────────────────────────────────── --}}
-    <div class="ai-chat" id="ai-chat">
-        <div class="ai-empty-state" id="ai-empty">
-            <div class="ai-empty-logo"><i class="bi bi-stars"></i></div>
-            <div class="ai-empty-container">
-                <p class="ai-empty-title">Чем могу помочь?</p>
-                <p class="ai-empty-sub">Я умею работать с базой данных: выводить списки, добавлять, изменять и удалять записи.</p>
-            </div>
-        </div>
-    </div>
+    {{-- ─── Main ───────────────────────────────────────────────────── --}}
+    <div class="ai-main">
 
-    {{-- ─── Input ───────────────────────────────────────────────── --}}
-    <div class="ai-input-area">
-        <div class="ai-input-wrap">
-            <textarea
-                id="ai-textarea"
-                class="ai-textarea"
-                placeholder="Напишите запрос... (Enter — отправить, Shift+Enter — новая строка)"
-                rows="1"
-            ></textarea>
-            <div class="ai-input-footer">
-                {{-- + кнопка с меню --}}
-                <div class="ai-attach-wrap" id="ai-attach-wrap">
-                    <button class="ai-attach-btn" id="ai-attach-btn" title="Прикрепить">
-                        <i class="bi bi-plus-lg"></i>
-                    </button>
-                    <div class="ai-attach-menu" id="ai-attach-menu">
-                        <button class="ai-attach-item" id="ai-import-toggle">
-                            <i class="bi bi-file-earmark-spreadsheet"></i>
-                            <span>Загрузить Excel</span>
-                        </button>
-                        <button class="ai-attach-item" id="ai-import-word-toggle">
-                            <i class="bi bi-file-earmark-word"></i>
-                            <span>Загрузить Word</span>
-                        </button>
-                        <div class="ai-attach-divider"></div>
-                        <button class="ai-attach-item" onclick="document.getElementById('ai-textarea').value='Покажи всех преподавателей';document.getElementById('ai-attach-menu').classList.remove('open')">
-                            <i class="bi bi-mortarboard"></i>
-                            <span>Список преподавателей</span>
-                        </button>
-                        <button class="ai-attach-item" onclick="document.getElementById('ai-textarea').value='Список всех групп';document.getElementById('ai-attach-menu').classList.remove('open')">
-                            <i class="bi bi-people"></i>
-                            <span>Список групп</span>
-                        </button>
-                    </div>
+        {{-- ─── Top bar ──────────────────────────────────────────────── --}}
+        <div class="ai-topbar">
+            <div class="ai-topbar-left">
+                <button class="ai-sidebar-toggle" id="ai-sidebar-toggle" title="История чатов">
+                    <i class="bi bi-layout-sidebar"></i>
+                </button>
+                <div class="ai-topbar-title">
+                    <div class="ai-topbar-icon"><i class="bi bi-stars"></i></div>
+                    ИИ-Агент
+                </div>
+            </div>
+
+            <div class="ai-topbar-right">
+                <div class="ai-status-dot {{ $ollamaStatus ? 'online' : 'offline' }}" id="ai-status-dot">
+                    <span class="dot"></span>
+                    <span id="ai-status-text">{{ $ollamaStatus ? 'Ollama работает' : 'Ollama недоступна' }}</span>
                 </div>
 
-                <button class="ai-send-btn" id="ai-send-btn" title="Отправить">
-                    <i class="bi bi-arrow-up"></i>
-                </button>
-            </div>
-            <div class="ai-suggestions ai-suggestions-bottom">
-                <button class="ai-suggestion">Покажи всех преподавателей</button>
-                <button class="ai-suggestion">Список групп 2 курса</button>
-                <button class="ai-suggestion">Покажи все аудитории</button>
-                <button class="ai-suggestion">Список праздников</button>
-                <button class="ai-suggestion">Сколько всего преподавателей?</button>
-                <button class="ai-suggestion">Покажи дисциплины 1 курса</button>
+                @if($ollamaModels)
+                <select class="ai-model-select" id="ai-model-select">
+                    @foreach($ollamaModels as $model)
+                        <option value="{{ $model }}">{{ $model }}</option>
+                    @endforeach
+                </select>
+                @else
+                <select class="ai-model-select" id="ai-model-select">
+                    <option value="qwen2.5:3b">qwen2.5:3b</option>
+                </select>
+                @endif
             </div>
         </div>
-    </div>
 
+        {{-- ─── Chat ───────────────────────────────────────────────── --}}
+        <div class="ai-chat" id="ai-chat">
+            <div class="ai-empty-state" id="ai-empty">
+                <div class="ai-empty-logo"><i class="bi bi-stars"></i></div>
+                <p class="ai-empty-title">Чем могу помочь?</p>
+            </div>
+        </div>
+
+        {{-- ─── Input ──────────────────────────────────────────────── --}}
+        <div class="ai-input-area">
+            <div class="ai-input-wrap">
+                <textarea
+                    id="ai-textarea"
+                    class="ai-textarea"
+                    placeholder="Напишите запрос..."
+                    rows="1"
+                ></textarea>
+                <div class="ai-input-footer">
+                    <div class="ai-footer-left">
+                        <div class="ai-attach-wrap" id="ai-attach-wrap">
+                            <button class="ai-attach-btn" id="ai-attach-btn" title="Загрузить файл">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                            <div class="ai-attach-menu" id="ai-attach-menu">
+                                <button class="ai-attach-item" id="ai-import-toggle">
+                                    <i class="bi bi-file-earmark-spreadsheet"></i>
+                                    <span>Загрузить Excel</span>
+                                </button>
+                                <button class="ai-attach-item" id="ai-import-word-toggle">
+                                    <i class="bi bi-file-earmark-word"></i>
+                                    <span>Загрузить Word</span>
+                                </button>
+                            </div>
+                        </div>
+                        <button class="ai-icon-btn ai-clear-icon-btn" id="ai-clear-btn" title="Очистить чат">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    </div>
+
+                    <button class="ai-send-btn" id="ai-send-btn" title="Отправить">
+                        <i class="bi bi-arrow-up"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
 </div>
 
 {{-- ─── Import modal ─────────────────────────────────────────── --}}

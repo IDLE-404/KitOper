@@ -7,11 +7,15 @@
     const uploadUrl = document.getElementById('ai-upload-url')?.value ?? '';
     const importUrl = document.getElementById('ai-import-url')?.value ?? '';
     const statusUrl = document.getElementById('ai-status-url')?.value ?? '';
+    const HISTORY_KEY = 'ai_agent_chat_history_v1';
+    const CHAT_START_SOURCE_KEY = 'ai_agent_chat_start_source_v1';
+    const HISTORY_LIMIT = 100;
 
-    let history     = [];   // [{role, content}]
+    let history     = [];   // [{role, content, ts}]
     let isTyping    = false;
     let selectedFile = null;
     let previewData  = [];
+    let chatStartSource = null; // suggestion | manual | null
 
     // ─── DOM ─────────────────────────────────────────────────────────────
     const chatEl       = document.getElementById('ai-chat');
@@ -32,8 +36,14 @@
     const previewWrap  = document.getElementById('ai-preview-wrap');
     const previewTbody = document.getElementById('ai-preview-tbody');
     const monthChips   = document.querySelectorAll('.ai-month-chip');
+    const suggestionsWrap = document.querySelector('.ai-suggestions-bottom');
+    const suggestionButtons = Array.from(document.querySelectorAll('.ai-suggestion'));
+    const suggestionTexts = suggestionButtons.map(btn => btn.textContent.trim());
 
     // ─── Init ─────────────────────────────────────────────────────────────
+    restoreHistory();
+    restoreChatStartSource();
+    updateSuggestionsVisibility();
     checkStatus();
     setInterval(checkStatus, 15000);
     autoResize();
@@ -44,11 +54,11 @@
     textarea.addEventListener('keydown', e => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            sendMessage();
+            sendMessage('manual');
         }
     });
 
-    sendBtn.addEventListener('click', sendMessage);
+    sendBtn.addEventListener('click', () => sendMessage('manual'));
 
     function autoResize() {
         textarea.style.height = 'auto';
@@ -56,23 +66,29 @@
     }
 
     // ─── Suggestions ─────────────────────────────────────────────────────
-    document.querySelectorAll('.ai-suggestion').forEach(btn => {
+    suggestionButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             textarea.value = btn.textContent.trim();
             autoResize();
-            sendMessage();
+            sendMessage('suggestion');
         });
     });
 
     // ─── Send message ─────────────────────────────────────────────────────
-    function sendMessage() {
+    function sendMessage(source = 'manual') {
         const text = textarea.value.trim();
         if (!text || isTyping) return;
+
+        if (!hasUserMessages()) {
+            setChatStartSource(source === 'suggestion' ? 'suggestion' : 'manual');
+            updateSuggestionsVisibility();
+        }
 
         addMessage('user', text);
         textarea.value = '';
         autoResize();
-        history.push({ role: 'user', content: text });
+        history.push({ role: 'user', content: text, ts: Date.now() });
+        persistHistory();
 
         const typingEl = addTyping();
         isTyping = true;
@@ -80,14 +96,40 @@
 
         fetch(chatUrl, {
             method:  'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': CSRF,
+            },
             body:    JSON.stringify({
                 message: text,
-                history: history.slice(-10),
+                history: history.slice(-10).map(({ role, content }) => ({ role, content })),
                 model:   modelSelect?.value,
             }),
         })
-            .then(r => r.json())
+            .then(async r => {
+                const raw = await r.text();
+                let data = null;
+
+                try {
+                    data = raw ? JSON.parse(raw) : null;
+                } catch (_) {
+                    data = null;
+                }
+
+                if (!r.ok) {
+                    const fallback = r.status === 419
+                        ? 'Сессия истекла. Обновите страницу и повторите запрос.'
+                        : `Ошибка сервера (${r.status}). Попробуйте еще раз.`;
+                    throw new Error(data?.error || fallback);
+                }
+
+                if (!data || typeof data !== 'object') {
+                    throw new Error('Сервер вернул некорректный ответ. Обновите страницу и повторите запрос.');
+                }
+
+                return data;
+            })
             .then(data => {
                 typingEl.remove();
                 isTyping = false;
@@ -96,21 +138,28 @@
                 if (data.success) {
                     const reply = data.reply;
                     addMessage('assistant', reply);
-                    history.push({ role: 'assistant', content: reply });
+                    history.push({ role: 'assistant', content: reply, ts: Date.now() });
+                    persistHistory();
                 } else {
-                    addMessage('assistant', '⚠ ' + (data.error ?? 'Ошибка сервера'));
+                    const errorText = '⚠ ' + (data.error ?? 'Ошибка сервера');
+                    addMessage('assistant', errorText);
+                    history.push({ role: 'assistant', content: errorText, ts: Date.now() });
+                    persistHistory();
                 }
             })
             .catch(err => {
                 typingEl.remove();
                 isTyping = false;
                 sendBtn.disabled = false;
-                addMessage('assistant', '⚠ Ошибка соединения: ' + err.message);
+                const errorText = '⚠ Ошибка соединения: ' + err.message;
+                addMessage('assistant', errorText);
+                history.push({ role: 'assistant', content: errorText, ts: Date.now() });
+                persistHistory();
             });
     }
 
     // ─── Render messages ──────────────────────────────────────────────────
-    function addMessage(role, content) {
+    function addMessage(role, content, ts = Date.now()) {
         if (emptyState) emptyState.style.display = 'none';
 
         const row = document.createElement('div');
@@ -120,7 +169,7 @@
             ? `<div class="ai-avatar">Д</div>`
             : `<div class="ai-avatar"><i class="bi bi-stars"></i></div>`;
 
-        const time = new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+        const time = formatTime(ts);
 
         row.innerHTML = `
             ${avatarHtml}
@@ -180,6 +229,91 @@
         return String(s ?? '')
             .replace(/&/g, '&amp;').replace(/</g, '&lt;')
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function formatTime(ts) {
+        const d = new Date(ts ?? Date.now());
+        const safeDate = Number.isNaN(d.getTime()) ? new Date() : d;
+        return safeDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function persistHistory() {
+        try {
+            const toSave = history.slice(-HISTORY_LIMIT);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(toSave));
+        } catch (_) {}
+    }
+
+    function restoreHistory() {
+        try {
+            const raw = localStorage.getItem(HISTORY_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return;
+
+            history = parsed
+                .filter(item =>
+                    item &&
+                    (item.role === 'user' || item.role === 'assistant') &&
+                    typeof item.content === 'string' &&
+                    item.content.trim() !== ''
+                )
+                .slice(-HISTORY_LIMIT)
+                .map(item => ({
+                    role: item.role,
+                    content: item.content,
+                    ts: item.ts ?? Date.now(),
+                }));
+
+            history.forEach(item => addMessage(item.role, item.content, item.ts));
+        } catch (_) {
+            history = [];
+        }
+    }
+
+    function hasUserMessages() {
+        return history.some(item => item?.role === 'user');
+    }
+
+    function inferChatStartSourceFromHistory() {
+        const firstUser = history.find(item => item?.role === 'user' && typeof item?.content === 'string');
+        if (!firstUser) return null;
+        return suggestionTexts.includes(firstUser.content.trim()) ? 'suggestion' : 'manual';
+    }
+
+    function setChatStartSource(source) {
+        if (chatStartSource) return;
+        chatStartSource = source === 'suggestion' ? 'suggestion' : 'manual';
+
+        try {
+            localStorage.setItem(CHAT_START_SOURCE_KEY, chatStartSource);
+        } catch (_) {}
+    }
+
+    function restoreChatStartSource() {
+        try {
+            const saved = localStorage.getItem(CHAT_START_SOURCE_KEY);
+            if (saved === 'suggestion' || saved === 'manual') {
+                chatStartSource = saved;
+                return;
+            }
+        } catch (_) {}
+
+        const inferred = inferChatStartSourceFromHistory();
+        if (!inferred) return;
+        chatStartSource = inferred;
+
+        try {
+            localStorage.setItem(CHAT_START_SOURCE_KEY, inferred);
+        } catch (_) {}
+    }
+
+    function updateSuggestionsVisibility() {
+        if (!suggestionsWrap) return;
+
+        const started = hasUserMessages();
+        const showSuggestions = !started || chatStartSource === 'suggestion';
+        suggestionsWrap.style.display = showSuggestions ? 'flex' : 'none';
     }
 
     // ─── Ollama status ────────────────────────────────────────────────────
@@ -326,7 +460,8 @@
                     : '⚠ Ошибка импорта: ' + data.error;
 
                 addMessage('assistant', msg);
-                history.push({ role: 'assistant', content: msg });
+                history.push({ role: 'assistant', content: msg, ts: Date.now() });
+                persistHistory();
             })
             .catch(err => {
                 importBtn.disabled = false;

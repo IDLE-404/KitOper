@@ -52,17 +52,9 @@
     <div class="ai-chat" id="ai-chat">
         <div class="ai-empty-state" id="ai-empty">
             <div class="ai-empty-logo"><i class="bi bi-stars"></i></div>
-            <div>
+            <div class="ai-empty-container">
                 <p class="ai-empty-title">Чем могу помочь?</p>
                 <p class="ai-empty-sub">Я умею работать с базой данных: выводить списки, добавлять, изменять и удалять записи.</p>
-            </div>
-            <div class="ai-suggestions">
-                <button class="ai-suggestion">Покажи всех преподавателей</button>
-                <button class="ai-suggestion">Список групп 2 курса</button>
-                <button class="ai-suggestion">Покажи все аудитории</button>
-                <button class="ai-suggestion">Список праздников</button>
-                <button class="ai-suggestion">Сколько всего преподавателей?</button>
-                <button class="ai-suggestion">Покажи дисциплины 1 курса</button>
             </div>
         </div>
     </div>
@@ -103,10 +95,17 @@
                     </div>
                 </div>
 
-                <span class="ai-input-hint">Enter — отправить &nbsp;·&nbsp; Shift+Enter — новая строка</span>
                 <button class="ai-send-btn" id="ai-send-btn" title="Отправить">
                     <i class="bi bi-arrow-up"></i>
                 </button>
+            </div>
+            <div class="ai-suggestions ai-suggestions-bottom">
+                <button class="ai-suggestion">Покажи всех преподавателей</button>
+                <button class="ai-suggestion">Список групп 2 курса</button>
+                <button class="ai-suggestion">Покажи все аудитории</button>
+                <button class="ai-suggestion">Список праздников</button>
+                <button class="ai-suggestion">Сколько всего преподавателей?</button>
+                <button class="ai-suggestion">Покажи дисциплины 1 курса</button>
             </div>
         </div>
     </div>

@@ -16,6 +16,7 @@ use App\Http\Controllers\TeacherAbsenceController;
 use App\Http\Controllers\FormTwoTemplateController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\AiAgentController;
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -68,6 +69,13 @@ Route::middleware(['auth', 'audit'])->group(function () {
         Route::delete('/teacher-absences/{id}', [TeacherAbsenceController::class, 'destroy'])->name('teacher_absences.destroy');
 
         Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit_logs.index');
+
+        Route::get('/ai-agent', [AiAgentController::class, 'index'])->name('ai_agent.index');
+        Route::post('/ai-agent/chat', [AiAgentController::class, 'chat'])->name('ai_agent.chat');
+        Route::post('/ai-agent/upload', [AiAgentController::class, 'upload'])->name('ai_agent.upload');
+        Route::post('/ai-agent/import', [AiAgentController::class, 'importData'])->name('ai_agent.import');
+        Route::get('/ai-agent/ollama-status', [AiAgentController::class, 'ollamaStatus'])->name('ai_agent.ollama_status');
+        Route::post('/ai-agent/pull-model', [AiAgentController::class, 'pullModel'])->name('ai_agent.pull_model');
 
         Route::prefix('first-course')->group(function () {
             Route::get('/schedule/week', [FirstCourseSchedulePageController::class, 'week'])->name('first.schedule.week');

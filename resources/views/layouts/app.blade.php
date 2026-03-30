@@ -86,6 +86,10 @@
                             <i class="bi bi-clipboard-data"></i>
                             <span>Журнал изменений</span>
                         </a>
+                        <a class="ko-nav-item {{ request()->routeIs('ai_agent.*') ? 'is-active' : '' }}" href="{{ route('ai_agent.index') }}">
+                            <i class="bi bi-robot"></i>
+                            <span>ИИ-Агент</span>
+                        </a>
                     @elseif($currentUser?->isTeacher())
                         <a class="ko-nav-item {{ request()->routeIs('teacher.today') ? 'is-active' : '' }}" href="{{ route('teacher.today') }}">
                             <i class="bi bi-calendar3"></i>

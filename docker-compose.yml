@@ -47,11 +47,24 @@ services:
       DB_DATABASE: KitOper
       DB_USERNAME: laravel
       DB_PASSWORD: laravel
+      OLLAMA_HOST: http://ollama:11434
     depends_on:
       - db
+      - ollama
     networks:
       - kitOper
 
+
+  ollama:
+    image: ollama/ollama
+    container_name: it-ollama
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - kitOper
 
   webserver:
     image: nginx:1.25-alpine
@@ -69,6 +82,7 @@ services:
 
 volumes:
   db-data:
+  ollama-data:
 
 networks:
   kitOper:

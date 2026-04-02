@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @push('styles')
-<link rel="stylesheet" href="{{ asset('css/schedule-modern.css') }}">
+<link rel="stylesheet" href="{{ asset('css/schedule/main.css') }}">
 <style>
     .dup-shell {
         max-width: 980px;

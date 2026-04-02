@@ -1474,6 +1474,338 @@ class FirstCourseSchedulePageController extends Controller
     }
 
     /**
+     * Анализ расписания: окна, перегрузки, равномерность, нагрузка преподавателей.
+     */
+    public function scheduleHealth(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'week_start' => 'required|date',
+            'course'     => 'nullable|integer|min:1|max:4',
+        ]);
+
+        $weekStart = Carbon::parse($request->week_start)->startOfWeek(Carbon::MONDAY);
+        $course    = CourseContext::normalize($request->integer('course') ?? 1);
+        $tables    = CourseContext::tables($course);
+
+        $dayOffsets = [
+            'Понедельник' => 0,
+            'Вторник'     => 1,
+            'Среда'       => 2,
+            'Четверг'     => 3,
+            'Пятница'     => 4,
+            'Суббота'     => 5,
+        ];
+
+        // Праздники на этой неделе
+        $holidayService = app(KazakhstanHolidayService::class);
+        $holidayDays    = [];
+        foreach ($dayOffsets as $dayName => $offset) {
+            $date        = $weekStart->copy()->addDays($offset);
+            $monthHols   = $holidayService->getMonthHolidays($date->year, $date->month);
+            if (isset($monthHols[$date->day])) {
+                $holidayDays[$dayName] = $monthHols[$date->day]['name'];
+            }
+        }
+
+        $rows     = DB::table($tables['schedules'])
+            ->whereDate('week_start', $weekStart->toDateString())
+            ->get(['group_id', 'study_day', 'lesson_number',
+                   'subject_id', 'teacher_id', 'room_id',
+                   'subject_id_2', 'teacher_id_2',
+                   'subject_id_denominator', 'teacher_id_denominator',
+                   'subject_id_denominator_2', 'teacher_id_denominator_2']);
+
+        $groups   = DB::table($tables['groups'])->pluck('group_name', 'id');
+        $teachers = DB::table($tables['teachers'])->pluck('teacher_name', 'id');
+
+        $warnings = [];
+
+        // ─── 1. Окна + 2. Лимит пар + 3. Равномерность ────────────────
+        $groupDayLessons = [];
+        foreach ($rows as $row) {
+            if (!$row->subject_id && !$row->subject_id_2 && !$row->subject_id_denominator) {
+                continue;
+            }
+            $groupDayLessons[$row->group_id][$row->study_day][] = (int) $row->lesson_number;
+        }
+
+        foreach ($groupDayLessons as $gid => $dayMap) {
+            $groupName  = $groups[$gid] ?? "Группа $gid";
+            $pairsPerDay = [];
+
+            foreach ($dayMap as $day => $lessons) {
+                if (isset($holidayDays[$day])) {
+                    continue;
+                }
+                $lessons = array_values(array_unique($lessons));
+                sort($lessons);
+                $count = count($lessons);
+                $pairsPerDay[$day] = $count;
+
+                // Окна
+                if ($count > 1) {
+                    $missing = array_values(array_diff(range(min($lessons), max($lessons)), $lessons));
+                    if (!empty($missing)) {
+                        $warnings[] = [
+                            'type'     => 'window',
+                            'severity' => 'warning',
+                            'message'  => "Окно у группы «{$groupName}» ({$day}): пропущены пары " . implode(', ', $missing),
+                        ];
+                    }
+                }
+
+                // Лимит пар
+                if ($count > 4) {
+                    $warnings[] = [
+                        'type'     => 'overload',
+                        'severity' => 'danger',
+                        'message'  => "Перегрузка у группы «{$groupName}» ({$day}): {$count} пар (норма ≤ 4)",
+                    ];
+                }
+            }
+
+            // Равномерность нагрузки по дням
+            if (count($pairsPerDay) > 1) {
+                $max = max($pairsPerDay);
+                $min = min($pairsPerDay);
+                if (($max - $min) >= 3) {
+                    $minDay = array_search($min, $pairsPerDay);
+                    $maxDay = array_search($max, $pairsPerDay);
+                    $warnings[] = [
+                        'type'     => 'uniformity',
+                        'severity' => 'info',
+                        'message'  => "Неравномерная нагрузка у «{$groupName}»: {$min} пар ({$minDay}) vs {$max} пар ({$maxDay})",
+                    ];
+                }
+            }
+        }
+
+        // ─── 4. Нагрузка преподавателей ────────────────────────────────
+        $teacherDayLessons = [];
+        foreach ($rows as $row) {
+            if (isset($holidayDays[$row->study_day])) {
+                continue;
+            }
+            foreach ([(int) $row->teacher_id, (int) ($row->teacher_id_2 ?? 0),
+                      (int) ($row->teacher_id_denominator ?? 0), (int) ($row->teacher_id_denominator_2 ?? 0)] as $tid) {
+                if ($tid > 0) {
+                    $teacherDayLessons[$tid][$row->study_day][] = (int) $row->lesson_number;
+                }
+            }
+        }
+
+        foreach ($teacherDayLessons as $tid => $dayMap) {
+            $teacherName = $teachers[$tid] ?? "Преп. {$tid}";
+            $pairsPerDay = [];
+
+            foreach ($dayMap as $day => $lessons) {
+                $count = count(array_unique($lessons));
+                $pairsPerDay[$day] = $count;
+
+                if ($count > 4) {
+                    $warnings[] = [
+                        'type'     => 'teacher_overload',
+                        'severity' => 'danger',
+                        'message'  => "Перегрузка преподавателя «{$teacherName}» ({$day}): {$count} пар (норма ≤ 4)",
+                    ];
+                }
+            }
+
+            if (count($pairsPerDay) > 1) {
+                $max = max($pairsPerDay);
+                $min = min($pairsPerDay);
+                if (($max - $min) >= 3) {
+                    $minDay = array_search($min, $pairsPerDay);
+                    $maxDay = array_search($max, $pairsPerDay);
+                    $warnings[] = [
+                        'type'     => 'teacher_uniformity',
+                        'severity' => 'info',
+                        'message'  => "Неравномерная нагрузка у «{$teacherName}»: {$min} пар ({$minDay}) vs {$max} пар ({$maxDay})",
+                    ];
+                }
+            }
+        }
+
+        // Разбить по типам для подсчёта
+        $counts = [
+            'danger'  => count(array_filter($warnings, fn($w) => $w['severity'] === 'danger')),
+            'warning' => count(array_filter($warnings, fn($w) => $w['severity'] === 'warning')),
+            'info'    => count(array_filter($warnings, fn($w) => $w['severity'] === 'info')),
+        ];
+
+        return response()->json([
+            'warnings'  => $warnings,
+            'counts'    => $counts,
+            'holidays'  => $holidayDays,
+            'ok'        => empty($warnings),
+        ]);
+    }
+
+    /**
+     * Компенсация праздничных пар: найти свободные слоты для переноса.
+     */
+    public function holidayCompensation(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'week_start' => 'required|date',
+            'course'     => 'nullable|integer|min:1|max:4',
+        ]);
+
+        $weekStart = Carbon::parse($request->week_start)->startOfWeek(Carbon::MONDAY);
+        $course    = CourseContext::normalize($request->integer('course') ?? 1);
+        $tables    = CourseContext::tables($course);
+
+        $dayOffsets = [
+            'Понедельник' => 0,
+            'Вторник'     => 1,
+            'Среда'       => 2,
+            'Четверг'     => 3,
+            'Пятница'     => 4,
+        ];
+
+        $holidayService = app(KazakhstanHolidayService::class);
+        $holidayDays    = []; // dayName => name
+        $workDays       = []; // dayName => dateString
+
+        foreach ($dayOffsets as $dayName => $offset) {
+            $date      = $weekStart->copy()->addDays($offset);
+            $monthHols = $holidayService->getMonthHolidays($date->year, $date->month);
+            if (isset($monthHols[$date->day])) {
+                $holidayDays[$dayName] = $monthHols[$date->day]['name'];
+            } else {
+                $workDays[$dayName] = $date->toDateString();
+            }
+        }
+
+        if (empty($holidayDays)) {
+            return response()->json(['message' => 'На этой неделе праздников нет.', 'groups' => []]);
+        }
+
+        $rows     = DB::table($tables['schedules'])
+            ->whereDate('week_start', $weekStart->toDateString())
+            ->get();
+
+        $groups   = DB::table($tables['groups'])->pluck('group_name', 'id');
+        $subjects = DB::table($tables['subjects'])->pluck('subject_name', 'id');
+        $teachers = DB::table($tables['teachers'])->pluck('teacher_name', 'id');
+
+        // Карта занятых слотов: group_id => day => [lessons]
+        $occupied = [];
+        // Карта занятых слотов преподавателей: teacher_id => day => [lessons]
+        $teacherOccupied = [];
+
+        foreach ($rows as $row) {
+            $occupied[$row->group_id][$row->study_day][] = (int) $row->lesson_number;
+            foreach ([(int) $row->teacher_id, (int) ($row->teacher_id_2 ?? 0)] as $tid) {
+                if ($tid > 0) {
+                    $teacherOccupied[$tid][$row->study_day][] = (int) $row->lesson_number;
+                }
+            }
+        }
+
+        $result = [];
+
+        // Пары, попавшие на праздник
+        $affected = $rows->filter(fn($r) => isset($holidayDays[$r->study_day]));
+
+        foreach ($affected->groupBy('group_id') as $gid => $groupRows) {
+            $groupName   = $groups[$gid] ?? "Группа $gid";
+            $suggestions = [];
+
+            foreach ($groupRows as $row) {
+                $subjectName = $subjects[$row->subject_id] ?? ($subjects[$row->subject_id_denominator ?? 0] ?? 'Предмет');
+                $teacherName = $teachers[$row->teacher_id] ?? '';
+                $teacherId   = (int) $row->teacher_id;
+
+                // Ищем свободные слоты на этой неделе (рабочие дни)
+                $freeSlotsThisWeek = [];
+                foreach ($workDays as $workDay => $workDate) {
+                    $groupLessons   = array_unique($occupied[$gid][$workDay] ?? []);
+                    $teacherLessons = $teacherId > 0 ? array_unique($teacherOccupied[$teacherId][$workDay] ?? []) : [];
+
+                    if (count($groupLessons) >= 4) {
+                        continue; // уже 4 пары — не добавляем
+                    }
+
+                    for ($lesson = 1; $lesson <= 6; $lesson++) {
+                        if (!in_array($lesson, $groupLessons) &&
+                            (!$teacherId || !in_array($lesson, $teacherLessons))) {
+                            $freeSlotsThisWeek[] = [
+                                'day'    => $workDay,
+                                'date'   => $workDate,
+                                'lesson' => $lesson,
+                            ];
+                            break;
+                        }
+                    }
+                }
+
+                // Если на этой неделе нет места — ищем на следующей
+                $freeSlotsNextWeek = [];
+                if (empty($freeSlotsThisWeek)) {
+                    $nextWeekStart = $weekStart->copy()->addWeek();
+                    $nextRows = DB::table($tables['schedules'])
+                        ->whereDate('week_start', $nextWeekStart->toDateString())
+                        ->where('group_id', $gid)
+                        ->get(['study_day', 'lesson_number']);
+
+                    $nextOccupied = [];
+                    foreach ($nextRows as $nr) {
+                        $nextOccupied[$nr->study_day][] = (int) $nr->lesson_number;
+                    }
+
+                    foreach ($dayOffsets as $dayName => $offset) {
+                        $date      = $nextWeekStart->copy()->addDays($offset);
+                        $monthHols = $holidayService->getMonthHolidays($date->year, $date->month);
+                        if (isset($monthHols[$date->day])) {
+                            continue;
+                        }
+                        $dayLessons = array_unique($nextOccupied[$dayName] ?? []);
+                        if (count($dayLessons) >= 4) {
+                            continue;
+                        }
+                        for ($lesson = 1; $lesson <= 6; $lesson++) {
+                            if (!in_array($lesson, $dayLessons)) {
+                                $freeSlotsNextWeek[] = [
+                                    'day'    => $dayName,
+                                    'date'   => $date->toDateString(),
+                                    'lesson' => $lesson,
+                                ];
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                $suggestions[] = [
+                    'holiday_day'         => $row->study_day,
+                    'holiday_name'        => $holidayDays[$row->study_day],
+                    'lesson_number'       => $row->lesson_number,
+                    'subject'             => $subjectName,
+                    'teacher'             => $teacherName,
+                    'free_this_week'      => array_slice($freeSlotsThisWeek, 0, 3),
+                    'free_next_week'      => array_slice($freeSlotsNextWeek, 0, 3),
+                ];
+            }
+
+            if (!empty($suggestions)) {
+                $result[] = [
+                    'group_id'   => $gid,
+                    'group_name' => $groupName,
+                    'count'      => count($suggestions),
+                    'pairs'      => $suggestions,
+                ];
+            }
+        }
+
+        return response()->json([
+            'has_holidays' => !empty($holidayDays),
+            'holidays'     => array_map(fn($n) => $n, $holidayDays),
+            'groups'       => $result,
+        ]);
+    }
+
+    /**
      * Массово подставить свободные кабинеты для выбранного дня и курса.
      * Учитывает занятость кабинетов во всех курсах.
      */

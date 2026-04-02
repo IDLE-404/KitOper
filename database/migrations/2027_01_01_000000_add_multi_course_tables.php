@@ -9,6 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         $courses = [
+            1 => 'first',
             2 => 'second',
             3 => 'third',
             4 => 'fourth',

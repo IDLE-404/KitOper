@@ -1,22 +1,26 @@
 @extends('layouts.app')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ asset('css/ai-agent.css') }}?v={{ filemtime(public_path('css/ai-agent.css')) }}">
+    <link rel="stylesheet" href="{{ asset('css/ai-agent/main.css') }}?v={{ filemtime(public_path('css/ai-agent/main.css')) }}">
     <style>
-        /* Убираем отступы layout-а для чат-страницы */
-        .ko-main { padding: 0 !important; height: calc(100vh - 48px); overflow: hidden; }
-        .ko-main-inner { padding: 0 !important; height: 100%; display: flex; flex-direction: column; }
-        .ko-content { overflow: hidden; flex: 1; min-height: 0; }
+        /* Фиксируем страницу чата — скроллится только чат, не вся страница */
+        html, body { overflow: hidden !important; height: 100% !important; }
+        .ko-app        { height: 100vh; overflow: hidden; }
+        .ko-content    { overflow: hidden !important; height: 100% !important; flex: 1; }
+        .ko-main       { padding: 0 !important; overflow: hidden !important; height: 100% !important; }
+        .ko-main-inner { padding: 0 !important; height: 100% !important; min-height: 0 !important;
+                         border-radius: 0 !important; box-shadow: none !important;
+                         display: flex; flex-direction: column; overflow: hidden; }
+        .ai-page       { height: 100%; overflow: hidden; }
     </style>
 @endpush
 
 @section('content')
 
 {{-- URL-пины для JS --}}
-<input type="hidden" id="ai-chat-url"   value="{{ route('ai_agent.chat') }}">
-<input type="hidden" id="ai-upload-url" value="{{ route('ai_agent.upload') }}">
-<input type="hidden" id="ai-import-url" value="{{ route('ai_agent.import') }}">
-<input type="hidden" id="ai-status-url" value="{{ route('ai_agent.ollama_status') }}">
+<input type="hidden" id="ai-chat-url"       value="{{ route('ai_agent.chat') }}">
+<input type="hidden" id="ai-parse-file-url" value="{{ route('ai_agent.parse_file') }}">
+<input type="hidden" id="ai-status-url"     value="{{ route('ai_agent.ollama_status') }}">
 
 <div class="ai-page">
 
@@ -77,6 +81,16 @@
         {{-- ─── Input ──────────────────────────────────────────────── --}}
         <div class="ai-input-area">
             <div class="ai-input-wrap">
+                <div class="ai-file-bar" id="ai-file-bar">
+                    <i class="bi bi-paperclip"></i>
+                    <span id="ai-file-name">файл</span>
+                    <button class="ai-file-clear" id="ai-file-clear" title="Убрать"><i class="bi bi-x"></i></button>
+                </div>
+                <div class="ai-ref-bar" id="ai-ref-bar">
+                    <i class="bi bi-table"></i>
+                    <span id="ai-ref-label">таблица</span>
+                    <button class="ai-ref-clear" id="ai-ref-clear" title="Убрать"><i class="bi bi-x"></i></button>
+                </div>
                 <textarea
                     id="ai-textarea"
                     class="ai-textarea"
@@ -85,21 +99,10 @@
                 ></textarea>
                 <div class="ai-input-footer">
                     <div class="ai-footer-left">
-                        <div class="ai-attach-wrap" id="ai-attach-wrap">
-                            <button class="ai-attach-btn" id="ai-attach-btn" title="Загрузить файл">
-                                <i class="bi bi-plus-lg"></i>
-                            </button>
-                            <div class="ai-attach-menu" id="ai-attach-menu">
-                                <button class="ai-attach-item" id="ai-import-toggle">
-                                    <i class="bi bi-file-earmark-spreadsheet"></i>
-                                    <span>Загрузить Excel</span>
-                                </button>
-                                <button class="ai-attach-item" id="ai-import-word-toggle">
-                                    <i class="bi bi-file-earmark-word"></i>
-                                    <span>Загрузить Word</span>
-                                </button>
-                            </div>
-                        </div>
+                        <label class="ai-attach-btn" title="Прикрепить файл (Excel, Word)">
+                            <i class="bi bi-paperclip"></i>
+                            <input type="file" id="ai-file-input" accept=".xlsx,.xls,.docx,.doc" style="display:none">
+                        </label>
                         <button class="ai-icon-btn ai-clear-icon-btn" id="ai-clear-btn" title="Очистить чат">
                             <i class="bi bi-trash3"></i>
                         </button>
@@ -115,94 +118,16 @@
     </div>
 </div>
 
-{{-- ─── Import modal ─────────────────────────────────────────── --}}
-<div class="ai-modal-backdrop" id="ai-modal">
-    <div class="ai-modal">
-        <div class="ai-modal-head">
-            <div class="ai-modal-title"><i class="bi bi-file-earmark-arrow-up" style="color:var(--ai-primary)"></i> &nbsp;Импорт из файла</div>
-            <button class="ai-modal-close" id="ai-modal-close"><i class="bi bi-x"></i></button>
-        </div>
-
-        <div class="ai-modal-body">
-
-            {{-- Import type --}}
-            <div class="ai-form-group">
-                <label class="ai-label">Тип данных</label>
-                <div style="display:flex;gap:16px">
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">
-                        <input type="radio" name="ai-import-type" value="workload" checked style="accent-color:var(--ai-primary)">
-                        Нагрузка (Форма 2)
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">
-                        <input type="radio" name="ai-import-type" value="teachers" style="accent-color:var(--ai-primary)">
-                        Преподаватели
-                    </label>
-                </div>
-            </div>
-
-            {{-- File drop --}}
-            <div class="ai-form-group">
-                <label class="ai-label">Файл</label>
-                <div class="ai-dropzone" id="ai-dropzone">
-                    <input type="file" id="ai-file-input" accept=".xlsx,.xls,.docx,.doc">
-                    <i class="bi bi-cloud-arrow-up"></i>
-                    <div class="ai-dropzone-text">Перетащите файл или нажмите</div>
-                    <div class="ai-dropzone-hint">Excel (.xlsx) или Word (.docx)</div>
-                    <div id="ai-file-name" style="display:none" class="ai-file-name"></div>
-                </div>
-            </div>
-
-            {{-- Months --}}
-            <div class="ai-form-group">
-                <label class="ai-label">Месяцы</label>
-                <div class="ai-months">
-                    @php $months = [1=>'Янв',2=>'Фев',3=>'Мар',4=>'Апр',5=>'Май',6=>'Июн',7=>'Июл',8=>'Авг',9=>'Сен',10=>'Окт',11=>'Ноя',12=>'Дек']; $cm = (int)date('n'); @endphp
-                    @foreach($months as $n => $name)
-                        <label class="ai-month-chip {{ $n === $cm ? 'on' : '' }}">
-                            <input type="checkbox" value="{{ $n }}" {{ $n === $cm ? 'checked' : '' }}>
-                            {{ $name }}
-                        </label>
-                    @endforeach
-                </div>
-            </div>
-
-            {{-- Year --}}
-            <div class="ai-form-group">
-                <label class="ai-label">Год</label>
-                <input type="number" class="ai-input" id="ai-year" value="{{ date('Y') }}" min="2020" max="2030" style="max-width:110px">
-            </div>
-
-            {{-- Preview --}}
-            <div id="ai-preview-wrap" style="display:none">
-                <div style="font-size:12.5px;color:var(--ai-muted);margin-bottom:6px" id="ai-preview-summary"></div>
-                <div class="ai-preview-table-wrap">
-                    <table class="ai-preview-table">
-                        <thead>
-                            <tr>
-                                <th>Группа</th><th>Предмет</th><th>Преподаватель</th><th>Часы</th><th>Статус</th><th>Проверка</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ai-preview-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-
-        </div>
-
-        <div class="ai-modal-foot">
-            <button class="ai-btn ai-btn-ghost" id="ai-modal-close-2" onclick="document.getElementById('ai-modal').classList.remove('open')">Отмена</button>
-            <button class="ai-btn ai-btn-ghost" id="ai-upload-btn" disabled>
-                <i class="bi bi-search"></i> Анализировать
-            </button>
-            <button class="ai-btn ai-btn-success" id="ai-import-btn" disabled>
-                <i class="bi bi-database-add"></i> Импортировать
-            </button>
-        </div>
+{{-- Drag-and-drop overlay for the whole chat --}}
+<div class="ai-drop-overlay" id="ai-drop-overlay">
+    <div class="ai-drop-overlay-inner">
+        <i class="bi bi-file-earmark-arrow-up"></i>
+        <span>Отпустите файл</span>
     </div>
 </div>
 
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('js/ai-agent.js') }}?v={{ filemtime(public_path('js/ai-agent.js')) }}"></script>
+    <script src="{{ asset('js/ai-agent/main.js') }}?v={{ filemtime(public_path('js/ai-agent/main.js')) }}"></script>
 @endpush

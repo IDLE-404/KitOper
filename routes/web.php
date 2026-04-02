@@ -72,6 +72,7 @@ Route::middleware(['auth', 'audit'])->group(function () {
 
         Route::get('/ai-agent', [AiAgentController::class, 'index'])->name('ai_agent.index');
         Route::post('/ai-agent/chat', [AiAgentController::class, 'chat'])->name('ai_agent.chat');
+        Route::post('/ai-agent/parse-file', [AiAgentController::class, 'parseFile'])->name('ai_agent.parse_file');
         Route::post('/ai-agent/upload', [AiAgentController::class, 'upload'])->name('ai_agent.upload');
         Route::post('/ai-agent/import', [AiAgentController::class, 'importData'])->name('ai_agent.import');
         Route::get('/ai-agent/ollama-status', [AiAgentController::class, 'ollamaStatus'])->name('ai_agent.ollama_status');
@@ -81,6 +82,8 @@ Route::middleware(['auth', 'audit'])->group(function () {
             Route::get('/schedule/week', [FirstCourseSchedulePageController::class, 'week'])->name('first.schedule.week');
             Route::get('/schedule/week-duplicate', [FirstCourseSchedulePageController::class, 'duplicateWeekPage'])->name('first.schedule.week.duplicate');
             Route::get('/schedule/availability', [FirstCourseSchedulePageController::class, 'availability'])->name('first.schedule.availability');
+            Route::get('/schedule/health', [FirstCourseSchedulePageController::class, 'scheduleHealth'])->name('first.schedule.health');
+            Route::get('/schedule/holiday-compensation', [FirstCourseSchedulePageController::class, 'holidayCompensation'])->name('first.schedule.holiday_compensation');
             Route::get('/schedule/free-teachers', [FirstCourseSchedulePageController::class, 'freeTeachers'])->name('first.schedule.free_teachers');
             Route::get('/schedule/free-rooms', [FirstCourseSchedulePageController::class, 'freeRooms'])->name('first.schedule.free_rooms');
             Route::post('/schedule/week', [FirstCourseSchedulePageController::class, 'weekSave'])->name('first.schedule.week.save');

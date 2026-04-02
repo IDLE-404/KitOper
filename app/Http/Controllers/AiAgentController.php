@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use App\Services\SchedulePlanningService;
 
 class AiAgentController extends Controller
 {
@@ -15,11 +17,13 @@ class AiAgentController extends Controller
 
     private string $ollamaHost;
     private string $ollamaModel;
+    private SchedulePlanningService $planningService;
 
     public function __construct()
     {
         $this->ollamaHost = env('OLLAMA_HOST', 'http://ollama:11434');
-        $this->ollamaModel = env('OLLAMA_MODEL', 'llama3.2:3b');
+        $this->ollamaModel = env('OLLAMA_MODEL', 'qwen2.5:3b');
+        $this->planningService = new SchedulePlanningService();
     }
 
     public function index()
@@ -32,7 +36,7 @@ class AiAgentController extends Controller
 
     public function chat(Request $request)
     {
-        $request->validate(['message' => 'required|string|max:2000']);
+        $request->validate(['message' => 'required|string|max:50000']);
 
         $message = trim($request->input('message'));
         $history = $request->input('history', []);
@@ -45,7 +49,7 @@ class AiAgentController extends Controller
         }
 
         try {
-            $systemPrompt = $this->buildSystemPrompt();
+            $systemPrompt = $this->buildSystemPromptWithContext();
             $result       = $this->processMessage($message, $history, $systemPrompt);
 
             return response()->json(['success' => true, 'reply' => $result]);
@@ -60,6 +64,8 @@ class AiAgentController extends Controller
 
     private function processMessage(string $message, array $history, string $systemPrompt): string
     {
+        file_put_contents('/tmp/ai_debug.log', date('Y-m-d H:i:s') . " processMessage: $message\n", FILE_APPEND);
+        
         $normalizedMessage = $this->normalizeUserMessage($message);
         $this->rememberConversationContext($normalizedMessage);
 
@@ -84,14 +90,30 @@ class AiAgentController extends Controller
         }
         $fullPrompt .= "Пользователь: {$message}\nАссистент:";
 
+        // Не кэшируем сообщения - всегда делаем свежий запрос к БД
+        $hasTableContext = str_contains($message, '[ТАБЛИЦА]');
+
         $raw = $this->callOllama($fullPrompt);
+
+        file_put_contents('/tmp/ai_debug.log', date('Y-m-d H:i:s') . " RAW response: " . substr($raw, 0, 1000) . "\n", FILE_APPEND);
 
         $action = $this->extractActionFromRaw($raw);
         if ($action !== null) {
-            return $this->handleActionWithConfirmation($action, $raw);
+            $reply = $this->handleActionWithConfirmation($action, $raw);
+            return $reply;
         }
 
-        return $this->formatFreeTextReply($this->sanitizeAssistantText($raw));
+        // Fallback: try to parse natural language if AI didn't produce JSON
+        file_put_contents('/tmp/ai_debug.log', date('Y-m-d H:i:s') . " Testing fallback for: $message\n", FILE_APPEND);
+        $fallbackAction = $this->tryParseNaturalLanguageAction($message);
+        file_put_contents('/tmp/ai_debug.log', date('Y-m-d H:i:s') . " Fallback result: " . json_encode($fallbackAction) . "\n", FILE_APPEND);
+        if ($fallbackAction !== null) {
+            $reply = $this->handleActionWithConfirmation($fallbackAction, $raw);
+            return $reply;
+        }
+
+        $reply = $this->formatFreeTextReply($this->sanitizeAssistantText($raw));
+        return $reply;
     }
 
     private function extractActionFromRaw(string $raw): ?array
@@ -186,17 +208,8 @@ class AiAgentController extends Controller
         $normalizedAction = $this->normalizeActionPayload($action);
         $act = $normalizedAction['action'];
 
-        if (in_array($act, ['update', 'delete'], true)) {
-            if ($this->isUnsafeMutation($normalizedAction['where'])) {
-                return "Для безопасности нужно точное условие: укажите ID записи, которую нужно изменить или удалить.";
-            }
-
-            request()->session()->put(self::SESSION_PENDING_ACTION, [
-                'action' => $normalizedAction,
-                'ts'     => time(),
-            ]);
-
-            return $this->buildConfirmationMessage($normalizedAction);
+        if (in_array($act, ['update', 'delete'], true) && $this->isUnsafeMutation($normalizedAction['where'])) {
+            return "Не могу выполнить — нужно точнее указать запись (например, полное имя или ID).";
         }
 
         return $this->executeDbAction($normalizedAction, $rawResponse);
@@ -209,11 +222,11 @@ class AiAgentController extends Controller
             'table'  => (string) ($action['table'] ?? ''),
             'where'  => is_array($action['where'] ?? null) ? $action['where'] : [],
             'data'   => is_array($action['data'] ?? null) ? $action['data'] : [],
-            'limit'  => (int) ($action['limit'] ?? 20),
+            'limit'  => (int) ($action['limit'] ?? 200),
         ];
 
         if ($normalized['limit'] <= 0) {
-            $normalized['limit'] = 20;
+            $normalized['limit'] = 200;
         }
 
         return $normalized;
@@ -221,30 +234,17 @@ class AiAgentController extends Controller
 
     private function handlePendingActionFlow(string $normalizedMessage): ?string
     {
-        $session = request()->session();
-        $pending = $session->get(self::SESSION_PENDING_ACTION);
-        if (!is_array($pending) || !isset($pending['action'])) {
-            return null;
-        }
+        // Подтверждение отключено — сразу выполняем действия
+        request()->session()->forget(self::SESSION_PENDING_ACTION);
+        return null;
+    }
 
-        $ts = (int) ($pending['ts'] ?? 0);
-        if ($ts > 0 && (time() - $ts) > self::PENDING_TTL_SECONDS) {
-            $session->forget(self::SESSION_PENDING_ACTION);
-            return "Подтверждение устарело. Повторите запрос на изменение еще раз.";
-        }
-
-        if ($this->isCancelIntent($normalizedMessage)) {
-            $session->forget(self::SESSION_PENDING_ACTION);
-            return "Хорошо, отменил изменение.";
-        }
-
-        if ($this->isConfirmIntent($normalizedMessage)) {
-            $action = $this->normalizeActionPayload((array) $pending['action']);
-            $session->forget(self::SESSION_PENDING_ACTION);
-            return $this->executeDbAction($action, json_encode($action, JSON_UNESCAPED_UNICODE));
-        }
-
-        return "Жду подтверждение по последнему изменению. Напишите «подтверждаю» или «отмена».";
+    private function executeFileImport(array $action): string
+    {
+        $fileType = $action['file_type'] ?? '';
+        $mappings = $action['mappings'] ?? [];
+        
+        return "Функция импорта файла типа '{$fileType}' с сопоставлением " . json_encode($mappings, JSON_UNESCAPED_UNICODE) . " временно недоступна. Для импорта используйте кнопку загрузки файла в интерфейсе.";
     }
 
     private function buildConfirmationMessage(array $action): string
@@ -255,21 +255,21 @@ class AiAgentController extends Controller
         $dataText = $this->formatDataForHuman((array) ($action['data'] ?? []));
 
         if ($act === 'update') {
-            return "План изменения: в разделе «{$sectionName}» для {$whereText} установить {$dataText}. Напишите «подтверждаю» для выполнения или «отмена» для отмены.";
+            return "Понял, хочу изменить {$whereText} в разделе «{$sectionName}» — {$dataText}. Всё верно? Напиши **подтверждаю** или **отмена**.";
         }
 
-        return "План удаления: в разделе «{$sectionName}» удалить записи для {$whereText}. Напишите «подтверждаю» для выполнения или «отмена» для отмены.";
+        return "Хочу удалить {$whereText} из раздела «{$sectionName}». Это необратимо — точно удаляем? Напиши **подтверждаю** или **отмена**.";
     }
 
     private function formatWhereForHuman(array $where): string
     {
         if (empty($where)) {
-            return 'неуточненного условия';
+            return 'неуточнённую запись';
         }
 
         $parts = [];
         foreach ($where as $col => $value) {
-            $parts[] = $this->columnDisplayName((string) $col) . ' = ' . $this->formatDisplayValue((string) $col, $value);
+            $parts[] = $this->formatDisplayValue((string) $col, $value);
         }
 
         return implode(', ', $parts);
@@ -278,15 +278,15 @@ class AiAgentController extends Controller
     private function formatDataForHuman(array $data): string
     {
         if (empty($data)) {
-            return 'без новых значений';
+            return 'без изменений';
         }
 
         $parts = [];
         foreach ($data as $col => $value) {
-            $parts[] = $this->columnDisplayName((string) $col) . ': ' . $this->formatDisplayValue((string) $col, $value);
+            $parts[] = $this->columnDisplayName((string) $col) . ' → ' . $this->formatDisplayValue((string) $col, $value);
         }
 
-        return implode('; ', $parts);
+        return implode(', ', $parts);
     }
 
     private function isConfirmIntent(string $message): bool
@@ -305,11 +305,35 @@ class AiAgentController extends Controller
             return true;
         }
 
+        // Allow delete with any unique identifier or multiple fields
         if (array_key_exists('id', $where)) {
             return false;
         }
 
-        return count($where) < 2;
+        // Allow if at least 2 fields (more specific delete)
+        if (count($where) >= 2) {
+            return false;
+        }
+
+        // Allow single field if it's a specific identifier like group_id, teacher_id, etc.
+        $safeSingleFields = ['group_id', 'teacher_id', 'subject_id', 'room_id', 'course', 'year', 'month'];
+        if (count($where) === 1) {
+            $key = array_key_first($where);
+            if (in_array($key, $safeSingleFields, true)) {
+                return false;
+            }
+        }
+
+        // Allow single text field that can be looked up (for update/delete by name)
+        if (count($where) === 1) {
+            $key = array_key_first($where);
+            $value = $where[$key];
+            if (is_string($value) && strlen($value) > 2) {
+                return false; // Allow - will look up by name
+            }
+        }
+
+        return true;
     }
 
     private function buildClarificationQuestion(string $message): ?string
@@ -421,7 +445,7 @@ class AiAgentController extends Controller
                     'table'  => 'teachers',
                     'where'  => ['teacher_name' => '%' . $query . '%'],
                     'data'   => ['id', 'teacher_name', 'initials'],
-                    'limit'  => 20,
+                    'limit'  => 200,
                 ];
             }
         }
@@ -522,9 +546,9 @@ class AiAgentController extends Controller
 
         $action = (string) ($actionConfig['action'] ?? 'select');
         $columns = is_array($actionConfig['data'] ?? null) ? $actionConfig['data'] : [];
-        $limit = (int) ($actionConfig['limit'] ?? 20);
+        $limit = (int) ($actionConfig['limit'] ?? 200);
         if ($limit <= 0) {
-            $limit = 20;
+            $limit = 200;
         }
 
         return [
@@ -770,7 +794,17 @@ class AiAgentController extends Controller
         $table = $action['table'] ?? '';
         $where = $action['where'] ?? [];
         $data  = $action['data'] ?? [];
-        $limit = $action['limit'] ?? 50;
+        $limit = $action['limit'] ?? 200;
+
+        // Проверка новых действий планирования
+        if (in_array($act, ['check_conflicts', 'find_replacement', 'suggest_placement', 'week_stats', 'free_teachers', 'free_rooms', 'plan_schedule'], true)) {
+            return $this->handlePlanningAction($action);
+        }
+
+        // Импорт из файла
+        if ($act === 'import_file') {
+            return $this->handleFileImport($action);
+        }
 
         $allowedTables = [
             'teachers', 'first_course_group', 'second_course_group', 'third_course_group', 'fourth_course_group',
@@ -799,10 +833,29 @@ class AiAgentController extends Controller
                     if (empty($where)) {
                         return "Для изменения нужно уточнение: что именно менять.";
                     }
+                    
+                    // If updating by name (teacher_name, group_name, subject_name), first find the record
                     $q = DB::table($table);
+                    $whereOriginal = $where;
+                    
+                    // Check if where contains name field and we need to look up ID
+                    $nameFields = ['teacher_name', 'group_name', 'subject_name', 'name', 'title', 'code'];
+                    $whereKey = array_key_first($where);
+                    $whereVal = $where[$whereKey];
+                    
+                    if (in_array($whereKey, $nameFields, true) && is_string($whereVal) && strlen($whereVal) > 2) {
+                        // Try to find the record by name first
+                        $record = DB::table($table)->where($whereKey, 'LIKE', '%' . $whereVal . '%')->first();
+                        if ($record && isset($record->id)) {
+                            $where = ['id' => $record->id];
+                        }
+                    }
+                    
                     foreach ($where as $col => $val) {
                         $q->where($col, $val);
                     }
+                    // Strip LIKE wildcards from actual values being written to DB
+                    $data = array_map(fn($v) => is_string($v) ? trim($v, '%') : $v, $data);
                     $data['updated_at'] = now();
                     $count = $q->update($data);
                     if ($count === 0) {
@@ -814,6 +867,19 @@ class AiAgentController extends Controller
                     if (empty($where)) {
                         return "Для удаления нужно уточнение: какую запись удалить.";
                     }
+                    
+                    // If deleting by name, first find the record
+                    $nameFields = ['teacher_name', 'group_name', 'subject_name', 'name', 'title', 'code'];
+                    $whereKey = array_key_first($where);
+                    $whereVal = $where[$whereKey];
+                    
+                    if (in_array($whereKey, $nameFields, true) && is_string($whereVal) && strlen($whereVal) > 2) {
+                        $record = DB::table($table)->where($whereKey, 'LIKE', '%' . $whereVal . '%')->first();
+                        if ($record && isset($record->id)) {
+                            $where = ['id' => $record->id];
+                        }
+                    }
+                    
                     $q = DB::table($table);
                     foreach ($where as $col => $val) {
                         $q->where($col, $val);
@@ -833,6 +899,278 @@ class AiAgentController extends Controller
         }
     }
 
+    private function handlePlanningAction(array $action): string
+    {
+        $act = $action['action'];
+        $course = (int) ($action['course'] ?? 1);
+        $weekStart = $action['week_start'] ?? date('Y-m-d', strtotime('monday this week'));
+        $day = (int) ($action['day'] ?? 1);
+        $lesson = (int) ($action['lesson'] ?? 1);
+
+        $dayNames = [1 => 'Понедельник', 2 => 'Вторник', 3 => 'Среда', 4 => 'Четверг', 5 => 'Пятница', 6 => 'Суббота'];
+
+        switch ($act) {
+            case 'check_conflicts':
+                $conflicts = $this->planningService->analyzeConflicts($course, $weekStart);
+                if (isset($conflicts['error'])) {
+                    return "Ошибка: {$conflicts['error']}";
+                }
+
+                $lines = ["**Анализ конфликтов** для {$course} курса на неделю {$weekStart}", ""];
+
+                if (empty($conflicts['room_conflicts']) && empty($conflicts['teacher_conflicts'])) {
+                    $lines[] = "✓ **Конфликтов не обнаружено!** Расписание чистое.";
+                } else {
+                    if (!empty($conflicts['room_conflicts'])) {
+                        $lines[] = "⚠️ **Конфликты аудиторий:** " . count($conflicts['room_conflicts']);
+                        foreach (array_slice($conflicts['room_conflicts'], 0, 5) as $c) {
+                            $lines[] = "- {$dayNames[$c['day']]}, {$c['lesson']} пара: аудитория **{$c['room_code']}**";
+                        }
+                        if (count($conflicts['room_conflicts']) > 5) {
+                            $lines[] = "...и ещё " . (count($conflicts['room_conflicts']) - 5) . " конфликтов";
+                        }
+                    }
+
+                    if (!empty($conflicts['teacher_conflicts'])) {
+                        $lines[] = "";
+                        $lines[] = "⚠️ **Конфликты преподавателей:** " . count($conflicts['teacher_conflicts']);
+                        foreach (array_slice($conflicts['teacher_conflicts'], 0, 5) as $c) {
+                            $lines[] = "- {$dayNames[$c['day']]}, {$c['lesson']} пара: **{$c['teacher_name']}**";
+                        }
+                        if (count($conflicts['teacher_conflicts']) > 5) {
+                            $lines[] = "...и ещё " . (count($conflicts['teacher_conflicts']) - 5) . " конфликтов";
+                        }
+                    }
+                }
+
+                $lines[] = "";
+                $lines[] = "Могу предложить варианты замен или оптимизации расписания.";
+                return implode("\n", $lines);
+
+            case 'find_replacement':
+                $teacherId = (int) ($action['teacher_id'] ?? 0);
+                if (!$teacherId) {
+                    return "Укажите ID преподавателя для поиска замены.";
+                }
+                $replacements = $this->planningService->findReplacements($course, $teacherId, $day, $lesson);
+                if (isset($replacements['error'])) {
+                    return "Ошибка: {$replacements['error']}";
+                }
+
+                $teacherName = $this->resolveTeacherNameById($teacherId);
+                $lines = ["**Замены для {$teacherName}**", ""];
+                $lines[] = "📅 {$dayNames[$day]}, {$lesson} пара";
+                $lines[] = "";
+
+                if (empty($replacements)) {
+                    $lines[] = "К сожалению, свободных преподавателей для этой пары не нашлось.";
+                } else {
+                    $lines[] = "Доступные кандидаты:";
+                    foreach (array_slice($replacements, 0, 8) as $r) {
+                        $status = $r['availability'] === 'свободен' ? '✓' : '○';
+                        $subjects = implode(', ', array_slice($r['subjects'], 0, 2));
+                        $lines[] = "{$status} **{$r['teacher_name']}** ({$r['initials']}) — {$subjects}";
+                    }
+                    if (count($replacements) > 8) {
+                        $lines[] = "...и ещё " . (count($replacements) - 8) . " кандидатов";
+                    }
+                }
+
+                $lines[] = "";
+                $lines[] = "Чтобы назначить замену, скажите: «Назначь замену для {$teacherName} на {$dayNames[$day]}, {$lesson} пара».";
+                return implode("\n", $lines);
+
+            case 'free_teachers':
+                $subjectId = (int) ($action['subject_id'] ?? 0);
+                $teachers = $this->planningService->getAvailableTeachers($course, $day, $lesson, $subjectId ?: null);
+
+                $lines = ["**Свободные преподаватели**", ""];
+                $lines[] = "📅 {$dayNames[$day]}, {$lesson} пара";
+                if ($subjectId) {
+                    $subjectName = $this->resolveSubjectNameById($course, $subjectId);
+                    $lines[] = "📚 По предмету: {$subjectName}";
+                }
+                $lines[] = "";
+
+                if (empty($teachers)) {
+                    $lines[] = "Свободных преподавателей не найдено.";
+                } else {
+                    $lines[] = "Доступны:";
+                    foreach ($teachers as $t) {
+                        $lines[] = "- **{$t['name']}** ({$t['initials']})";
+                    }
+                }
+                return implode("\n", $lines);
+
+            case 'free_rooms':
+                $rooms = $this->planningService->getAvailableRooms($course, $day, $lesson);
+
+                $lines = ["**Свободные аудитории**", ""];
+                $lines[] = "📅 {$dayNames[$day]}, {$lesson} пара";
+                $lines[] = "";
+
+                if (empty($rooms)) {
+                    $lines[] = "Свободных аудиторий не найдено. Все заняты.";
+                } else {
+                    $standard = array_filter($rooms, fn($r) => $r['type'] === 'standard');
+                    $computer = array_filter($rooms, fn($r) => $r['type'] === 'computer');
+
+                    if (!empty($standard)) {
+                        $lines[] = "📖 Обычные: " . implode(', ', array_map(fn($r) => "**{$r['code']}**", $standard));
+                    }
+                    if (!empty($computer)) {
+                        $lines[] = "💻 Компьютерные: " . implode(', ', array_map(fn($r) => "**{$r['code']}**", $computer));
+                    }
+                }
+                return implode("\n", $lines);
+
+            case 'suggest_placement':
+                $groupId = (int) ($action['group_id'] ?? 0);
+                $subjectId = (int) ($action['subject_id'] ?? 0);
+                $teacherId = (int) ($action['teacher_id'] ?? 0);
+
+                if (!$groupId || !$subjectId) {
+                    return "Укажите ID группы и предмета для поиска места.";
+                }
+
+                $placements = $this->planningService->suggestSchedulePlacement($course, $groupId, $subjectId, $teacherId ?: null);
+                $groupName = $this->resolveGroupNameById($course, $groupId);
+                $subjectName = $this->resolveSubjectNameById($course, $subjectId);
+
+                $lines = ["**Где поставить «{$subjectName}» для {$groupName}?**", ""];
+
+                $goodSlots = array_filter($placements, fn($p) => empty($p['teacher_conflict']) && !empty($p['available_rooms']));
+                $limitedSlots = array_filter($placements, fn($p) => !empty($p['teacher_conflict']) && !empty($p['available_rooms']));
+                $noRoomsSlots = array_filter($placements, fn($p) => empty($p['available_rooms']));
+
+                if (!empty($goodSlots)) {
+                    $lines[] = "✓ **Оптимальные слоты** (свободен и преподаватель, и аудитория):";
+                    foreach (array_slice($goodSlots, 0, 4) as $slot) {
+                        $rooms = implode(', ', array_slice(array_map(fn($r) => $r['code'], $slot['available_rooms']), 0, 2));
+                        $lines[] = "- {$dayNames[$slot['day']]}, {$slot['lesson']} пара → {$rooms}";
+                    }
+                }
+
+                if (!empty($limitedSlots)) {
+                    $lines[] = "";
+                    $lines[] = "○ **Свободны только аудитории** (преподаватель занят):";
+                    foreach (array_slice($limitedSlots, 0, 3) as $slot) {
+                        $rooms = implode(', ', array_slice(array_map(fn($r) => $r['code'], $slot['available_rooms']), 0, 2));
+                        $lines[] = "- {$dayNames[$slot['day']]}, {$slot['lesson']} пара → {$rooms}";
+                    }
+                }
+
+                if (empty($goodSlots) && empty($limitedSlots)) {
+                    $lines[] = "Свободных слотов не найдено. Попробуйте другой день или предмет.";
+                }
+
+                return implode("\n", $lines);
+
+            case 'week_stats':
+                $stats = $this->planningService->getWeekStats($course, $weekStart);
+                $lines = ["**Статистика недели** {$weekStart}", ""];
+                $lines[] = "📊 {$course} курс";
+                $lines[] = "";
+
+                $lines[] = "**Всего пар:** =={$stats['total_pairs']}==";
+                $lines[] = "";
+                $lines[] = "**По дням:**";
+                foreach ($stats['by_day'] as $d => $count) {
+                    if ($count > 0) {
+                        $lines[] = "- {$dayNames[$d]}: {$count} пар";
+                    }
+                }
+
+                if (!empty($stats['by_teacher'])) {
+                    $lines[] = "";
+                    $lines[] = "**Нагрузка преподавателей (топ-5):**";
+                    foreach (array_slice($stats['by_teacher'], 0, 5) as $t) {
+                        $lines[] = "- {$t['name']}: =={$t['pairs']}== пар";
+                    }
+                }
+
+                if ($stats['unassigned_rooms'] > 0) {
+                    $lines[] = "";
+                    $lines[] = "> ⚠️ {$stats['unassigned_rooms']} пар без назначенной аудитории";
+                }
+
+                return implode("\n", $lines);
+
+            case 'plan_schedule':
+                $groupIds = $action['group_ids'] ?? [];
+                $subjectId = (int) ($action['subject_id'] ?? 0);
+                $hoursPerWeek = (int) ($action['hours_per_week'] ?? 4);
+
+                if (empty($groupIds) || !$subjectId) {
+                    return "Укажите группы (group_ids), предмет (subject_id) и часы в неделю (hours_per_week).";
+                }
+
+                $suggestions = $this->planningService->generateScheduleSuggestion($course, $groupIds, $subjectId, $hoursPerWeek);
+                if (isset($suggestions['error'])) {
+                    return "Ошибка: {$suggestions['error']}";
+                }
+
+                $lines = ["**📋 Предложение расписания**", ""];
+
+                foreach ($suggestions as $groupData) {
+                    $lines[] = "**{$groupData['group']['name']}** — {$groupData['subject']['name']} ({$groupData['planned_hours']}ч/нед)";
+                    if (empty($groupData['slots'])) {
+                        $lines[] = "  Нет свободных слотов для этой группы";
+                    } else {
+                        foreach ($groupData['slots'] as $slot) {
+                            $room = $slot['room']['code'] ?? '?';
+                            $teacher = $slot['teacher']['name'] ?? '?';
+                            $lines[] = "  ✓ {$dayNames[$slot['day']]}, {$slot['lesson']} пара → {$room}, {$teacher}";
+                        }
+                    }
+                    $lines[] = "";
+                }
+
+                $lines[] = "Это предложение. Скажите «Сохрани» чтобы добавить в расписание или «Измени» чтобы скорректировать.";
+                return implode("\n", $lines);
+
+            default:
+                return "Неизвестное действие планирования: {$act}";
+        }
+    }
+
+    private function handleFileImport(array $action): string
+    {
+        $fileType = $action['file_type'] ?? '';
+        $mappings = $action['mappings'] ?? [];
+        $previewRows = $action['preview_rows'] ?? 5;
+
+        if (empty($fileType)) {
+            return "Укажите тип файла: нагрузка, преподаватели, график, расписание";
+        }
+
+        $typeNames = [
+            'нагрузка' => 'нагрузка преподавателей (Форма 2)',
+            'преподаватели' => 'список преподавателей',
+            'график' => 'график учебного процесса',
+            'расписание' => 'расписание занятий',
+        ];
+
+        $typeName = $typeNames[$fileType] ?? $fileType;
+        
+        $mappingDesc = [];
+        foreach ($mappings as $fileCol => $dbField) {
+            $mappingDesc[] = "{$fileCol} → {$dbField}";
+        }
+
+        $reply = "**📁 Импорт: {$typeName}**\n\n";
+        $reply .= "Сопоставление колонок:\n" . implode("\n", $mappingDesc) . "\n\n";
+        $reply .= "Показано {$previewRows} строк для проверки.\n";
+        $reply .= "Подтвердить импорт? (Да/Нет)";
+
+        request()->session()->put(self::SESSION_PENDING_ACTION, [
+            'action' => ['type' => 'file_import', 'file_type' => $fileType, 'mappings' => $mappings],
+            'ts'     => time(),
+        ]);
+
+        return $reply;
+    }
+
     private function dbSelect(string $table, array $where, array $columns, int $limit): string
     {
         $q = DB::table($table);
@@ -845,20 +1183,21 @@ class AiAgentController extends Controller
             }
         }
 
-        if ($columns) {
+        // Ignore columns if model returned only ['id'] — select everything instead
+        if ($columns && !(count($columns) === 1 && $columns[0] === 'id')) {
             $q->select($columns);
         }
 
-        $maxRows = max(1, min($limit, 100));
-        $rows = $q->limit($maxRows + 1)->get();
-        $hasMore = $rows->count() > $maxRows;
-        if ($hasMore) {
-            $rows = $rows->take($maxRows);
-        }
+        $totalCount = (clone $q)->count();
+
+        $maxRows = max(1, min($limit, 500));
+        $rows = $q->limit($maxRows)->get();
 
         if ($rows->isEmpty()) {
             return "Ничего не найдено. Уточните запрос: фамилию, группу, курс или период.";
         }
+
+        $hasMore = $totalCount > $maxRows;
 
         $sectionName = $this->tableDisplayName($table);
         $skipCols    = ['created_at', 'updated_at', 'password', 'remember_token'];
@@ -887,8 +1226,7 @@ class AiAgentController extends Controller
         $headerCells = array_map(fn($k) => $this->columnDisplayName($k), $colKeys);
         $separator   = array_fill(0, count($colKeys), '---');
 
-        $count = count($displayRows);
-        $lines = ["**{$sectionName}** — найдено: **{$count}**", ''];
+        $lines = ["**{$sectionName}** — всего в базе: **{$totalCount}**", ''];
         $lines[] = '| ' . implode(' | ', $headerCells) . ' |';
         $lines[] = '| ' . implode(' | ', $separator) . ' |';
 
@@ -902,7 +1240,7 @@ class AiAgentController extends Controller
 
         if ($hasMore) {
             $lines[] = '';
-            $lines[] = "*Показаны первые {$maxRows} записей. Уточните запрос для сужения.*";
+            $lines[] = "*Показаны первые {$maxRows} записей из {$totalCount}. Уточните запрос для сужения.*";
         }
 
         $lines[] = '';
@@ -911,113 +1249,229 @@ class AiAgentController extends Controller
         return implode("\n", $lines);
     }
 
+    private function loadDbContext(): string
+    {
+        return Cache::remember('ai_db_context', 300, function () {
+            $lines = [];
+
+            // Teachers
+            $teachers = DB::table('teachers')->orderBy('teacher_name')->pluck('teacher_name')->all();
+            if ($teachers) {
+                $lines[] = 'Преподаватели (' . count($teachers) . '): ' . implode(', ', $teachers);
+            }
+
+            // Groups by course
+            foreach ([1 => 'first', 2 => 'second', 3 => 'third', 4 => 'fourth'] as $num => $prefix) {
+                $table = "{$prefix}_course_group";
+                try {
+                    $groups = DB::table($table)->orderBy('group_name')->pluck('group_name')->all();
+                    if ($groups) {
+                        $lines[] = "Группы {$num} курса (" . count($groups) . '): ' . implode(', ', $groups);
+                    }
+                } catch (\Exception $e) {}
+            }
+
+            // Subjects by course
+            foreach ([1 => 'first', 2 => 'second', 3 => 'third', 4 => 'fourth'] as $num => $prefix) {
+                $table = "{$prefix}_course_subjects";
+                try {
+                    $subjects = DB::table($table)->orderBy('subject_name')->pluck('subject_name')->all();
+                    if ($subjects) {
+                        $lines[] = "Дисциплины {$num} курса (" . count($subjects) . '): ' . implode(', ', $subjects);
+                    }
+                } catch (\Exception $e) {}
+            }
+
+            // Rooms
+            try {
+                $rooms = DB::table('rooms')->orderBy('code')->get(['code', 'title'])->map(fn($r) => trim($r->code . ($r->title ? " ({$r->title})" : '')))->all();
+                if ($rooms) {
+                    $lines[] = 'Аудитории (' . count($rooms) . '): ' . implode(', ', $rooms);
+                }
+            } catch (\Exception $e) {}
+
+            return implode("\n", $lines);
+        });
+    }
+
     private function buildSystemPrompt(): string
     {
-        $teachers = $this->safeTableCount('teachers');
-        $groups1  = $this->safeTableCount('first_course_group');
-        $groups2  = $this->safeTableCount('second_course_group');
-        $groups3  = $this->safeTableCount('third_course_group');
-        $groups4  = $this->safeTableCount('fourth_course_group');
-        $rooms    = $this->safeTableCount('rooms');
-        $holidays = $this->safeTableCount('holidays');
+        return Cache::remember('ai_system_prompt', 600, function () {
+            $teachers = $this->safeTableCount('teachers');
+            $groups1  = $this->safeTableCount('first_course_group');
+            $groups2  = $this->safeTableCount('second_course_group');
+            $groups3  = $this->safeTableCount('third_course_group');
+            $groups4  = $this->safeTableCount('fourth_course_group');
+            $rooms    = $this->safeTableCount('rooms');
+            $holidays = $this->safeTableCount('holidays');
 
-        return <<<PROMPT
-Ты — ИИ-ассистент диспетчера учебной части в системе KitOper.
-Отвечай ТОЛЬКО на русском языке. Обращайся по-человечески, без технических терминов.
-
-═══════════════════════════════════════════
-РЕЖИМ 1 — ДЕЙСТВИЕ С ДАННЫМИ (возвращай ТОЛЬКО JSON)
-═══════════════════════════════════════════
-Используй этот режим, если пользователь ЯВНО командует:
-«покажи», «найди», «выведи», «добавь», «измени», «удали», «сколько», «список», «все записи»
-
-Формат ответа — строго один JSON-объект, без слов до и после:
-{"action":"select","table":"<имя>","where":{},"data":["col1","col2"],"limit":50}
-{"action":"insert","table":"<имя>","where":{},"data":{"col":"val"},"limit":1}
-{"action":"update","table":"<имя>","where":{"id":N},"data":{"col":"val"},"limit":1}
-{"action":"delete","table":"<имя>","where":{"id":N},"data":{},"limit":1}
-
-ВАЖНО: если выбран режим 1 — никакого текста, ТОЛЬКО JSON. Без ```json``` маркеров.
+            return <<<PROMPT
+Ты — ИИ-ассистент диспетчера учебной части колледжа.
 
 ═══════════════════════════════════════════
-РЕЖИМ 2 — РАЗГОВОР (возвращай обычный текст)
+О ПРОЕКТЕ
 ═══════════════════════════════════════════
-Используй этот режим для:
-- вопросов («как ты работаешь?», «что умеешь?», «объясни»)
-- гипотетических ситуаций («а если бы», «можешь ли», «как бы ты»)
-- приветствий, благодарностей, разговора
-- запросов без явной команды к данным
-
-Стиль: коротко (1–4 предложения), дружелюбно, без слов JSON/SQL/таблица/поле/БД.
-Для перечислений используй «- пункт» с новой строки.
-
-Форматирование текста:
-- **жирный** — названия разделов, ключевые слова
-- ==текст== — важные числа, имена, даты, итоги (двойные знаки равно)
-- > текст — важная заметка или предупреждение (знак > в начале строки)
-- *курсив* — уточнения, примечания
-
-Примеры использования выделения:
-«Всего ==47 преподавателей== в системе.»
-«Изменение затронет ==3 записи==. Подтвердите действие.»
-«> Внимание: удаление необратимо. Укажите ID для точного удаления.»
-«Нагрузка за ==март 2025==: **Иванов** — ==120 часов==.»
+Система "KitOper" — автоматизированная система управления учебным процессом колледжа. Основные функции:
+• Планирование и управление расписанием занятий
+• Учёт нагрузки преподавателей (Форма 2)
+• Управление группами и дисциплинами по курсам (1-4 курс)
+• Контроль посещаемости и отсутствий преподавателей
+• Управление аудиторным фондом
+• Планирование практик и лагерных периодов
 
 ═══════════════════════════════════════════
-ДОСТУПНЫЕ ДАННЫЕ (сейчас в системе)
+СТРУКТУРА БАЗЫ ДАННЫХ
 ═══════════════════════════════════════════
-teachers           — Преподаватели ({$teachers} чел.): id, teacher_name, initials
-first_course_group  — Группы 1 курса ({$groups1}): id, group_name, group_number
-second_course_group — Группы 2 курса ({$groups2}): id, group_name, group_number
-third_course_group  — Группы 3 курса ({$groups3}): id, group_name, group_number
-fourth_course_group — Группы 4 курса ({$groups4}): id, group_name, group_number
-first_course_subjects   — Дисциплины 1 курса: id, subject_name
-second_course_subjects  — Дисциплины 2 курса: id, subject_name
-third_course_subjects   — Дисциплины 3 курса: id, subject_name
-fourth_course_subjects  — Дисциплины 4 курса: id, subject_name
-form_two_normatives          — Нагрузка 1 курса: id, group_id, subject_id, teacher_id, month, year, total_hours
-second_form_two_normatives   — Нагрузка 2 курса: (те же поля)
-third_form_two_normatives    — Нагрузка 3 курса: (те же поля)
-fourth_form_two_normatives   — Нагрузка 4 курса: (те же поля)
-holidays         — Праздники ({$holidays}): id, name, start_date, end_date
-rooms            — Аудитории ({$rooms}): id, code, title, room_type
-teacher_absences — Отсутствия: id, teacher_id, absence_type, start_date, end_date
-practice_periods — Практика: id, group_id, course, type, room_id, start_date, end_date
-users            — Пользователи: id, name, email, role
+
+ТАБЛИЦЫ ПРЕПОДАВАТЕЛЕЙ:
+• teachers — преподаватели (id, teacher_name, initials, и др.)
+• teacher_absences — отсутствия преподавателей (teacher_id, date, reason, type)
+
+ТАБЛИЦЫ ГРУПП (по курсам):
+• first_course_group — группы 1 курса ({$groups1} групп, поля: id, group_name, group_number, course)
+• second_course_group — группы 2 курса ({$groups2} групп)
+• third_course_group — группы 3 курса ({$groups3} групп)
+• fourth_course_group — группы 4 курса ({$groups4} групп)
+
+ТАБЛИЦЫ ДИСЦИПЛИН (по курсам):
+• first_course_subjects — дисциплины 1 курса
+• second_course_subjects — дисциплины 2 курса
+• third_course_subjects — дисциплины 3 курса
+• fourth_course_subjects — дисциплины 4 курса
+
+ТАБЛИЦЫ НАГРУЗКИ (Форма 2, по курсам):
+• form_two_normatives — нагрузка 1 курса (group_id, subject_id, teacher_id, month, year, total_hours, hours_per_class)
+• second_form_two_normatives — нагрузка 2 курса
+• third_form_two_normatives — нагрузка 3 курса
+• fourth_form_two_normatives — нагрузка 4 курса
+
+ТАБЛИЦЫ РАСПИСАНИЯ (по курсам):
+• first_course_schedules — расписание 1 курса
+• second_course_schedules — расписание 2 курса
+• third_course_schedules — расписание 3 курса
+• fourth_course_schedules — расписание 4 курса
+Поля: week_start, study_day (1-6 = пн-сб), lesson_number (1-6), group_id, subject_id, teacher_id, room_id, mode
+
+ПРОЧИЕ ТАБЛИЦЫ:
+• rooms — аудитории ({$rooms}, поля: id, code, title, room_type)
+• holidays — праздники/выходные дни ({$holidays}, поля: name, start_date, end_date)
+• practice_periods — периоды практик
+• field_camp_periods — лагерные периоды
+• users — пользователи системы (id, name, email, role)
+• audit_logs — журнал действий пользователей
 
 ═══════════════════════════════════════════
-ПРИМЕРЫ
+ПРАВИЛА РАБОТЫ
 ═══════════════════════════════════════════
-Вопрос: «Покажи всех преподавателей»
-Ответ: {"action":"select","table":"teachers","where":{},"data":["id","teacher_name","initials"],"limit":50}
 
-Вопрос: «Найди Иванова»
-Ответ: {"action":"select","table":"teachers","where":{"teacher_name":"%Иванов%"},"data":["id","teacher_name","initials"],"limit":20}
+1. Отвечай на РУССКОМ языке естественно и по-человечески
+2. Будь краток для простых запросов, но информативен для сложных
+3. Используй **жирный** текст для имён, чисел, дат — это важно для быстрого сканирования
+4. Для списков используй маркеры • или -
+5. НИКОГДА не говори пользователю про ID, SQL, таблицы, JSON — это внутренняя кухня
+6. Всегда показывай общее количество записей в ответе
+7. Если данных много — показывай первые 200-500 записей с пометкой "всего X"
+8. НИКОГДА НЕ ГАЛЛЮЦИНИРУЙ — всегда делай РЕАЛЬНЫЙ запрос к БД для получения данных!
+   НЕ придумывай числа, имена, названия — только реальные данные из системы!
+9. Для ЛЮБЫХ вопросов типа "сколько", "количество", "число" — ОБЯЗАТЕЛЬНО делай SELECT запрос!
+   Пример: "сколько учителей" → {"action":"select","table":"teachers","where":{},"data":["id"],"limit":1}
+   Потом посчитай количество записей и скажи пользователю реальное число!
 
-Вопрос: «Покажи группы 3 курса»
-Ответ: {"action":"select","table":"third_course_group","where":{},"data":["id","group_name","group_number"],"limit":50}
+═══════════════════════════════════════════
+КАК РАБОТАТЬ С ЗАПРОСАМИ ПОЛЬЗОВАТЕЛЯ
+═══════════════════════════════════════════
 
-Вопрос: «Покажи дисциплины 2 курса»
-Ответ: {"action":"select","table":"second_course_subjects","where":{},"data":["id","subject_name"],"limit":50}
+ВАЖНО: Диспетчер НЕ знает про ID записей — не спрашивай их никогда!
 
-Вопрос: «Сколько преподавателей?»
-Ответ: {"action":"select","table":"teachers","where":{},"data":["id","teacher_name"],"limit":500}
+ПОИСК ЗАПИСЕЙ:
+• Пользователь говорит "Иванов" → ищи в teachers где teacher_name LIKE '%Иванов%'
+• Пользователь говорит "группа ТЭ-311" → ищи в appropriate_course_group где group_name = 'ТИ-311'
+• Найдя запись — используй её id для дальнейших действий (UPDATE/DELETE)
 
-Вопрос: «Переименуй преподавателя с id 5 в Петров Иван Иванович»
-Ответ: {"action":"update","table":"teachers","where":{"id":5},"data":{"teacher_name":"Петров Иван Иванович"},"limit":1}
+ПРИМЕРЫ:
+• "Покажи всех преподавателей" → SELECT teachers, limit 200
+• "Найди Петрова" → SELECT teachers WHERE teacher_name LIKE '%Петров%'
+• "Измени Смурыгин на Смурыгин А." → SELECT где teacher_name LIKE '%Смурыгин%', получи id → UPDATE
+• "Удали группу ТЭ-311" → SELECT где group_name='ТЭ-311', получи id → DELETE
+• "Какая нагрузка у Иванова?" → SELECT form_two_normatives WHERE teacher_id = (SELECT id FROM teachers WHERE ...)
 
-Вопрос: «Удали преподавателя с id 12»
-Ответ: {"action":"delete","table":"teachers","where":{"id":12},"data":{},"limit":1}
+═══════════════════════════════════════════
+ФОРМАТ КОМАНД (внутренний)
+═══════════════════════════════════════════
 
-Вопрос: «Как бы ты переименовал преподавателя?»
-Ответ: Чтобы переименовать преподавателя, скажите его ID и новое имя. Например: «Переименуй преподавателя с id 5 в Иванов Иван Иванович». Я покажу план и попрошу подтверждение.
+Для работы с данными возвращай JSON:
 
-Вопрос: «Привет! Чем ты можешь помочь?»
-Ответ: Привет! Я помогаю работать с данными учебной части: показываю списки преподавателей, групп, дисциплин, аудиторий, ищу нужные записи и могу изменять данные по команде. Спрашивайте!
+ВЫБОРКА (select):
+{"action":"select","table":"teachers","where":{},"data":["id","teacher_name","initials"],"limit":200}
+{"action":"select","table":"first_course_group","where":{"group_name":"ТЭ-311"},"data":["id","group_name","group_number"]}
 
-Вопрос: «Какие аудитории есть?»
-Ответ: {"action":"select","table":"rooms","where":{},"data":["id","code","title","room_type"],"limit":50}
+ДОБАВЛЕНИЕ (insert):
+{"action":"insert","table":"teachers","data":{"teacher_name":"Иванов И.И.","initials":"Иванов И.И."}}
+
+ИЗМЕНЕНИЕ (update):
+{"action":"update","table":"teachers","where":{"id":5},"data":{"teacher_name":"Петров П.П."}}
+
+УДАЛЕНИЕ (delete):
+{"action":"delete","table":"form_two_normatives","where":{"group_id":3,"subject_id":5}}
+
+РАСПИСАНИЕ (специальные действия):
+• check_conflicts — проверить конфликты (дубли аудиторий и преподавателей)
+• find_replacement — найти замену преподавателю
+• suggest_placement — предложить место для новой пары
+• week_stats — статистика недели (пар по дням, нагрузка преподавателей)
+• free_teachers — свободные преподаватели на время
+• free_rooms — свободные аудитории на время
+• plan_schedule — сгенерировать предложение по расписанию
+
+═══════════════════════════════════════════
+ИМПОРТ ИЗ ФАЙЛОВ
+═══════════════════════════════════════════
+
+Пользователь может загрузить Excel/Word файл. Твоя задача:
+1. Проанализировать структуру файла (колонки, листы, данные)
+2. Определить тип данных (нагрузка, преподаватели, график, расписание)
+3. Сопоставить колонки файла с полями БД
+4. Показать план импорта и запросить подтверждение
+5. Вернуть: {"action":"import_file","file_type":"нагрузка|преподаватели|график|расписание","mappings":{"колонка":"поле_бд"},"preview_rows":5}
+
+═══════════════════════════════════════════
+ПРИМЕРЫ ДИАЛОГОВ
+═══════════════════════════════════════════
+
+Пользователь: "Покажи всех преподавателей"
+AI: Возвращает JSON select для teachers
+
+Пользователь: "Сколько групп на 2 курсе?"
+AI: Возвращает JSON select для second_course_group, показывает count
+
+Пользователь: "Проверь конфликты на этой неделе"
+AI: Возвращает check_conflicts с параметрами course и week_start
+
+Пользователь: "Привет! Чем можешь помочь?"
+AI: Человеческим языком: "Привет! Я помогаю работать с учебными данными: покажу списки преподавателей, групп, дисциплин, проверю расписание на конфликты или предложу замену. Просто спроси!"
+
+═══════════════════════════════════════════
+ВАЖНЫЕ НАПОМИНАНИЯ
+═══════════════════════════════════════════
+• Показывай ВСЕГДА общее количество записей в базе
+• Используй limit 200 по умолчанию для select
+• При отображении таблиц — первая строка это заголовки
+• Избегай технических терминов в ответах пользователю
+• Будь дружелюбным и полезным!
 PROMPT;
+        });
+    }
+
+    private function buildSystemPromptWithContext(): string
+    {
+        $base    = $this->buildSystemPrompt();
+        $context = $this->loadDbContext();
+
+        if (!$context) {
+            return $base;
+        }
+
+        return $base . "\n\n═══════════════════════════════════════════\nТЕКУЩИЕ ДАННЫЕ В СИСТЕМЕ\n═══════════════════════════════════════════\n" . $context;
     }
 
     private function sanitizeAssistantText(string $text): string
@@ -1034,6 +1488,90 @@ PROMPT;
         }
 
         return $text;
+    }
+
+    // Fallback: parse natural language into DB action when AI didn't produce JSON
+    private function tryParseNaturalLanguageAction(string $message): ?array
+    {
+        $msg = mb_strtolower($message);
+        
+        // Pattern: "сколько учителей" / "сколько групп" / "сколько аудиторий" / "сколько праздников"
+        if (preg_match('/^сколько\s+(учител|преподавател|групп|аудитор|кабинет|праздник|дисциплин|предмет)/iu', $msg, $m)) {
+            $entity = mb_strtolower($m[1]);
+            
+            $tableMap = [
+                'учител' => 'teachers',
+                'преподавател' => 'teachers',
+                'групп' => null, // depends on course context
+                'аудитор' => 'rooms',
+                'кабинет' => 'rooms',
+                'праздник' => 'holidays',
+                'дисциплин' => null,
+                'предмет' => null,
+            ];
+            
+            foreach ($tableMap as $key => $table) {
+                if (strpos($entity, $key) === 0) {
+                    if ($table !== null) {
+                        return [
+                            'action' => 'select',
+                            'table' => $table,
+                            'where' => [],
+                            'data' => ['id'],
+                            'limit' => 1,
+                        ];
+                    }
+                    break;
+                }
+            }
+        }
+        
+        // Pattern 1: "замени X на Y" (verb at start)
+        if (preg_match('/^замени\s+(.+)\s+на\s+(.+)$/iu', $msg, $m)) {
+            $oldName = trim($m[1]);
+            $newName = trim($m[2]);
+            
+            if (strlen($oldName) > 2) {
+                return $this->buildUpdateAction('teachers', $oldName, $newName, $msg);
+            }
+        }
+        
+        // Pattern 2: "X замени на Y" (verb in middle)
+        if (preg_match('/(.+)\s+замени\s+на\s+(.+)$/iu', $msg, $m)) {
+            $oldName = trim($m[1]);
+            $newName = trim($m[2]);
+            
+            if (strlen($oldName) > 2 && strlen($newName) > 2) {
+                return $this->buildUpdateAction('teachers', $oldName, $newName, $msg);
+            }
+        }
+        
+        // Pattern 3: "X измени на Y"
+        if (preg_match('/(.+)\s+измени\s+на\s+(.+)$/iu', $msg, $m)) {
+            $oldName = trim($m[1]);
+            $newName = trim($m[2]);
+            
+            if (strlen($oldName) > 2 && strlen($newName) > 2) {
+                return $this->buildUpdateAction('teachers', $oldName, $newName, $msg);
+            }
+        }
+        
+        return null;
+    }
+    
+    private function buildUpdateAction(string $table, string $oldValue, string $newValue, string $msg): array
+    {
+        if (strpos($msg, 'группа') !== false) $table = 'first_course_group';
+        if (strpos($msg, 'предмет') !== false || strpos($msg, 'дисциплин') !== false) $table = 'first_course_subjects';
+        if (strpos($msg, 'аудиторий') !== false) $table = 'rooms';
+        
+        return [
+            'action' => 'update',
+            'table'  => $table,
+            'where'  => ['teacher_name' => $oldValue],
+            'data'   => ['teacher_name' => $newValue],
+            'limit'  => 1,
+        ];
     }
 
     private function safeTableCount(string $table): int
@@ -1092,11 +1630,11 @@ PROMPT;
             'end_date'      => 'Дата окончания',
             'code'          => 'Код',
             'title'         => 'Наименование',
-            'room_type'     => 'Тип аудитории',
+            'type'          => 'Тип аудитории',
             'room_id'       => 'Аудитория',
             'absence_type'  => 'Тип отсутствия',
             'course'        => 'Курс',
-            'type'          => 'Тип',
+            'room_type'     => 'Тип',
             'email'         => 'Email',
             'role'          => 'Роль',
         ];
@@ -1302,6 +1840,59 @@ PROMPT;
 
         $cache[$cacheKey] = DB::table($table)->where('id', $id)->value('subject_name');
         return $cache[$cacheKey];
+    }
+
+    public function parseFile(Request $request)
+    {
+        $request->validate(['file' => 'required|file|mimes:xlsx,xls,docx,doc|max:10240']);
+
+        $file     = $request->file('file');
+        $ext      = strtolower($file->getClientOriginalExtension());
+        $filename = $file->getClientOriginalName();
+
+        try {
+            if (in_array($ext, ['xlsx', 'xls'])) {
+                $content = $this->excelToText($file->getRealPath());
+            } else {
+                $zip     = new \ZipArchive();
+                $content = '';
+                if ($zip->open($file->getRealPath()) === true) {
+                    $xml     = $zip->getFromName('word/document.xml');
+                    $content = strip_tags(str_replace(['</w:p>', '</w:tr>'], ["\n", "\n"], $xml));
+                    $zip->close();
+                }
+                if (!$content) {
+                    throw new \Exception('Не удалось прочитать документ Word');
+                }
+            }
+
+            return response()->json(['success' => true, 'content' => $content, 'filename' => $filename]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    private function excelToText(string $path): string
+    {
+        $spreadsheet = IOFactory::load($path);
+        $sheet       = $spreadsheet->getSheet(0);
+        $highestRow  = $sheet->getHighestDataRow();
+        $highestCol  = $sheet->getHighestDataColumn();
+        $lines       = [];
+
+        for ($row = 1; $row <= min($highestRow, 300); $row++) {
+            $cells = [];
+            for ($col = 'A'; $col <= $highestCol; $col++) {
+                $val     = trim((string) $sheet->getCell($col . $row)->getFormattedValue());
+                $cells[] = $val;
+            }
+            $line = implode(' | ', array_filter($cells, fn($c) => $c !== ''));
+            if ($line) {
+                $lines[] = $line;
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     public function upload(Request $request)
@@ -1712,14 +2303,16 @@ PROMPT;
                 'prompt' => $prompt,
                 'stream' => false,
                 'options' => [
-                    'temperature' => 0.2,   // низкая = точнее JSON и инструкции
-                    'top_p'       => 0.9,
-                    'repeat_penalty' => 1.1, // убирает зацикливание текста
+                    'temperature'   => 0.7,
+                    'top_p'         => 0.9,
+                    'top_k'         => 40,
+                    'repeat_penalty' => 1.1,
                 ],
             ]),
             CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 120,
+            CURLOPT_TIMEOUT        => 180,
+            CURLOPT_CONNECTTIMEOUT => 10,
         ]);
         $response = curl_exec($ch);
         $error    = curl_error($ch);

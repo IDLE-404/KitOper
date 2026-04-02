@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @push('styles')
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="{{ asset('css/schedule-modern.css') }}">
+<link rel="stylesheet" href="{{ asset('css/schedule/main.css') }}">
 <style>
     .panel-card {
         background: var(--panel);

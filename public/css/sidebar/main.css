@@ -1,0 +1,388 @@
+:root {
+    --ko-bg:          #f4f4f5;
+    --ko-sidebar:     #ffffff;
+    --ko-text:        #101828;
+    --ko-muted:       #667085;
+    --ko-border:      #e4e7ec;
+    --ko-primary:     #7f56d9;
+    --ko-active-bg:   #f9fafb;
+    --ko-hover-bg:    #f9fafb;
+    --ko-radius:      8px;
+    --ko-shadow:      0 1px 3px rgba(16, 24, 40, 0.10), 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+/* ── Reset / Body ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+
+.ko-body {
+    font-family: "Manrope", "Inter", "Segoe UI", sans-serif;
+    color: var(--ko-text);
+    background: var(--ko-bg);
+    min-height: 100vh;
+}
+
+/* ── Layout ───────────────────────────────────────── */
+.ko-app {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+/* ── Sidebar ──────────────────────────────────────── */
+.ko-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--ko-sidebar);
+    border-right: 1px solid var(--ko-border);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ko-border) transparent;
+}
+
+.ko-sidebar::-webkit-scrollbar { width: 4px; }
+.ko-sidebar::-webkit-scrollbar-thumb {
+    background: var(--ko-border);
+    border-radius: 99px;
+}
+
+/* ── Brand ────────────────────────────────────────── */
+.ko-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 16px 16px;
+    border-bottom: 1px solid var(--ko-border);
+}
+
+.ko-brand-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #9e77ed, #6941c6);
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.ko-brand-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ko-text);
+    letter-spacing: -0.1px;
+}
+
+/* ── Search ───────────────────────────────────────── */
+.ko-search {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--ko-border);
+}
+
+.ko-search-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--ko-border);
+    border-radius: var(--ko-radius);
+    background: #fff;
+    cursor: text;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ko-search-inner:focus-within {
+    border-color: var(--ko-primary);
+    box-shadow: 0 0 0 3px rgba(127, 86, 217, 0.12);
+}
+
+.ko-search-inner i {
+    color: var(--ko-muted);
+    font-size: 15px;
+    flex-shrink: 0;
+}
+
+.ko-search-input {
+    flex: 1;
+    border: 0;
+    outline: none;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--ko-text);
+    background: transparent;
+    min-width: 0;
+}
+
+.ko-search-input::placeholder { color: var(--ko-muted); }
+
+.ko-search-kbd {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    color: var(--ko-muted);
+    background: var(--ko-hover-bg);
+    border: 1px solid var(--ko-border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+/* ── Nav body ─────────────────────────────────────── */
+.ko-nav-body {
+    flex: 1;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.ko-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.ko-divider {
+    height: 1px;
+    background: var(--ko-border);
+    margin: 6px 0;
+}
+
+/* ── Section label ────────────────────────────────── */
+.ko-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--ko-muted);
+    padding: 10px 8px 4px;
+}
+
+/* ── Nav item ─────────────────────────────────────── */
+.ko-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--ko-radius);
+    text-decoration: none;
+    color: var(--ko-muted);
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.1s, color 0.1s;
+    border: 0;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    cursor: pointer;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.ko-nav-item i {
+    font-size: 16px;
+    flex-shrink: 0;
+    width: 18px;
+    text-align: center;
+}
+
+.ko-nav-item span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ko-nav-item:hover {
+    background: var(--ko-hover-bg);
+    color: var(--ko-text);
+}
+
+.ko-nav-item.is-active {
+    background: var(--ko-active-bg);
+    color: var(--ko-text);
+    font-weight: 600;
+}
+
+/* ── Item badge (e.g. "Online") ───────────────────── */
+.ko-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 1px 8px;
+    border-radius: 99px;
+    border: 1px solid;
+    flex-shrink: 0;
+    line-height: 1.6;
+}
+
+.ko-badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.ko-badge-success {
+    color: #027a48;
+    background: #ecfdf3;
+    border-color: #abefc6;
+}
+
+.ko-badge-success .ko-badge-dot { background: #17b26a; }
+
+/* ── Item trailing icon ───────────────────────────── */
+.ko-nav-item-trail {
+    flex-shrink: 0;
+    color: var(--ko-muted);
+    font-size: 14px;
+}
+
+/* ── Spacer ───────────────────────────────────────── */
+.ko-spacer { flex: 1 1 auto; }
+
+/* ── User profile ─────────────────────────────────── */
+.ko-sidebar-footer {
+    border-top: 1px solid var(--ko-border);
+    padding: 12px 16px;
+}
+
+.ko-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px;
+    border-radius: var(--ko-radius);
+    cursor: pointer;
+    transition: background 0.1s;
+    text-decoration: none;
+}
+
+.ko-user:hover { background: var(--ko-hover-bg); }
+
+.ko-user-avatar-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.ko-user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #9e77ed, #6941c6);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    text-transform: uppercase;
+}
+
+.ko-user-online {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #17b26a;
+    border: 2px solid #fff;
+}
+
+.ko-user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.ko-user-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ko-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ko-user-role {
+    font-size: 12px;
+    color: var(--ko-muted);
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ko-user-sort {
+    color: var(--ko-muted);
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+/* ── Logout ───────────────────────────────────────── */
+.ko-logout {
+    color: #b42318 !important;
+}
+.ko-logout i { color: #b42318 !important; }
+.ko-logout:hover {
+    background: #fff4f3 !important;
+    color: #912018 !important;
+}
+.ko-logout:hover i { color: #912018 !important; }
+
+/* ── Content ──────────────────────────────────────── */
+.ko-content {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.ko-main {
+    flex: 1;
+    padding: 24px;
+}
+
+.ko-main-inner {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: var(--ko-shadow);
+    min-height: calc(100vh - 48px);
+}
+
+/* ── Responsive ───────────────────────────────────── */
+@media (max-width: 992px) {
+    .ko-app { flex-direction: column; }
+
+    .ko-sidebar {
+        width: 100%;
+        position: static;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--ko-border);
+    }
+
+    .ko-main { padding: 16px; }
+
+    .ko-main-inner { min-height: auto; }
+}

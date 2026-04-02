@@ -3,7 +3,7 @@
 @push('styles')
 <link rel="preconnect" href="https://fonts.bunny.net">
 <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700" rel="stylesheet" />
-<link rel="stylesheet" href="{{ asset('css/schedule-modern.css') }}">
+<link rel="stylesheet" href="{{ asset('css/schedule/main.css') }}">
 <style>
     .workload-shell {
         --surface: #ffffff;

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @push('styles')
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="{{ asset('css/schedule-modern.css') }}">
+<link rel="stylesheet" href="{{ asset('css/schedule/main.css') }}">
 <style>
     .holiday-banner {
         margin: 1rem 0;
@@ -583,6 +583,20 @@
                 @endif
             </div>
             <div class="header-actions__secondary">
+                <button type="button" class="btn-pill ghost" id="scheduleHealthBtn"
+                    data-health-url="{{ route('first.schedule.health') }}"
+                    data-holiday-url="{{ route('first.schedule.holiday_compensation') }}"
+                    style="position:relative">
+                    Анализ недели
+                    <span id="healthBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 3px"></span>
+                </button>
+                @if(!empty($weeklyHolidays))
+                    <button type="button" class="btn-pill ghost" id="holidayCompBtn"
+                        data-holiday-url="{{ route('first.schedule.holiday_compensation') }}"
+                        style="border-color:#f59e0b;color:#92400e">
+                        Перенос праздничных пар
+                    </button>
+                @endif
                 <a href="{{ route('first.schedule.week', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Редактор недели</a>
                 <a href="{{ route('first.schedule.week', $expandLinkParams) }}#semesterExpandSection" class="btn-pill ghost">Развернуть семестр</a>
                 @php
@@ -2870,4 +2884,219 @@
         </div>
     </form>
 </div>
+
+{{-- ─── Модал: Анализ расписания ──────────────────────────────────────────── --}}
+<div id="scheduleHealthModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);overflow-y:auto">
+    <div style="max-width:640px;margin:48px auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.18)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+            <h3 style="margin:0;font-size:1.1rem;font-weight:700">Анализ расписания</h3>
+            <button id="healthModalClose" style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b">&times;</button>
+        </div>
+        <div id="healthModalBody">
+            <div style="text-align:center;padding:24px;color:#64748b">Загрузка...</div>
+        </div>
+    </div>
+</div>
+
+{{-- ─── Модал: Перенос праздничных пар ───────────────────────────────────── --}}
+<div id="holidayCompModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);overflow-y:auto">
+    <div style="max-width:680px;margin:48px auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.18)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+            <h3 style="margin:0;font-size:1.1rem;font-weight:700">Перенос праздничных пар</h3>
+            <button id="compModalClose" style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b">&times;</button>
+        </div>
+        <div id="compModalBody">
+            <div style="text-align:center;padding:24px;color:#64748b">Загрузка...</div>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+(function () {
+    const weekStart  = document.getElementById('weekStartInput')?.value ?? '';
+    const courseEl   = document.getElementById('courseSelect');
+
+    function getCourse() { return courseEl?.value ?? '1'; }
+
+    // ─── Health modal ───────────────────────────────────────────────────────
+    const healthBtn   = document.getElementById('scheduleHealthBtn');
+    const healthModal = document.getElementById('scheduleHealthModal');
+    const healthBody  = document.getElementById('healthModalBody');
+    const healthClose = document.getElementById('healthModalClose');
+
+    const SEVERITY_COLOR = { danger: '#ef4444', warning: '#f59e0b', info: '#3b82f6' };
+    const SEVERITY_ICON  = { danger: '🔴', warning: '🟡', info: '🔵' };
+    const TYPE_LABEL = {
+        window:           'Окно в расписании',
+        overload:         'Перегрузка группы',
+        uniformity:       'Неравномерность нагрузки',
+        teacher_overload: 'Перегрузка преподавателя',
+        teacher_uniformity: 'Неравномерность (преп.)',
+    };
+
+    function renderHealth(data) {
+        if (data.ok) {
+            healthBody.innerHTML = '<div style="text-align:center;padding:32px;color:#22c55e;font-size:1.1rem;font-weight:600">✅ Расписание в норме — нарушений нет</div>';
+            return;
+        }
+        const byType = {};
+        data.warnings.forEach(w => {
+            const key = w.type;
+            if (!byType[key]) byType[key] = [];
+            byType[key].push(w);
+        });
+
+        let html = '';
+        // Summary chips
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">';
+        if (data.counts.danger)  html += `<span style="padding:4px 12px;border-radius:999px;background:#fee2e2;color:#991b1b;font-size:12px;font-weight:600">🔴 Критичных: ${data.counts.danger}</span>`;
+        if (data.counts.warning) html += `<span style="padding:4px 12px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:600">🟡 Предупреждений: ${data.counts.warning}</span>`;
+        if (data.counts.info)    html += `<span style="padding:4px 12px;border-radius:999px;background:#dbeafe;color:#1e40af;font-size:12px;font-weight:600">🔵 Замечаний: ${data.counts.info}</span>`;
+        html += '</div>';
+
+        Object.entries(byType).forEach(([type, items]) => {
+            const sev = items[0].severity;
+            const color = SEVERITY_COLOR[sev] ?? '#64748b';
+            html += `<div style="margin-bottom:14px">
+                <div style="font-size:12px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">
+                    ${SEVERITY_ICON[sev] ?? ''} ${TYPE_LABEL[type] ?? type} (${items.length})
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px">`;
+            items.forEach(w => {
+                html += `<div style="padding:8px 12px;background:#f8fafc;border-left:3px solid ${color};border-radius:4px;font-size:13px">${w.message}</div>`;
+            });
+            html += '</div></div>';
+        });
+
+        healthBody.innerHTML = html;
+    }
+
+    function openHealthModal() {
+        healthModal.style.display = 'block';
+        healthBody.innerHTML = '<div style="text-align:center;padding:24px;color:#64748b">Загрузка...</div>';
+
+        const url = new URL(healthBtn.dataset.healthUrl, location.href);
+        url.searchParams.set('week_start', weekStart);
+        url.searchParams.set('course', getCourse());
+
+        fetch(url.toString(), { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json())
+            .then(data => {
+                renderHealth(data);
+                // Update badge
+                const badge = document.getElementById('healthBadge');
+                const total = (data.counts?.danger ?? 0) + (data.counts?.warning ?? 0);
+                if (total > 0) {
+                    badge.textContent = total;
+                    badge.style.display = 'block';
+                } else {
+                    badge.style.display = 'none';
+                }
+            })
+            .catch(() => {
+                healthBody.innerHTML = '<div style="color:#ef4444;padding:16px">Ошибка загрузки данных</div>';
+            });
+    }
+
+    healthBtn?.addEventListener('click', openHealthModal);
+    healthClose?.addEventListener('click', () => { healthModal.style.display = 'none'; });
+    healthModal?.addEventListener('click', e => { if (e.target === healthModal) healthModal.style.display = 'none'; });
+
+    // Автоматически подгружаем бейдж при загрузке страницы
+    if (healthBtn && weekStart) {
+        const url = new URL(healthBtn.dataset.healthUrl, location.href);
+        url.searchParams.set('week_start', weekStart);
+        url.searchParams.set('course', getCourse());
+        fetch(url.toString(), { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json())
+            .then(data => {
+                const badge = document.getElementById('healthBadge');
+                const total = (data.counts?.danger ?? 0) + (data.counts?.warning ?? 0);
+                if (total > 0 && badge) {
+                    badge.textContent = total;
+                    badge.style.display = 'block';
+                }
+            })
+            .catch(() => {});
+    }
+
+    // ─── Holiday compensation modal ─────────────────────────────────────────
+    const compBtn   = document.getElementById('holidayCompBtn');
+    const compModal = document.getElementById('holidayCompModal');
+    const compBody  = document.getElementById('compModalBody');
+    const compClose = document.getElementById('compModalClose');
+
+    function renderComp(data) {
+        if (!data.has_holidays || !data.groups?.length) {
+            compBody.innerHTML = '<div style="text-align:center;padding:32px;color:#22c55e;font-size:1.05rem">На этой неделе нет праздников с парами, которые нужно переносить.</div>';
+            return;
+        }
+
+        const holNames = Object.values(data.holidays).join(', ');
+        let html = `<div style="padding:10px 14px;background:#fef3c7;border-radius:8px;margin-bottom:16px;font-size:13px;color:#92400e">
+            <strong>Праздники:</strong> ${holNames}<br>
+            <span style="font-size:12px">Ниже указаны пары, которые выпали на праздник, и свободные слоты для переноса.</span>
+        </div>`;
+
+        data.groups.forEach(group => {
+            html += `<div style="margin-bottom:18px">
+                <div style="font-weight:700;font-size:14px;margin-bottom:8px;padding:4px 0;border-bottom:1px solid #e2e8f0">
+                    ${group.group_name} — ${group.count} пар(ы)
+                </div>`;
+
+            group.pairs.forEach(pair => {
+                const slots = pair.free_this_week.length ? pair.free_this_week : pair.free_next_week;
+                const isNextWeek = pair.free_this_week.length === 0 && pair.free_next_week.length > 0;
+                const noSlots = slots.length === 0;
+
+                html += `<div style="padding:10px 12px;background:#f8fafc;border-radius:8px;margin-bottom:6px;border-left:3px solid #f59e0b">
+                    <div style="font-size:13px;margin-bottom:6px">
+                        <strong>${pair.holiday_day}</strong> (${pair.holiday_name}) — пара ${pair.lesson_number}:
+                        ${pair.subject}${pair.teacher ? ' / ' + pair.teacher : ''}
+                    </div>`;
+
+                if (noSlots) {
+                    html += `<div style="color:#ef4444;font-size:12px">⚠ Нет свободных слотов ни на этой, ни на следующей неделе</div>`;
+                } else {
+                    html += `<div style="font-size:12px;color:#64748b;margin-bottom:4px">${isNextWeek ? '📅 Следующая неделя:' : '📅 Эта неделя:'}</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">`;
+                    slots.forEach(s => {
+                        html += `<span style="padding:3px 10px;border-radius:6px;background:#dbeafe;color:#1e40af;font-size:12px;font-weight:600">${s.day}, пара ${s.lesson} (${s.date})</span>`;
+                    });
+                    html += `</div>`;
+                }
+                html += `</div>`;
+            });
+
+            html += `</div>`;
+        });
+
+        compBody.innerHTML = html;
+    }
+
+    function openCompModal() {
+        compModal.style.display = 'block';
+        compBody.innerHTML = '<div style="text-align:center;padding:24px;color:#64748b">Загрузка...</div>';
+
+        const baseUrl = compBtn?.dataset.holidayUrl ?? healthBtn?.dataset.holidayUrl;
+        if (!baseUrl) return;
+        const url = new URL(baseUrl, location.href);
+        url.searchParams.set('week_start', weekStart);
+        url.searchParams.set('course', getCourse());
+
+        fetch(url.toString(), { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json())
+            .then(renderComp)
+            .catch(() => {
+                compBody.innerHTML = '<div style="color:#ef4444;padding:16px">Ошибка загрузки данных</div>';
+            });
+    }
+
+    compBtn?.addEventListener('click', openCompModal);
+    compClose?.addEventListener('click', () => { compModal.style.display = 'none'; });
+    compModal?.addEventListener('click', e => { if (e.target === compModal) compModal.style.display = 'none'; });
+})();
+</script>
+@endpush
 @endpush

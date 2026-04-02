@@ -8,22 +8,25 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap">
-    <link rel="stylesheet" href="/css/sidebar.css">
+    <link rel="stylesheet" href="/css/sidebar/main.css">
+    <link rel="stylesheet" href="/css/sidebar/ai-chat-widget.css">
     @stack('styles')
 </head>
 <body class="ko-body">
     @php($currentUser = auth()->user())
     <div class="ko-app">
         <aside class="ko-sidebar">
+
+            {{-- Brand --}}
             <div class="ko-brand">
                 <div class="ko-brand-icon">
-                    <i class="bi bi-grid"></i>
+                    <i class="bi bi-grid-fill"></i>
                 </div>
                 <div class="ko-brand-name">KitOper</div>
             </div>
 
-            <div>
-                <div class="ko-section-title">Меню</div>
+            {{-- Navigation --}}
+            <div class="ko-nav-body">
                 <nav class="ko-nav">
                     @if($currentUser?->isDispatcher())
                         <a class="ko-nav-item {{ request()->routeIs('home', 'first.schedule.*') ? 'is-active' : '' }}" href="{{ route('home') }}">
@@ -34,6 +37,9 @@
                             <i class="bi bi-files"></i>
                             <span>Дубликат недели</span>
                         </a>
+
+                        <div class="ko-divider"></div>
+
                         <a class="ko-nav-item {{ request()->routeIs('groups.*') ? 'is-active' : '' }}" href="{{ route('groups.index') }}">
                             <i class="bi bi-people"></i>
                             <span>Группы</span>
@@ -50,6 +56,9 @@
                             <i class="bi bi-building"></i>
                             <span>Аудитории</span>
                         </a>
+
+                        <div class="ko-divider"></div>
+
                         <a class="ko-nav-item {{ request()->routeIs('holidays.*') ? 'is-active' : '' }}" href="{{ route('holidays.index') }}">
                             <i class="bi bi-calendar-event"></i>
                             <span>Праздники</span>
@@ -70,6 +79,9 @@
                             <i class="bi bi-table"></i>
                             <span>Занятость</span>
                         </a>
+
+                        <div class="ko-divider"></div>
+
                         <a class="ko-nav-item {{ request()->routeIs('first.schedule.form_two') ? 'is-active' : '' }}" href="{{ route('first.schedule.form_two') }}">
                             <i class="bi bi-file-earmark-text"></i>
                             <span>Форма 2</span>
@@ -87,7 +99,7 @@
                             <span>Журнал изменений</span>
                         </a>
                         <a class="ko-nav-item {{ request()->routeIs('ai_agent.*') ? 'is-active' : '' }}" href="{{ route('ai_agent.index') }}">
-                            <i class="bi bi-robot"></i>
+                            <i class="bi bi-chat-dots"></i>
                             <span>ИИ-Агент</span>
                         </a>
                     @elseif($currentUser?->isTeacher())
@@ -101,36 +113,48 @@
                             <span>Расписание</span>
                         </a>
                     @endif
+
+                    <div class="ko-spacer"></div>
+
+                    <div class="ko-divider"></div>
+
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button class="ko-nav-item ko-logout" type="submit">
+                            <i class="bi bi-box-arrow-right"></i>
+                            <span>Выход</span>
+                        </button>
+                    </form>
                 </nav>
             </div>
 
-            <div class="ko-spacer"></div>
-
-            <div class="px-3 pb-2 text-muted small">
-                {{ $currentUser?->name }}
-                <div>
-                    @if($currentUser?->role === 'dispatcher')
-                        Диспетчер
-                    @elseif($currentUser?->role === 'teacher')
-                        Преподаватель
-                    @else
-                        Ученик
-                    @endif
+            {{-- User profile --}}
+            <div class="ko-sidebar-footer">
+                <div class="ko-user">
+                    <div class="ko-user-avatar-wrap">
+                        <div class="ko-user-avatar">{{ mb_substr($currentUser?->name ?? '?', 0, 1) }}</div>
+                        <span class="ko-user-online"></span>
+                    </div>
+                    <div class="ko-user-info">
+                        <div class="ko-user-name">{{ $currentUser?->name }}</div>
+                        <div class="ko-user-role">
+                            @if($currentUser?->role === 'dispatcher')
+                                Диспетчер
+                            @elseif($currentUser?->role === 'teacher')
+                                Преподаватель
+                            @else
+                                Ученик
+                            @endif
+                        </div>
+                    </div>
+                    <i class="bi bi-chevron-expand ko-user-sort"></i>
                 </div>
             </div>
-
-            <form method="POST" action="{{ route('logout') }}" class="ko-nav">
-                @csrf
-                <button class="ko-nav-item ko-logout" type="submit">
-                    <i class="bi bi-box-arrow-right"></i>
-                    <span>Выход</span>
-                </button>
-            </form>
 
         </aside>
 
         <div class="ko-content">
-            <main class="ko-main">
+            <div class="ko-main">
                 <div class="ko-main-inner">
                     @if (session('success'))
                         <div class="alert alert-success">{{ session('success') }}</div>
@@ -138,11 +162,14 @@
 
                     @yield('content')
                 </div>
-            </main>
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     @stack('scripts')
+    @if(auth()->user()?->isDispatcher())
+        @include('components.ai-widget')
+    @endif
 </body>
 </html>

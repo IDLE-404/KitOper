@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @push('styles')
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="{{ asset('css/schedule-modern.css') }}">
+<link rel="stylesheet" href="{{ asset('css/schedule/main.css') }}">
 <style>
     .panel-card {
         background: var(--panel);
@@ -537,6 +537,39 @@
                 const title = item.dataset.subjectTitle || item.textContent.toLowerCase();
                 item.style.display = title.includes(query) ? '' : 'none';
             });
+        });
+    });
+    
+    // Table selection for AI context
+    document.querySelectorAll('.teachers-table tbody tr').forEach(row => {
+        row.style.cursor = 'pointer';
+        row.title = 'Кликните чтобы выбрать строку для ИИ-ассистента';
+        row.addEventListener('click', function(e) {
+            if (e.target.closest('a') || e.target.closest('button')) return;
+            
+            // Remove previous selection
+            document.querySelectorAll('.teachers-table tbody tr').forEach(r => r.style.background = '');
+            
+            // Highlight this row
+            this.style.background = 'rgba(79, 124, 255, 0.1)';
+            
+            // Get headers from thead
+            const table = this.closest('table');
+            if (!table) return;
+            
+            const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim()).filter(t => t);
+            
+            // Get only this row's data
+            const cells = Array.from(this.querySelectorAll('td')).map(td => td.textContent.trim()).filter(t => t);
+            const rowData = headers.map((h, i) => h + ': ' + (cells[i] || '')).join('\n');
+            
+            // Get row identifier (first cell - usually ID or name)
+            const identifier = cells[0] || 'строка';
+            const tableTitle = 'Преподаватели - ' + identifier;
+            
+            if (typeof window.selectTableForAI === 'function') {
+                window.selectTableForAI(rowData, tableTitle);
+            }
         });
     });
 </script>

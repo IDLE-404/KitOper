@@ -1,20 +1,26 @@
 :root {
-    --ko-bg:          #f4f4f5;
-    --ko-sidebar:     #ffffff;
-    --ko-text:        #101828;
-    --ko-muted:       #667085;
-    --ko-border:      #e4e7ec;
-    --ko-primary:     #7f56d9;
-    --ko-active-bg:   #f9fafb;
-    --ko-hover-bg:    #f9fafb;
-    --ko-radius:      8px;
-    --ko-shadow:      0 1px 3px rgba(16, 24, 40, 0.10), 0 1px 2px rgba(16, 24, 40, 0.06);
+    --ko-bg: #f7f7f8;
+    --ko-sidebar: #ffffff;
+    --ko-text: #0f172a;
+    --ko-muted: #6b7280;
+    --ko-border: #e5e7eb;
+    --ko-primary: #7f56d9;
+    --ko-primary-bg: rgba(127, 86, 217, 0.08);
+    --ko-primary-text: #6941c6;
+    --ko-hover-bg: #f7f7f8;
+    --ko-radius: 8px;
+    --ko-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
 /* ── Reset / Body ─────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; }
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
 
-html, body {
+html,
+body {
     margin: 0;
     padding: 0;
     height: 100%;
@@ -52,7 +58,9 @@ html, body {
     scrollbar-color: var(--ko-border) transparent;
 }
 
-.ko-sidebar::-webkit-scrollbar { width: 4px; }
+.ko-sidebar::-webkit-scrollbar {
+    width: 4px;
+}
 .ko-sidebar::-webkit-scrollbar-thumb {
     background: var(--ko-border);
     border-radius: 99px;
@@ -101,7 +109,9 @@ html, body {
     border-radius: var(--ko-radius);
     background: #fff;
     cursor: text;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    transition:
+        border-color 0.15s,
+        box-shadow 0.15s;
 }
 
 .ko-search-inner:focus-within {
@@ -126,7 +136,9 @@ html, body {
     min-width: 0;
 }
 
-.ko-search-input::placeholder { color: var(--ko-muted); }
+.ko-search-input::placeholder {
+    color: var(--ko-muted);
+}
 
 .ko-search-kbd {
     display: inline-flex;
@@ -184,7 +196,9 @@ html, body {
     color: var(--ko-muted);
     font-size: 14px;
     font-weight: 500;
-    transition: background 0.1s, color 0.1s;
+    transition:
+        background 0.1s,
+        color 0.1s;
     border: 0;
     background: transparent;
     width: 100%;
@@ -215,9 +229,13 @@ html, body {
 }
 
 .ko-nav-item.is-active {
-    background: var(--ko-active-bg);
-    color: var(--ko-text);
+    background: var(--ko-primary-bg);
+    color: var(--ko-primary-text);
     font-weight: 600;
+}
+
+.ko-nav-item.is-active i {
+    color: var(--ko-primary);
 }
 
 /* ── Item badge (e.g. "Online") ───────────────────── */
@@ -247,7 +265,9 @@ html, body {
     border-color: #abefc6;
 }
 
-.ko-badge-success .ko-badge-dot { background: #17b26a; }
+.ko-badge-success .ko-badge-dot {
+    background: #17b26a;
+}
 
 /* ── Item trailing icon ───────────────────────────── */
 .ko-nav-item-trail {
@@ -257,7 +277,9 @@ html, body {
 }
 
 /* ── Spacer ───────────────────────────────────────── */
-.ko-spacer { flex: 1 1 auto; }
+.ko-spacer {
+    flex: 1 1 auto;
+}
 
 /* ── User profile ─────────────────────────────────── */
 .ko-sidebar-footer {
@@ -276,7 +298,9 @@ html, body {
     text-decoration: none;
 }
 
-.ko-user:hover { background: var(--ko-hover-bg); }
+.ko-user:hover {
+    background: var(--ko-hover-bg);
+}
 
 .ko-user-avatar-wrap {
     position: relative;
@@ -340,12 +364,16 @@ html, body {
 .ko-logout {
     color: #b42318 !important;
 }
-.ko-logout i { color: #b42318 !important; }
+.ko-logout i {
+    color: #b42318 !important;
+}
 .ko-logout:hover {
     background: #fff4f3 !important;
     color: #912018 !important;
 }
-.ko-logout:hover i { color: #912018 !important; }
+.ko-logout:hover i {
+    color: #912018 !important;
+}
 
 /* ── Content ──────────────────────────────────────── */
 .ko-content {
@@ -362,27 +390,89 @@ html, body {
     padding: 24px;
 }
 
-.ko-main-inner {
-    background: #fff;
-    border-radius: 12px;
-    padding: 24px;
+/* ── Responsive ───────────────────────────────────── */
+
+/* Hamburger button — hidden on desktop */
+.ko-sidebar-toggle {
+    display: none;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 1100;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--ko-radius);
+    border: 1px solid var(--ko-border);
+    background: var(--ko-sidebar);
+    color: var(--ko-text);
+    font-size: 20px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
     box-shadow: var(--ko-shadow);
-    min-height: calc(100vh - 48px);
+    transition: background 0.15s;
+}
+.ko-sidebar-toggle:hover {
+    background: var(--ko-hover-bg);
 }
 
-/* ── Responsive ───────────────────────────────────── */
-@media (max-width: 992px) {
-    .ko-app { flex-direction: column; }
+/* Overlay backdrop */
+.ko-sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1040;
+    opacity: 0;
+    transition: opacity 0.25s;
+}
+.ko-sidebar-overlay.is-active {
+    opacity: 1;
+}
 
-    .ko-sidebar {
-        width: 100%;
-        position: static;
-        height: auto;
-        border-right: none;
-        border-bottom: 1px solid var(--ko-border);
+@media (max-width: 992px) {
+    .ko-sidebar-toggle {
+        display: flex;
     }
 
-    .ko-main { padding: 16px; }
+    .ko-sidebar {
+        position: fixed;
+        top: 0;
+        left: -280px;
+        bottom: 0;
+        width: 280px;
+        height: 100vh;
+        z-index: 1050;
+        border-right: none;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+        transition: left 0.25s ease;
+    }
+    .ko-sidebar.is-open {
+        left: 0;
+    }
 
-    .ko-main-inner { min-height: auto; }
+    .ko-sidebar-overlay {
+        display: block;
+    }
+
+    .ko-content {
+        width: 100%;
+    }
+
+    .ko-main {
+        padding: 64px 16px 16px;
+    }
+}
+
+@media (max-width: 576px) {
+    .ko-main {
+        padding: 56px 12px 12px;
+    }
+    .ko-sidebar-toggle {
+        top: 8px;
+        left: 8px;
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+    }
 }

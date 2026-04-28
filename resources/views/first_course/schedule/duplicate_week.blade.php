@@ -28,10 +28,10 @@
     .dup-help {
         margin-top: 14px;
         padding: 10px 12px;
-        border: 1px solid #dbeafe;
+        border: 1px solid #e5e7eb;
         border-radius: 10px;
-        background: #eff6ff;
-        color: #1e3a8a;
+        background: #f7f7f8;
+        color: #6b7280;
         font-size: 13px;
     }
     .dup-actions {

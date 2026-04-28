@@ -1,61 +1,6 @@
 @extends('layouts.app')
 @push('styles')
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="{{ asset('css/schedule/main.css') }}">
 <style>
-    .panel-card {
-        background: var(--panel);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        border: 1px solid #ecf0f6;
-        padding: 18px 20px;
-    }
-    .panel-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--text);
-        margin-bottom: 12px;
-    }
-    .form-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        align-items: flex-end;
-    }
-    .form-field {
-        flex: 1 1 240px;
-        min-width: 200px;
-    }
-    .form-field label {
-        font-size: 13px;
-        color: var(--muted);
-        margin-bottom: 6px;
-        display: inline-block;
-    }
-    .form-field--actions {
-        flex: 0 0 auto;
-    }
-    .table-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        justify-content: flex-end;
-    }
-    .table thead th {
-        color: var(--muted);
-        font-weight: 600;
-        font-size: 13px;
-        border-bottom: 1px solid #e6ebf2;
-    }
-    .table td {
-        vertical-align: top;
-    }
-    .empty-note {
-        color: var(--muted);
-        font-size: 14px;
-        padding: 16px 0;
-        text-align: center;
-    }
     .teacher-duplicate td {
         background: #fff7ed;
     }
@@ -195,27 +140,23 @@
 @endpush
 
 @section('content')
-<div class="schedule-shell compact">
-    <div class="header-row">
-        <div>
-            <h1 class="page-title">Преподаватели (общий справочник 1–4 курсов)</h1>
-            <p class="page-subtitle">Один преподаватель, предметы сразу по всем курсам</p>
-        </div>
-        <div class="action-buttons">
-            <a href="{{ route('first.schedule.index', ['course' => $course ?? 1]) }}" class="btn-pill ghost">К расписанию</a>
-            <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn-pill ghost">Форма 2</a>
-        </div>
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Преподаватели (общий справочник 1–4 курсов)</h1>
+        <p class="page-subtitle">Один преподаватель, предметы сразу по всем курсам</p>
     </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="{{ route('first.schedule.index', ['course' => $course ?? 1]) }}" class="btn btn-secondary">К расписанию</a>
+        <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn btn-secondary">Форма 2</a>
+    </div>
+</div>
 
-    @if($errors->any())
-        <div class="alert alert-danger">
-            <ul class="mb-0">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
+@if($errors->any())
+    <div class="app-alert app-alert-danger">
+        <i class="bi bi-exclamation-circle"></i>
+        <div>@foreach($errors->all() as $e)<div>{{ $e }}</div>@endforeach</div>
+    </div>
+@endif
 
     @php
         $duplicateInitialsSet = [];
@@ -232,28 +173,32 @@
         $courses = [1, 2, 3, 4];
     @endphp
 
-    <div class="panel-card mb-4">
-        <div class="panel-title">Добавить преподавателя</div>
+    <div class="surface surface-p" style="margin-bottom:16px">
+        <h2 class="section-title">Добавить преподавателя</h2>
         <form method="POST" action="{{ route('teachers.store') }}">
             @csrf
             <input type="hidden" name="course" value="{{ $course ?? 1 }}">
             <input type="hidden" name="subjects_by_course_mode" value="1">
             <div class="form-row">
                 <div class="form-field">
-                    <label for="teacherName">ФИО преподавателя</label>
-                    <input id="teacherName" name="teacher_name" class="search-input w-100" required value="{{ old('teacher_name') }}" placeholder="Например: Иванова И.Н.">
+                    <div class="field-group">
+                        <label class="field-label" for="teacherName">ФИО преподавателя</label>
+                        <input id="teacherName" name="teacher_name" class="field-input" required value="{{ old('teacher_name') }}" placeholder="Например: Иванова И.Н.">
+                    </div>
                 </div>
                 @if(!empty($rooms) && $rooms->count())
                     <div class="form-field">
-                        <label for="defaultRoom">Закрепленный кабинет</label>
-                        <select id="defaultRoom" name="default_room_id" class="search-input w-100">
-                            <option value="">— не задан</option>
-                            @foreach($rooms as $room)
-                                <option value="{{ $room->id }}" @selected(old('default_room_id') == $room->id)>
-                                    {{ $room->code }} — {{ $room->title ?? 'без названия' }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <div class="field-group">
+                            <label class="field-label" for="defaultRoom">Закрепленный кабинет</label>
+                            <select id="defaultRoom" name="default_room_id" class="field-input">
+                                <option value="">— не задан</option>
+                                @foreach($rooms as $room)
+                                    <option value="{{ $room->id }}" @selected(old('default_room_id') == $room->id)>
+                                        {{ $room->code }} — {{ $room->title ?? 'без названия' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
                 @endif
             </div>
@@ -296,29 +241,31 @@
             </div>
 
             <div class="mt-3 d-flex justify-content-end">
-                <button type="submit" class="btn-pill primary">Добавить</button>
+                <button type="submit" class="btn btn-primary">Добавить</button>
             </div>
         </form>
-        <div class="mt-3">
-            <input type="search" id="teacherSearch" class="search-input w-100" placeholder="Поиск по преподавателю">
+        <div style="margin-top:12px">
+            <input type="search" id="teacherSearch" class="field-input" placeholder="Поиск по преподавателю">
         </div>
     </div>
 
-    <div class="panel-card">
-        <div class="panel-title">Список преподавателей</div>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle" id="teachersTable">
-                <thead>
-                    <tr>
-                        <th>ФИО</th>
-                        @if($hasInitials)
-                            <th>Инициалы</th>
-                        @endif
-                        <th>Предметы</th>
-                        <th class="text-end">Действия</th>
-                    </tr>
-                </thead>
-                <tbody>
+    <div class="surface">
+        <div class="surface-p" style="padding-bottom:12px">
+            <h2 class="section-title" style="margin-bottom:0">Список преподавателей</h2>
+        </div>
+        <div style="overflow-x:auto">
+        <table class="app-table" id="teachersTable">
+            <thead>
+                <tr>
+                    <th>ФИО</th>
+                    @if($hasInitials)
+                        <th>Инициалы</th>
+                    @endif
+                    <th>Предметы</th>
+                    <th style="text-align:right">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
                     @forelse($teachers as $teacher)
                         @php
                             $isDuplicate = $isDuplicateTeacher($teacher);
@@ -379,28 +326,32 @@
                                     </div>
                                 </div>
                             </td>
-                            <td class="text-end">
-                                <div class="table-actions">
-                                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editTeacher{{ $teacher->id }}">Редактировать</button>
+                            <td style="text-align:right">
+                                <div style="display:flex;gap:6px;justify-content:flex-end">
+                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#editTeacher{{ $teacher->id }}">Изменить</button>
                                     <form method="POST" action="{{ route('teachers.destroy', $teacher->id) }}" onsubmit="return confirm('Удалить преподавателя?');" class="d-inline">
                                         @csrf
                                         @method('DELETE')
                                         <input type="hidden" name="course" value="{{ $course ?? 1 }}">
-                                        <button type="submit" class="btn btn-outline-danger btn-sm">Удалить</button>
+                                        <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
                                     </form>
                                 </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ $hasInitials ? 4 : 3 }}" class="empty-note">Пока нет преподавателей.</td>
+                            <td colspan="{{ $hasInitials ? 4 : 3 }}">
+                                <div class="empty-state">
+                                    <i class="bi bi-mortarboard"></i>
+                                    <div class="empty-state-title">Пока нет преподавателей</div>
+                                </div>
+                            </td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </div>
-</div>
 
 @foreach($teachers as $teacher)
     <div class="modal fade" id="editTeacher{{ $teacher->id }}" tabindex="-1" aria-labelledby="editTeacherLabel{{ $teacher->id }}" aria-hidden="true">
@@ -551,7 +502,7 @@
             document.querySelectorAll('.teachers-table tbody tr').forEach(r => r.style.background = '');
             
             // Highlight this row
-            this.style.background = 'rgba(79, 124, 255, 0.1)';
+            this.style.background = 'rgba(127, 86, 217, 0.1)';
             
             // Get headers from thead
             const table = this.closest('table');

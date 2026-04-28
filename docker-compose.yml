@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   db:
     image: mysql:8.0
@@ -13,7 +11,13 @@ services:
       MYSQL_PASSWORD: laravel
     volumes:
       - db-data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password
+    # mysql_native_password убран — в MySQL 8.2+ его нет, оставляем дефолт caching_sha2_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ularavel", "-plaravel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - kitOper
 
@@ -24,11 +28,42 @@ services:
       PMA_HOST: db
       PMA_USER: root
       PMA_PASSWORD: laravel
-
     ports:
       - "8081:80"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    networks:
+      - kitOper
+
+  redis:
+    image: redis:7-alpine
+    container_name: it-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    # appendonly — данные переживают рестарт контейнера
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - kitOper
+
+  ollama:
+    image: ollama/ollama
+    container_name: it-ollama
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    # Ограничиваем память — модели на CPU могут съесть всё что есть
+    mem_limit: 6g
     networks:
       - kitOper
 
@@ -50,30 +85,12 @@ services:
       OLLAMA_HOST: http://ollama:11434
       REDIS_HOST: redis
     depends_on:
-      - db
-      - ollama
-      - redis
-    networks:
-      - kitOper
-
-  redis:
-    image: redis:7-alpine
-    container_name: it-redis
-    restart: always
-    ports:
-      - "6379:6379"
-    networks:
-      - kitOper
-
-
-  ollama:
-    image: ollama/ollama
-    container_name: it-ollama
-    restart: always
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
     networks:
       - kitOper
 
@@ -93,12 +110,10 @@ services:
 
 volumes:
   db-data:
+  redis-data:
   ollama-data:
 
 networks:
   kitOper:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.10.0.0/16
-          gateway: 10.10.0.1
+    name: kitoper_kitOper
+    external: true

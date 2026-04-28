@@ -1,25 +1,22 @@
 @extends('layouts.app')
 
 @push('styles')
-<link rel="preconnect" href="https://fonts.bunny.net">
-<link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700" rel="stylesheet" />
 <link rel="stylesheet" href="{{ asset('css/schedule/main.css') }}">
 <style>
     .workload-shell {
         --surface: #ffffff;
-        --surface-2: #f8fafc;
+        --surface-2: #f7f7f8;
         --ink: #0f172a;
-        --muted: #64748b;
-        --grid: #e2e8f0;
-        --border: #d7dee8;
-        --busy: #e0ecff;
+        --muted: #6b7280;
+        --grid: #e5e7eb;
+        --border: #e5e7eb;
+        --busy: rgba(127, 86, 217, 0.08);
         --busy-alt: #e6f4f0;
-        --free: #f8fafc;
-        --accent: #1d4ed8;
+        --free: #f7f7f8;
+        --accent: #7f56d9;
         --day-col-width: clamp(150px, 14vw, 220px);
         --lesson-col-width: clamp(72px, 6vw, 110px);
         --teacher-col-width: clamp(150px, 12vw, 220px);
-        font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
         width: 100%;
         max-width: 100%;
         margin: 0 auto;
@@ -27,9 +24,8 @@
     }
 
     .workload-shell .page-title {
-        font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
         font-weight: 700;
-        font-size: 30px;
+        font-size: 24px;
         color: var(--ink);
         margin: 0;
     }
@@ -64,12 +60,12 @@
     }
 
     .workload-shell .btn-pill.ghost {
-        background: #eff4ff;
-        color: #1e3a8a;
+        background: #f7f7f8;
+        color: #0f172a;
     }
 
     .workload-shell .btn-pill.ghost:hover {
-        background: #e2ecff;
+        background: #f1f5f9;
     }
 
     .workload-search {

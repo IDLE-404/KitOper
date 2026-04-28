@@ -1,10 +1,8 @@
 @extends('layouts.app')
 
 @push('styles')
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="{{ asset('css/week-schedule/main.css') }}">
 <style>
-    body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
     .semester-expand {
         margin-top: 48px;
         padding-top: 32px;
@@ -55,16 +53,16 @@
     }
     .btn-expand {
         margin-top: 24px;
-        background: #2563eb;
+        background: #7f56d9;
         color: #fff;
         border: none;
-        border-radius: 12px;
-        padding: 12px 24px;
+        border-radius: 8px;
+        padding: 10px 20px;
         font-weight: 600;
-        transition: box-shadow 0.2s ease;
+        transition: background 0.12s;
     }
     .btn-expand:hover {
-        box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35);
+        background: #6941c6;
     }
     .holiday-banner {
         margin: 1rem 0;

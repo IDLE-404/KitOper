@@ -10,25 +10,23 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap">
     <style>
         :root {
-            --auth-bg-a: #e7efff;
-            --auth-bg-b: #f5f8ff;
-            --auth-bg-c: #f0faf5;
-            --auth-primary: #315be8;
-            --auth-primary-soft: #dfe8ff;
-            --auth-text: #1c2638;
-            --auth-muted: #687892;
-            --auth-border: #d8e1f0;
-            --auth-shadow: 0 28px 70px rgba(19, 34, 66, 0.16);
-            --auth-radius: 22px;
+            --auth-primary: #7f56d9;
+            --auth-primary-2: #6941c6;
+            --auth-primary-soft: #f0ebff;
+            --auth-text: #0f172a;
+            --auth-muted: #6b7280;
+            --auth-border: #e5e7eb;
+            --auth-shadow: 0 12px 40px rgba(16, 24, 40, 0.12);
+            --auth-radius: 16px;
         }
 
         body {
             font-family: 'Manrope', sans-serif;
             color: var(--auth-text);
             background:
-                radial-gradient(900px 500px at 8% -5%, rgba(49, 91, 232, 0.18), transparent 70%),
-                radial-gradient(900px 520px at 96% 110%, rgba(39, 176, 117, 0.12), transparent 72%),
-                linear-gradient(145deg, var(--auth-bg-a) 0%, var(--auth-bg-b) 55%, var(--auth-bg-c) 100%);
+                radial-gradient(900px 500px at 8% -5%, rgba(127, 86, 217, 0.1), transparent 70%),
+                radial-gradient(900px 520px at 96% 110%, rgba(18, 183, 106, 0.08), transparent 72%),
+                #f7f7f8;
             min-height: 100vh;
         }
 
@@ -38,7 +36,7 @@
 
         .auth-intro {
             border-radius: var(--auth-radius);
-            background: linear-gradient(155deg, #2d59e8 0%, #4c77ff 62%, #77a0ff 100%);
+            background: linear-gradient(155deg, #6941c6 0%, #7f56d9 62%, #9e77ed 100%);
             color: #fff;
             box-shadow: var(--auth-shadow);
             padding: 34px 30px;
@@ -154,8 +152,8 @@
         .auth-input:focus,
         .auth-card .form-select:focus,
         .auth-card .form-check-input:focus {
-            border-color: #6f90ff;
-            box-shadow: 0 0 0 0.25rem rgba(68, 107, 235, 0.18);
+            border-color: var(--auth-primary);
+            box-shadow: 0 0 0 3px rgba(127, 86, 217, 0.15);
         }
 
         .role-switch {
@@ -180,8 +178,8 @@
             left: 4px;
             width: calc((100% - 8px) / 3);
             border-radius: 10px;
-            background: linear-gradient(135deg, #2e5ae9 0%, #4f79ff 100%);
-            box-shadow: 0 10px 24px rgba(48, 89, 229, 0.28);
+            background: linear-gradient(135deg, #7f56d9 0%, #6941c6 100%);
+            box-shadow: 0 6px 16px rgba(127, 86, 217, 0.3);
             transform: translateX(calc(var(--active-index, 0) * 100%));
             transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
         }
@@ -213,24 +211,24 @@
         }
 
         .btn-check:not(:checked) + .role-option:hover {
-            color: #2a3f7b;
+            color: var(--auth-primary);
         }
 
         .auth-submit {
             border: 0;
-            border-radius: 12px;
-            background: linear-gradient(135deg, #2e5ae9 0%, #4472ff 100%);
+            border-radius: 8px;
+            background: var(--auth-primary);
             font-weight: 600;
             padding: 10px 14px;
-            box-shadow: 0 10px 22px rgba(48, 89, 229, 0.28);
+            box-shadow: 0 4px 12px rgba(127, 86, 217, 0.28);
         }
 
         .auth-submit:hover {
-            filter: brightness(1.03);
+            background: var(--auth-primary-2);
         }
 
         .auth-link {
-            color: #3059db;
+            color: var(--auth-primary);
             font-weight: 600;
             text-decoration: none;
         }

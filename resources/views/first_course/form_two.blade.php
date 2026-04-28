@@ -25,7 +25,79 @@
     $dayTotals = $dayTotals ?? [];
     $columnTotals = $columnTotals ?? ['normative' => 0, 'used' => 0, 'bonus' => 0, 'left' => 0];
     $holidayDays = $holidayDays ?? [];
-    
+    $activeSemester = $activeSemester ?? 1;
+    $ghostMode      = $ghostMode ?? false;
+    $ghostSemester  = $ghostSemester ?? $activeSemester;
+    $ghostCells     = $ghostCells ?? [];
+    $ghostConflicts = $ghostConflicts ?? [];
+
+    // Месяцы каждого семестра
+    $semesterMonths = [
+        1 => [9, 10, 11, 12, 1],
+        2 => [2, 3, 4, 5, 6],
+    ];
+
+    // Вспомогательная функция: есть ли ghost-пара для строки в день $d
+    $hasGhost = function(array $row, int $d, int $subgroup = 1) use ($ghostCells): bool {
+        if (empty($ghostCells)) return false;
+        $sid = $row['subject_id'] ?? null;
+        $tid = $row['teacher_id'] ?? null;
+        $key = "{$sid}|{$tid}|{$subgroup}";
+        return isset($ghostCells[$key][$d]);
+    };
+    $ghostLessons = function(array $row, int $d, int $subgroup = 1) use ($ghostCells): string {
+        $sid = $row['subject_id'] ?? null;
+        $tid = $row['teacher_id'] ?? null;
+        $key = "{$sid}|{$tid}|{$subgroup}";
+        $lessons = $ghostCells[$key][$d] ?? [];
+        return $lessons ? 'Пара ' . implode(', ', $lessons) : '';
+    };
+
+    // Пересчёт итогов с учётом ghost-часов (прогноз семестра)
+    if ($ghostMode && !empty($ghostCells)) {
+        // Основные строки (подгруппа 1)
+        foreach ($rows as &$row) {
+            $sid = $row['subject_id'] ?? null;
+            $tid = $row['teacher_id'] ?? null;
+            $hpc = (float)($row['hours_per_class'] ?? 2);
+            $key = "{$sid}|{$tid}|1";
+            if (!isset($ghostCells[$key])) continue;
+            foreach ($ghostCells[$key] as $d => $lessons) {
+                $cell = $row['days'][$d] ?? [];
+                if (($cell['status'] ?? 'empty') !== 'empty') continue;
+                if (isset($weekendDays[$d]) || isset($holidayDays[$d])) continue;
+                $addHours = count($lessons) * $hpc;
+                $row['used_hours_total'] = ($row['used_hours_total'] ?? 0) + $addHours;
+                $row['hours_left']       = ($row['hours_left'] ?? 0) - $addHours;
+                $dayTotals[$d]           = ($dayTotals[$d] ?? 0) + $addHours;
+                $columnTotals['used']    = ($columnTotals['used'] ?? 0) + $addHours;
+                $columnTotals['left']    = ($columnTotals['left'] ?? 0) - $addHours;
+            }
+        }
+        unset($row);
+
+        // Строки подгруппы 2
+        foreach ($subgroupTwoRows as &$row) {
+            $sid = $row['subject_id'] ?? null;
+            $tid = $row['teacher_id'] ?? null;
+            $hpc = (float)($row['hours_per_class'] ?? 2);
+            $key = "{$sid}|{$tid}|2";
+            if (!isset($ghostCells[$key])) continue;
+            foreach ($ghostCells[$key] as $d => $lessons) {
+                $cell = $row['days'][$d] ?? [];
+                if (($cell['status'] ?? 'empty') !== 'empty') continue;
+                if (isset($weekendDays[$d]) || isset($holidayDays[$d])) continue;
+                $addHours = count($lessons) * $hpc;
+                $row['used_hours_total']       = ($row['used_hours_total'] ?? 0) + $addHours;
+                $row['hours_left']             = ($row['hours_left'] ?? 0) - $addHours;
+                $subgroupTwoDayTotals[$d]      = ($subgroupTwoDayTotals[$d] ?? 0) + $addHours;
+                $subgroupTwoColumnTotals['used'] = ($subgroupTwoColumnTotals['used'] ?? 0) + $addHours;
+                $subgroupTwoColumnTotals['left'] = ($subgroupTwoColumnTotals['left'] ?? 0) - $addHours;
+            }
+        }
+        unset($row);
+    }
+
     // Определяем выходные дни (суббота и воскресенье)
     $weekendDays = [];
     if (!empty($days) && isset($month) && isset($year)) {
@@ -39,18 +111,17 @@
     }
 @endphp
 
-<div class="container-fluid form-two-container py-3">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+<div class="form-two-container">
+    <div class="page-header mb-3">
         <div>
-            <h1 class="h4 mb-1">Форма 2 — {{ $course ?? 1 }} курс</h1>
-            <div class="text-muted">Отчёт по фактическим занятиям за месяц</div>
+            <h1 class="page-title">Форма 2 — {{ $course ?? 1 }} курс</h1>
+            <p class="page-subtitle">Отчёт по фактическим занятиям за месяц</p>
         </div>
-        <a href="{{ route('first.schedule.index', ['course' => $course ?? 1]) }}" class="btn btn-outline-secondary">← Расписание</a>
+        <a href="{{ route('first.schedule.index', ['course' => $course ?? 1]) }}" class="btn btn-secondary">← Расписание</a>
     </div>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <div class="row g-3 align-items-end">
+    <div class="surface surface-p mb-3">
+        <div class="row g-3 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label text-muted small mb-1">Курс</label>
                     <select class="form-select" id="courseSelect">
@@ -67,20 +138,33 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <label class="form-label text-muted small mb-1">Семестр</label>
+                    <div class="btn-group w-100" id="semesterBtnsFilter">
+                        <button type="button"
+                                class="btn btn-sm {{ $activeSemester === 1 ? 'btn-secondary' : 'btn-outline-secondary' }}"
+                                data-semester="1">1</button>
+                        <button type="button"
+                                class="btn btn-sm {{ $activeSemester === 2 ? 'btn-secondary' : 'btn-outline-secondary' }}"
+                                data-semester="2">2</button>
+                    </div>
+                </div>
+                <div class="col-md-2">
                     <label class="form-label text-muted small mb-1">Месяц</label>
                     <select class="form-select" id="monthSelect">
                         @foreach($months as $num => $label)
-                            <option value="{{ $num }}" @selected($month === $num)>{{ $label }}</option>
+                            @if(in_array($num, $semesterMonths[$activeSemester]))
+                                <option value="{{ $num }}" @selected($month === $num)>{{ $label }}</option>
+                            @endif
                         @endforeach
                     </select>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label text-muted small mb-1">Год</label>
                     <div class="d-flex align-items-center gap-2">
-                        <button class="btn btn-outline-secondary btn-sm" id="yearPrevBtn" type="button">Предыдущий</button>
+                        <button class="btn btn-secondary btn-sm" id="yearPrevBtn" type="button">Предыдущий</button>
                         <span class="fw-semibold" id="yearLabel">{{ $year }}</span>
-                        <button class="btn btn-outline-secondary btn-sm" id="yearNextBtn" type="button">Следующий</button>
+                        <button class="btn btn-secondary btn-sm" id="yearNextBtn" type="button">Следующий</button>
                     </div>
                     <input type="hidden" id="yearInput" value="{{ $year }}">
                 </div>
@@ -88,11 +172,44 @@
                     <button class="btn btn-primary btn-sm" id="reloadBtn">OK</button>
                 </div>
             </div>
+    </div>
+
+    @php
+        $semester1Year = $month >= 9 ? $year : ($year - 1);
+        $semester2Year = $month >= 9 ? ($year + 1) : $year;
+    @endphp
+    <div class="surface surface-p mb-3">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <a href="{{ route('first.schedule.form_two.export', ['group_id' => $groupId, 'month' => $month, 'year' => $year, 'course' => $course]) }}"
+               class="btn btn-secondary btn-sm">
+                📊 Экспорт в Excel
+            </a>
+            <a href="{{ route('first.schedule.form_two.export_semester', ['group_id' => $groupId, 'semester' => 1, 'year' => $semester1Year, 'course' => $course]) }}"
+               class="btn btn-secondary btn-sm">
+                📘 Экспорт 1 семестр
+            </a>
+            <a href="{{ route('first.schedule.form_two.export_semester', ['group_id' => $groupId, 'semester' => 2, 'year' => $semester2Year, 'course' => $course]) }}"
+               class="btn btn-secondary btn-sm">
+                📗 Экспорт 2 семестр
+            </a>
+            <div class="vr mx-1"></div>
+            <div class="form-check form-switch correction-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="manualToggle">
+                <label class="form-check-label" for="manualToggle">Режим коррекции</label>
+            </div>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="ghostToggle" @checked($ghostMode)>
+                <label class="form-check-label" for="ghostToggle" style="white-space:nowrap">
+                    <span class="ghost-toggle-icon">👻</span> Просмотр семестра
+                </label>
+            </div>
+            <button class="btn btn-secondary btn-sm d-none" id="addSubjectBtn" type="button">Добавить предмет</button>
+            <button class="btn btn-primary btn-sm d-none js-correction-save" id="saveBtn" type="button">Сохранить коррекцию</button>
         </div>
     </div>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body d-flex flex-wrap gap-3 align-items-center legend-row">
+    <div class="surface surface-p mb-3">
+        <div class="d-flex flex-wrap gap-3 align-items-center legend-row">
             <div class="legend-item">
                 <span class="status-chip status-normal">2</span>
                 <span class="text-muted ms-2 small">Пара проведена</span>
@@ -123,40 +240,12 @@
         </div>
     </div>
 
-    @php
-        $semester1Year = $month >= 9 ? $year : ($year - 1);
-        $semester2Year = $month >= 9 ? ($year + 1) : $year;
-    @endphp
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
-                <div>
-                    <div class="fw-semibold">Группа: {{ optional($groups->firstWhere('id', $groupId))->group_name ?? '—' }}</div>
-                    <div class="text-muted small">{{ $months[$month] ?? $month }} {{ $year }}</div>
-                </div>
-                <div class="d-flex align-items-center gap-3">
-                    <a href="{{ route('first.schedule.form_two.export', ['group_id' => $groupId, 'month' => $month, 'year' => $year, 'course' => $course]) }}"
-                       class="btn btn-outline-primary btn-sm">
-                        📊 Экспорт в Excel
-                    </a>
-                    <a href="{{ route('first.schedule.form_two.export_semester', ['group_id' => $groupId, 'semester' => 1, 'year' => $semester1Year, 'course' => $course]) }}"
-                       class="btn btn-outline-primary btn-sm">
-                        📘 Экспорт 1 семестр
-                    </a>
-                    <a href="{{ route('first.schedule.form_two.export_semester', ['group_id' => $groupId, 'semester' => 2, 'year' => $semester2Year, 'course' => $course]) }}"
-                       class="btn btn-outline-primary btn-sm">
-                        📗 Экспорт 2 семестр
-                    </a>
-                    <button class="btn btn-outline-secondary btn-sm" id="semester2Btn">Ко 2 семестру</button>
-                    <div class="form-check form-switch correction-switch mb-0">
-                        <input class="form-check-input" type="checkbox" id="manualToggle">
-                        <label class="form-check-label" for="manualToggle">Режим коррекции</label>
-                    </div>
-                    <button class="btn btn-outline-primary btn-sm d-none" id="addSubjectBtn" type="button">Добавить предмет</button>
-                    <button class="btn btn-success btn-sm d-none js-correction-save" id="saveBtn" type="button">Сохранить коррекцию</button>
-                </div>
-            </div>
-            <div class="table-responsive">
+    <div class="surface surface-p">
+        <div class="mb-2">
+            <div class="fw-semibold">Группа: {{ optional($groups->firstWhere('id', $groupId))->group_name ?? '—' }}</div>
+            <div class="text-muted small">{{ $months[$month] ?? $month }} {{ $year }}</div>
+        </div>
+        <div class="table-responsive">
                 <table class="table table-sm align-middle form-two-table">
                     <thead>
                         <tr>
@@ -167,9 +256,9 @@
                             @foreach($days as $d)
                                 <th class="text-center text-muted day-head col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
                             @endforeach
-                            <th class="text-muted col-used">Использовано</th>
-                            <th class="text-muted col-bonus">Бонус</th>
-                            <th class="text-muted col-left">Остаток</th>
+                            <th class="text-muted col-used" style="white-space:nowrap">Использовано</th>
+                            <th class="text-muted col-bonus" style="white-space:nowrap">Бонус</th>
+                            <th class="text-muted col-left" style="white-space:nowrap">Остаток</th>
                         </tr>
                     </thead>
                     <tbody id="formBody">
@@ -261,13 +350,19 @@
                                         $holidayNote = $holidayMeta ? ('Праздник: ' . $holidayMeta['name']) : null;
                                         $cellDate = \Carbon\Carbon::create($year, $month, $d)->toDateString();
                                         $isPractice = isset($practiceDateSet[$cellDate]);
-                                        $titleParts = array_filter([$tooltip, $holidayNote]);
-                                        $defaultTitle = $isPractice ? 'Практика' : 'Нет записи';
-                                        $cellTitle = $titleParts ? implode(' | ', $titleParts) : $defaultTitle;
+                                        // Ghost: по расписанию здесь должна быть пара, но записи нет
+                                        $isGhost = $ghostMode && $status === 'empty' && !$isPractice
+                                            && !isset($weekendDays[$d]) && !isset($holidayDays[$d])
+                                            && $hasGhost($row, $d, 1);
+                                        $ghostHint   = $isGhost ? $ghostLessons($row, $d, 1) : '';
+                                        $ghostValue  = $isGhost ? ($row['hours_per_class'] ?? 2) : '';
+                                        $titleParts  = array_filter([$tooltip, $holidayNote, $isGhost ? 'Прогноз: ' . $ghostHint : null]);
+                                        $defaultTitle = $isPractice ? 'Практика' : ($isGhost ? 'Прогноз: ' . $ghostHint : 'Нет записи');
+                                        $cellTitle   = $titleParts ? implode(' | ', $titleParts) : $defaultTitle;
                                     @endphp
-                                    <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }} {{ $isPractice ? 'practice' : '' }}">
-                                        <div class="status-chip status-{{ $status }} {{ $isPractice ? 'status-practice' : '' }}" title="{{ $cellTitle }}">
-                                            <span class="chip-value">{{ $isPractice ? '' : $value }}</span>
+                                    <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }} {{ $isPractice ? 'practice' : '' }} {{ $isGhost ? 'ghost-cell' : '' }}">
+                                        <div class="status-chip status-{{ $status }} {{ $isPractice ? 'status-practice' : '' }} {{ $isGhost ? 'status-ghost' : '' }}" title="{{ $cellTitle }}">
+                                            <span class="chip-value">{{ $isPractice ? '' : ($isGhost ? $ghostValue : $value) }}</span>
                                         </div>
                                         <div class="manual-status d-none mt-1">
                                             <select class="form-select form-select-sm cell-status" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
@@ -316,19 +411,18 @@
                     </tfoot>
                 </table>
             </div>
-        </div>
     </div>
 
-    <div class="card shadow-sm mt-3">
-        <div class="card-body">
+
+    <div class="surface surface-p mt-3">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
                 <div>
                     <div class="fw-semibold">Только замены преподавателей</div>
                     <div class="text-muted small">повторяет форму 2, но показывает только фактические подмены</div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <button class="btn btn-outline-secondary btn-sm js-correction-toggle" type="button">Режим коррекции</button>
-                    <button class="btn btn-success btn-sm d-none js-correction-save" type="button">Сохранить коррекцию</button>
+                    <button class="btn btn-secondary btn-sm js-correction-toggle" type="button">Режим коррекции</button>
+                    <button class="btn btn-primary btn-sm d-none js-correction-save" type="button">Сохранить коррекцию</button>
                 </div>
             </div>
             <div class="table-responsive">
@@ -342,9 +436,9 @@
                             @foreach($days as $d)
                                 <th class="text-center text-muted day-head col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
                             @endforeach
-                            <th class="text-muted col-used">Использовано</th>
-                            <th class="text-muted col-bonus">Бонус</th>
-                            <th class="text-muted col-left">Остаток</th>
+                            <th class="text-muted col-used" style="white-space:nowrap">Использовано</th>
+                            <th class="text-muted col-bonus" style="white-space:nowrap">Бонус</th>
+                            <th class="text-muted col-left" style="white-space:nowrap">Остаток</th>
                         </tr>
                     </thead>
                     <tbody id="replacementTableBody">
@@ -444,21 +538,19 @@
                 </tfoot>
                 </table>
             </div>
-        </div>
     </div>
 
     @if($hasSubgroups)
-        <div class="card shadow-sm mt-3">
-            <div class="card-body">
+        <div class="surface surface-p mt-3">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
                     <div>
                         <div class="fw-semibold">Подвоение (подгруппа 2)</div>
                         <div class="text-muted small">только записи со второй подгруппой</div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        <button class="btn btn-outline-primary btn-sm d-none" id="addSubgroupTwoSubjectBtn" type="button">Добавить предмет</button>
-                        <button class="btn btn-outline-secondary btn-sm js-correction-toggle" type="button">Режим коррекции</button>
-                        <button class="btn btn-success btn-sm d-none js-correction-save" type="button">Сохранить коррекцию</button>
+                        <button class="btn btn-secondary btn-sm d-none" id="addSubgroupTwoSubjectBtn" type="button">Добавить предмет</button>
+                        <button class="btn btn-secondary btn-sm js-correction-toggle" type="button">Режим коррекции</button>
+                        <button class="btn btn-primary btn-sm d-none js-correction-save" type="button">Сохранить коррекцию</button>
                     </div>
                 </div>
                 <div class="table-responsive">
@@ -472,9 +564,9 @@
                                 @foreach($days as $d)
                                     <th class="text-center text-muted day-head col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }}">{{ $d }}</th>
                                 @endforeach
-                                <th class="text-muted col-used">Использовано</th>
-                                <th class="text-muted col-bonus">Бонус</th>
-                                <th class="text-muted col-left">Остаток</th>
+                                <th class="text-muted col-used" style="white-space:nowrap">Использовано</th>
+                                <th class="text-muted col-bonus" style="white-space:nowrap">Бонус</th>
+                                <th class="text-muted col-left" style="white-space:nowrap">Остаток</th>
                             </tr>
                         </thead>
                         <tbody id="subgroupTwoBody">
@@ -559,13 +651,18 @@
                                             $holidayNote = $holidayMeta ? ('Праздник: ' . $holidayMeta['name']) : null;
                                             $cellDate = \Carbon\Carbon::create($year, $month, $d)->toDateString();
                                             $isPractice = isset($practiceDateSet[$cellDate]);
-                                            $titleParts = array_filter([$tooltip, $holidayNote]);
-                                            $defaultTitle = $isPractice ? 'Практика' : 'Нет записи';
-                                            $cellTitle = $titleParts ? implode(' | ', $titleParts) : $defaultTitle;
+                                            $isGhost = $ghostMode && $status === 'empty' && !$isPractice
+                                                && !isset($weekendDays[$d]) && !isset($holidayDays[$d])
+                                                && $hasGhost($row, $d, 2);
+                                            $ghostHint   = $isGhost ? $ghostLessons($row, $d, 2) : '';
+                                            $ghostValue  = $isGhost ? ($row['hours_per_class'] ?? 2) : '';
+                                            $titleParts  = array_filter([$tooltip, $holidayNote, $isGhost ? 'Прогноз: ' . $ghostHint : null]);
+                                            $defaultTitle = $isPractice ? 'Практика' : ($isGhost ? 'Прогноз: ' . $ghostHint : 'Нет записи');
+                                            $cellTitle   = $titleParts ? implode(' | ', $titleParts) : $defaultTitle;
                                         @endphp
-                                        <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }} {{ $isPractice ? 'practice' : '' }}">
-                                            <div class="status-chip status-{{ $status }} {{ $isPractice ? 'status-practice' : '' }}" title="{{ $cellTitle }}">
-                                                <span class="chip-value">{{ $isPractice ? '' : $value }}</span>
+                                        <td class="text-center day-cell col-day {{ isset($weekendDays[$d]) ? 'weekend' : '' }} {{ isset($holidayDays[$d]) ? 'holiday' : '' }} {{ $isPractice ? 'practice' : '' }} {{ $isGhost ? 'ghost-cell' : '' }}">
+                                            <div class="status-chip status-{{ $status }} {{ $isPractice ? 'status-practice' : '' }} {{ $isGhost ? 'status-ghost' : '' }}" title="{{ $cellTitle }}">
+                                                <span class="chip-value">{{ $isPractice ? '' : ($isGhost ? $ghostValue : $value) }}</span>
                                             </div>
                                             <div class="manual-status d-none mt-1">
                                                 <select class="form-select form-select-sm cell-status" data-day="{{ $d }}" @disabled(isset($holidayDays[$d]))>
@@ -614,11 +711,9 @@
                         </tfoot>
                     </table>
                 </div>
-            </div>
         </div>
     @endif
 
-</div>
 </div>
 
 @endsection
@@ -631,8 +726,8 @@
         margin-left: auto;
         margin-right: auto;
     }
-    .form-two-container .card {
-        border-radius: 12px;
+    .form-two-container .surface {
+        margin-bottom: 16px;
     }
     .ok-row {
         margin-top: 0.5rem;
@@ -648,26 +743,29 @@
     }
     .form-two-table {
         table-layout: fixed;
+        width: auto !important;
     }
     .form-two-table .col-index {
         width: 40px;
     }
     .form-two-table .col-subject {
-        width: 280px;
-    }
-    .form-two-table .col-teacher {
         width: 220px;
     }
+    .form-two-table .col-teacher {
+        width: 170px;
+    }
     .form-two-table .col-norm {
-        width: 190px;
+        width: 70px;
+        white-space: nowrap;
     }
     .form-two-table .col-day {
-        width: 54px;
+        width: 46px;
     }
     .form-two-table .col-used,
     .form-two-table .col-bonus,
     .form-two-table .col-left {
-        width: 90px;
+        width: 110px;
+        white-space: nowrap;
     }
     .form-two-table .day-head.weekend {
         background-color: #d1fae5 !important;
@@ -702,18 +800,18 @@
         user-select: none;
     }
     .totals-row {
-        background: #e0f2fe;
+        background: #f1f5f9;
         font-weight: 600;
     }
     .totals-cell {
-        border-top: 2px solid #bae6fd;
+        border-top: 2px solid #e2e8f0;
     }
     .column-totals-row {
-        background: #dcfce7;
+        background: #f1f5f9;
         font-weight: 600;
     }
     .column-totals-row .totals-cell {
-        border-top: 2px solid #86efac;
+        border-top: 2px solid #e2e8f0;
     }
     .status-chip {
         display: inline-flex;
@@ -729,9 +827,9 @@
         height: 36px;
     }
     .status-chip.status-normal {
-        background: #e7f5ff;
-        color: #1d4ed8;
-        border-color: #bfdbfe;
+        background: rgba(127, 86, 217, 0.08);
+        color: #6941c6;
+        border-color: rgba(127, 86, 217, 0.25);
     }
     .status-chip.status-replaced {
         background: #fff7d6;
@@ -782,9 +880,9 @@
         align-items: center;
         gap: 8px;
         padding: 6px 10px;
-        border: 1px solid #dbe6ff;
+        border: 1px solid var(--c-border, #e5e7eb);
         border-radius: 999px;
-        background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+        background: #f7f7f8;
     }
     .correction-switch .form-check-input {
         width: 2.4rem;
@@ -793,14 +891,14 @@
         cursor: pointer;
     }
     .correction-switch .form-check-input:checked {
-        background-color: #2563eb;
-        border-color: #2563eb;
+        background-color: #7f56d9;
+        border-color: #7f56d9;
     }
     .correction-switch .form-check-label {
         margin: 0;
         font-size: 13px;
         font-weight: 600;
-        color: #1e3a8a;
+        color: #0f172a;
         cursor: pointer;
         user-select: none;
     }
@@ -838,6 +936,20 @@
         width: 50px;
         height: 36px;
     }
+
+    /* Ghost / Просмотр семестра */
+    td.ghost-cell {
+        background: #e9ecef !important;
+    }
+    td.ghost-cell:hover {
+        background: #dee2e6 !important;
+    }
+    .status-chip.status-ghost {
+        background: rgba(127, 86, 217, 0.06);
+        color: #7f56d9;
+        border: 2px dashed rgba(127, 86, 217, 0.4);
+        font-weight: 700;
+    }
 </style>
 @endpush
 
@@ -854,7 +966,7 @@
     const saveBtn = document.getElementById('saveBtn');
     const addSubjectBtn = document.getElementById('addSubjectBtn');
     const addSubgroupTwoSubjectBtn = document.getElementById('addSubgroupTwoSubjectBtn');
-    const semester2Btn = document.getElementById('semester2Btn');
+
     const formBody = document.getElementById('formBody');
     const replacementTableBody = document.getElementById('replacementTableBody');
     const subgroupTwoBody = document.getElementById('subgroupTwoBody');
@@ -900,17 +1012,37 @@
         params.set('month', monthSelect.value);
         params.set('year', yearInput.value);
         params.set('course', courseSelect ? courseSelect.value : '{{ $course ?? 1 }}');
+        params.set('semester', String(currentActiveSemester));
+        if (ghostToggle?.checked) {
+            params.set('ghost', '1');
+        }
         window.location.search = params.toString();
     });
 
-    semester2Btn?.addEventListener('click', () => {
-        if (!monthSelect || !yearInput) {
-            return;
-        }
-        monthSelect.value = '2';
-        yearInput.value = String(semester2Year || yearInput.value);
-        updateYearLabel();
-        reloadBtn?.click();
+    // Кнопки "1 семестр / 2 семестр"
+    const semesterMonths = { 1: [9, 10, 11, 12, 1], 2: [2, 3, 4, 5, 6] };
+
+    document.querySelectorAll('[data-semester]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const sem = Number(btn.dataset.semester);
+            const params = new URLSearchParams(window.location.search);
+            params.set('semester', String(sem));
+            // Первый месяц выбранного семестра
+            params.set('month', String(semesterMonths[sem][0]));
+            // Год: семестр 1 → текущий год страницы; семестр 2 → год января семестра 1
+            const pageYear = Number(yearInput?.value ?? {{ $year }});
+            if (sem === 2 && pageYear) {
+                // Если сейчас сентябрь-декабрь, фев-июнь будет в следующем году
+                const curMonth = Number(monthSelect?.value ?? {{ $month }});
+                params.set('year', String(curMonth >= 9 ? pageYear + 1 : pageYear));
+            } else {
+                params.set('year', String(pageYear));
+            }
+            if (ghostToggle?.checked) {
+                params.set('ghost', '1');
+            }
+            window.location.search = params.toString();
+        });
     });
 
     const hydrateDynamicManualOptions = () => {
@@ -1358,5 +1490,21 @@
     });
 
     manualToggle?.dispatchEvent(new Event('change'));
+
+    // ===== Ghost toggle =====
+    const ghostToggle = document.getElementById('ghostToggle');
+    const currentActiveSemester = {{ $activeSemester }};
+
+    if (ghostToggle) {
+        ghostToggle.addEventListener('change', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (ghostToggle.checked) {
+                params.set('ghost', '1');
+            } else {
+                params.delete('ghost');
+            }
+            window.location.search = params.toString();
+        });
+    }
 </script>
 @endpush

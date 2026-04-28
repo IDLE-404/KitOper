@@ -3,15 +3,12 @@
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/ai-agent/main.css') }}?v={{ filemtime(public_path('css/ai-agent/main.css')) }}">
     <style>
-        /* Фиксируем страницу чата — скроллится только чат, не вся страница */
         html, body { overflow: hidden !important; height: 100% !important; }
-        .ko-app        { height: 100vh; overflow: hidden; }
-        .ko-content    { overflow: hidden !important; height: 100% !important; flex: 1; }
-        .ko-main       { padding: 0 !important; overflow: hidden !important; height: 100% !important; }
-        .ko-main-inner { padding: 0 !important; height: 100% !important; min-height: 0 !important;
-                         border-radius: 0 !important; box-shadow: none !important;
-                         display: flex; flex-direction: column; overflow: hidden; }
-        .ai-page       { height: 100%; overflow: hidden; }
+        .ko-app     { height: 100vh; overflow: hidden; }
+        .ko-content { overflow: hidden !important; height: 100% !important; flex: 1; }
+        .ko-main    { padding: 0 !important; overflow: hidden !important; height: 100% !important;
+                      display: flex; flex-direction: column; }
+        .ai-page    { height: 100%; overflow: hidden; flex: 1; }
     </style>
 @endpush
 

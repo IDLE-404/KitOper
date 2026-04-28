@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\FormTwoService;
 use App\Services\KazakhstanHolidayService;
+use App\Services\SemesterGhostService;
 use App\Support\CourseContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -13,7 +14,8 @@ class FormTwoController extends Controller
 {
     public function __construct(
         private readonly FormTwoService $service,
-        private readonly KazakhstanHolidayService $holidayService
+        private readonly KazakhstanHolidayService $holidayService,
+        private readonly SemesterGhostService $ghostService
     ) {
     }
 
@@ -142,6 +144,22 @@ class FormTwoController extends Controller
                 return $row;
             });
 
+        // Активный семестр: 1 = сен–янв, 2 = фев–июн (используется всегда, не только в ghost)
+        $activeSemester = in_array((int) $request->input('semester'), [1, 2])
+            ? (int) $request->input('semester')
+            : ($month >= 9 || $month === 1 ? 1 : 2);
+
+        // Ghost-режим: призрачные данные из расписания-шаблона
+        $ghostMode = (bool) $request->input('ghost', false);
+        $ghostSemester = $activeSemester;
+        $ghostCells = [];
+        $ghostConflicts = [];
+        if ($ghostMode && $groupId) {
+            $ghostResult = $this->ghostService->ghostMonthData($groupId, $year, $month, $course);
+            $ghostCells = $ghostResult['cells'] ?? [];
+            $ghostConflicts = $ghostResult['conflicts'] ?? [];
+        }
+
         return view('first_course.form_two', [
             'groups' => $groups,
             'groupId' => $groupId,
@@ -167,6 +185,11 @@ class FormTwoController extends Controller
             'dayTotals' => $dayTotals,
             'columnTotals' => $columnTotals,
             'hasSubgroups' => $hasSubgroups,
+            'activeSemester' => $activeSemester,
+            'ghostMode' => $ghostMode,
+            'ghostSemester' => $ghostSemester,
+            'ghostCells' => $ghostCells,
+            'ghostConflicts' => $ghostConflicts,
         ]);
     }
 

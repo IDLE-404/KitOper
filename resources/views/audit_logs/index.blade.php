@@ -1,128 +1,141 @@
 @extends('layouts.app')
 
 @section('content')
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
-        <div>
-            <h1 class="h4 mb-1">Журнал изменений</h1>
-            <div class="text-muted">Фиксируются все изменения по данным и расписанию</div>
-        </div>
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Журнал изменений</h1>
+        <p class="page-subtitle">Фиксируются все изменения по данным и расписанию</p>
     </div>
+</div>
 
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="GET" class="row g-2 align-items-end">
-                <div class="col-12 col-md-3">
-                    <label class="form-label">Пользователь</label>
-                    <select class="form-select" name="user_id">
-                        <option value="">Все</option>
-                        @foreach($users as $user)
-                            <option value="{{ $user->id }}" @selected(($filters['user_id'] ?? '') == $user->id)>
-                                {{ $user->name }} ({{ $user->email }})
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label">Метод</label>
-                    <select class="form-select" name="method">
-                        <option value="">Все</option>
-                        @foreach(['POST', 'PUT', 'PATCH', 'DELETE'] as $method)
-                            <option value="{{ $method }}" @selected(($filters['method'] ?? '') === $method)>{{ $method }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label">Маршрут</label>
-                    <input class="form-control" name="route" value="{{ $filters['route'] ?? '' }}" placeholder="route.name">
-                </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label">От</label>
-                    <input type="date" class="form-control" name="from" value="{{ $filters['from'] ?? '' }}">
-                </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label">До</label>
-                    <input type="date" class="form-control" name="to" value="{{ $filters['to'] ?? '' }}">
-                </div>
-                <div class="col-12 col-md-3">
-                    <label class="form-label">Поиск</label>
-                    <input class="form-control" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Путь, IP, маршрут">
-                </div>
-                <div class="col-12 col-md-2">
-                    <button class="btn btn-primary w-100" type="submit">Фильтр</button>
-                </div>
-            </form>
+<div class="surface surface-p" style="margin-bottom:16px">
+    <form method="GET" class="form-row">
+        <div class="form-field">
+            <div class="field-group">
+                <label class="field-label">Пользователь</label>
+                <select class="field-input" name="user_id">
+                    <option value="">Все</option>
+                    @foreach($users as $user)
+                        <option value="{{ $user->id }}" @selected(($filters['user_id'] ?? '') == $user->id)>
+                            {{ $user->name }} ({{ $user->email }})
+                        </option>
+                    @endforeach
+                </select>
+            </div>
         </div>
-    </div>
+        <div class="form-field">
+            <div class="field-group">
+                <label class="field-label">Метод</label>
+                <select class="field-input" name="method">
+                    <option value="">Все</option>
+                    @foreach(['POST', 'PUT', 'PATCH', 'DELETE'] as $method)
+                        <option value="{{ $method }}" @selected(($filters['method'] ?? '') === $method)>{{ $method }}</option>
+                    @endforeach
+                </select>
+            </div>
+        </div>
+        <div class="form-field">
+            <div class="field-group">
+                <label class="field-label">Маршрут</label>
+                <input class="field-input" name="route" value="{{ $filters['route'] ?? '' }}" placeholder="route.name">
+            </div>
+        </div>
+        <div class="form-field">
+            <div class="field-group">
+                <label class="field-label">От</label>
+                <input type="date" class="field-input" name="from" value="{{ $filters['from'] ?? '' }}">
+            </div>
+        </div>
+        <div class="form-field">
+            <div class="field-group">
+                <label class="field-label">До</label>
+                <input type="date" class="field-input" name="to" value="{{ $filters['to'] ?? '' }}">
+            </div>
+        </div>
+        <div class="form-field">
+            <div class="field-group">
+                <label class="field-label">Поиск</label>
+                <input class="field-input" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Путь, IP, маршрут">
+            </div>
+        </div>
+        <div class="form-field-auto" style="align-self:flex-end">
+            <button class="btn btn-primary" type="submit">Найти</button>
+        </div>
+    </form>
+</div>
 
-    <div class="card">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+<div class="surface">
+    <div style="overflow-x:auto">
+        <table class="app-table">
+            <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Пользователь</th>
+                    <th>Событие</th>
+                    <th>Путь</th>
+                    <th>Статус</th>
+                    <th>Детали</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($logs as $log)
                     <tr>
-                        <th>Дата</th>
-                        <th>Пользователь</th>
-                        <th>Событие</th>
-                        <th>Путь</th>
-                        <th>Статус</th>
-                        <th>Детали</th>
+                        <td class="td-muted" style="white-space:nowrap">{{ $log->created_at->format('d.m.Y H:i') }}</td>
+                        <td>
+                            <div style="font-weight:600">{{ $log->user->name ?? '—' }}</div>
+                            <div class="td-muted">{{ $log->user->email ?? '' }}</div>
+                        </td>
+                        <td>
+                            <div style="font-weight:600">{{ $labels[$log->id] ?? '—' }}</div>
+                            <div class="td-muted">{{ $log->route_name ?? '—' }}</div>
+                        </td>
+                        <td class="td-muted">{{ $log->path }}</td>
+                        <td>
+                            <span class="app-badge {{ $log->status_code < 400 ? 'app-badge-success' : 'app-badge-danger' }}">{{ $log->status_code }}</span>
+                            <div class="td-muted" style="margin-top:2px">{{ $log->duration_ms }} мс</div>
+                        </td>
+                        <td>
+                            @if($log->payload)
+                                <details>
+                                    <summary style="cursor:pointer;color:var(--c-primary);font-size:12px">Показать</summary>
+                                    <pre style="font-size:11px;color:var(--c-text-2);margin:6px 0 0;white-space:pre-wrap;word-break:break-all">{{ json_encode($log->payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                </details>
+                            @else
+                                <span class="td-muted">—</span>
+                            @endif
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    @forelse($logs as $log)
-                        <tr>
-                            <td class="text-nowrap">{{ $log->created_at->format('d.m.Y H:i') }}</td>
-                            <td>
-                                <div class="fw-semibold">{{ $log->user->name ?? '—' }}</div>
-                                <div class="text-muted small">{{ $log->user->email ?? '' }}</div>
-                            </td>
-                            <td>
-                                <div class="fw-semibold">{{ $labels[$log->id] ?? '—' }}</div>
-                                <div class="text-muted small">{{ $log->route_name ?? '—' }}</div>
-                            </td>
-                            <td class="text-muted">{{ $log->path }}</td>
-                            <td>
-                                <span class="badge bg-{{ $log->status_code < 400 ? 'success' : 'danger' }}">{{ $log->status_code }}</span>
-                                <div class="text-muted small">{{ $log->duration_ms }} мс</div>
-                            </td>
-                            <td>
-                                @if($log->payload)
-                                    <details>
-                                        <summary>Показать</summary>
-                                        <pre class="small text-muted mb-0">{{ json_encode($log->payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
-                                    </details>
-                                @else
-                                    <span class="text-muted">—</span>
-                                @endif
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="6" class="text-center text-muted py-4">Записей нет</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-        <div class="card-footer">
-            @if ($logs->hasPages())
-                <nav aria-label="Пагинация журнала изменений">
-                    <ul class="pagination pagination-sm mb-0 justify-content-center flex-wrap">
-                        <li class="page-item {{ $logs->onFirstPage() ? 'disabled' : '' }}">
-                            <a class="page-link" href="{{ $logs->previousPageUrl() ?: '#' }}" tabindex="{{ $logs->onFirstPage() ? '-1' : '0' }}" aria-disabled="{{ $logs->onFirstPage() ? 'true' : 'false' }}">Назад</a>
-                        </li>
-
-                        @foreach ($logs->getUrlRange(1, $logs->lastPage()) as $page => $url)
-                            <li class="page-item {{ $page === $logs->currentPage() ? 'active' : '' }}">
-                                <a class="page-link" href="{{ $url }}">{{ $page }}</a>
-                            </li>
-                        @endforeach
-
-                        <li class="page-item {{ $logs->hasMorePages() ? '' : 'disabled' }}">
-                            <a class="page-link" href="{{ $logs->nextPageUrl() ?: '#' }}" tabindex="{{ $logs->hasMorePages() ? '0' : '-1' }}" aria-disabled="{{ $logs->hasMorePages() ? 'false' : 'true' }}">Вперёд</a>
-                        </li>
-                    </ul>
-                </nav>
-            @endif
-        </div>
+                @empty
+                    <tr>
+                        <td colspan="6">
+                            <div class="empty-state">
+                                <i class="bi bi-clipboard-data"></i>
+                                <div class="empty-state-title">Записей нет</div>
+                            </div>
+                        </td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
     </div>
+    @if($logs->hasPages())
+        <div class="surface-p" style="padding-top:12px;border-top:1px solid var(--c-border)">
+            <nav aria-label="Пагинация">
+                <ul class="pagination pagination-sm mb-0 justify-content-center flex-wrap">
+                    <li class="page-item {{ $logs->onFirstPage() ? 'disabled' : '' }}">
+                        <a class="page-link" href="{{ $logs->previousPageUrl() ?: '#' }}">Назад</a>
+                    </li>
+                    @foreach($logs->getUrlRange(1, $logs->lastPage()) as $page => $url)
+                        <li class="page-item {{ $page === $logs->currentPage() ? 'active' : '' }}">
+                            <a class="page-link" href="{{ $url }}">{{ $page }}</a>
+                        </li>
+                    @endforeach
+                    <li class="page-item {{ $logs->hasMorePages() ? '' : 'disabled' }}">
+                        <a class="page-link" href="{{ $logs->nextPageUrl() ?: '#' }}">Вперёд</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    @endif
+</div>
 @endsection

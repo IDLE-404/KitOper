@@ -3,9 +3,9 @@
 @push('styles')
     <style>
         .teacher-hero {
-            border: 1px solid #dce5ff;
-            border-radius: 18px;
-            background: linear-gradient(140deg, #f0f5ff 0%, #f8fbff 60%, #eef8f2 100%);
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            background: #f7f7f8;
             padding: 16px 18px;
             margin-bottom: 14px;
         }
@@ -14,11 +14,11 @@
             font-size: 1.2rem;
             font-weight: 700;
             margin-bottom: 4px;
-            color: #21345f;
+            color: #0f172a;
         }
 
         .teacher-hero-meta {
-            color: #5f708f;
+            color: #6b7280;
             font-weight: 500;
             margin-bottom: 0;
         }
@@ -31,14 +31,14 @@
         }
 
         .teacher-stat {
-            border: 1px solid #e2e9f6;
-            border-radius: 14px;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
             padding: 12px 14px;
             background: #fff;
         }
 
         .teacher-stat-label {
-            color: #6c7c94;
+            color: #6b7280;
             font-size: 0.82rem;
             margin-bottom: 2px;
         }
@@ -46,14 +46,14 @@
         .teacher-stat-value {
             font-size: 1.1rem;
             font-weight: 700;
-            color: #263b68;
+            color: #0f172a;
         }
 
         .teacher-table-card {
-            border: 1px solid #e2e9f6;
-            border-radius: 18px;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
             overflow: hidden;
-            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
         }
 
         .teacher-table-card .table {
@@ -61,16 +61,16 @@
         }
 
         .teacher-table-card thead th {
-            background: #f6f9ff;
-            color: #536480;
+            background: #f1f5f9;
+            color: #6b7280;
             font-size: 0.78rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            border-bottom-color: #e8eef8;
+            border-bottom-color: #e5e7eb;
         }
 
         .teacher-table-card tbody td {
-            border-bottom-color: #edf2fa;
+            border-bottom-color: #f1f5f9;
             vertical-align: middle;
         }
 
@@ -81,8 +81,8 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: #e8efff;
-            color: #24449a;
+            background: rgba(127, 86, 217, 0.1);
+            color: #6941c6;
             font-weight: 700;
         }
 
@@ -99,9 +99,9 @@
         }
 
         .lesson-badge.num {
-            color: #144f8e;
-            border-color: #b6d8ff;
-            background: #e8f4ff;
+            color: #6941c6;
+            border-color: rgba(127, 86, 217, 0.25);
+            background: rgba(127, 86, 217, 0.08);
         }
 
         .lesson-badge.den {
@@ -111,9 +111,9 @@
         }
 
         .lesson-badge.all {
-            color: #4f5673;
-            border-color: #d4d9e8;
-            background: #f3f5fa;
+            color: #6b7280;
+            border-color: #e5e7eb;
+            background: #f7f7f8;
         }
 
         @media (max-width: 992px) {

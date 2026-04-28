@@ -1,13 +1,13 @@
 /* ─── AI Chat Widget ───────────────────────────────────────────────────── */
 :root {
-    --aw-primary: #4f7cff;
-    --aw-accent:  #7a6bff;
+    --aw-primary: #7f56d9;
+    --aw-accent:  #6941c6;
     --aw-text:    #0f172a;
     --aw-muted:   #6b7280;
     --aw-border:  #e5e7eb;
-    --aw-bg:      #f8f9fc;
+    --aw-bg:      #f7f7f8;
     --aw-panel:   #ffffff;
-    --aw-shadow:  0 12px 48px rgba(43, 63, 116, 0.18);
+    --aw-shadow:  0 8px 32px rgba(16, 24, 40, 0.14);
 }
 
 /* ─── Floating button ─────────────────────────────────────────────────── */
@@ -26,7 +26,7 @@
     justify-content: center;
     cursor: pointer;
     z-index: 1035;
-    box-shadow: 0 4px 20px rgba(79, 124, 255, 0.45);
+    box-shadow: 0 4px 20px rgba(127, 86, 217, 0.45);
     transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s;
     border: none;
     outline: none;
@@ -34,12 +34,12 @@
 
 .aw-btn:hover {
     transform: scale(1.08) translateY(-2px);
-    box-shadow: 0 8px 28px rgba(79, 124, 255, 0.55);
+    box-shadow: 0 8px 28px rgba(127, 86, 217, 0.55);
 }
 
 .aw-btn.open {
     transform: rotate(20deg) scale(0.9);
-    box-shadow: 0 4px 16px rgba(79, 124, 255, 0.35);
+    box-shadow: 0 4px 16px rgba(127, 86, 217, 0.35);
 }
 
 /* ─── Panel ───────────────────────────────────────────────────────────── */
@@ -178,7 +178,7 @@
     justify-content: center;
     font-size: 24px;
     color: #fff;
-    box-shadow: 0 8px 24px rgba(79, 124, 255, 0.3);
+    box-shadow: 0 8px 24px rgba(127, 86, 217, 0.3);
 }
 
 .aw-empty p {
@@ -268,8 +268,8 @@
 .aw-msg-bubble blockquote.ai-quote {
     margin: 6px 0;
     padding: 6px 10px;
-    border-left: 3px solid rgba(79, 124, 255, 0.5);
-    background: rgba(79, 124, 255, 0.06);
+    border-left: 3px solid rgba(127, 86, 217, 0.5);
+    background: rgba(127, 86, 217, 0.06);
     border-radius: 0 6px 6px 0;
     font-size: 12.5px;
 }
@@ -327,7 +327,7 @@
 .aw-input-row:focus-within {
     border-color: var(--aw-primary);
     background: #fff;
-    box-shadow: 0 0 0 3px rgba(79, 124, 255, 0.08);
+    box-shadow: 0 0 0 3px rgba(127, 86, 217, 0.08);
 }
 
 .aw-ta {
@@ -361,17 +361,81 @@
     font-size: 15px;
     flex-shrink: 0;
     transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(79, 124, 255, 0.35);
+    box-shadow: 0 2px 8px rgba(127, 86, 217, 0.35);
     outline: none;
 }
 
 .aw-send-btn:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(79, 124, 255, 0.5);
+    box-shadow: 0 4px 14px rgba(127, 86, 217, 0.5);
 }
 
 .aw-send-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
     transform: none;
+}
+
+/* ── Responsive ───────────────────────────────────── */
+@media (max-width: 768px) {
+    .aw-panel {
+        width: calc(100vw - 32px) !important;
+        max-width: 370px !important;
+        height: 60vh !important;
+        max-height: 510px !important;
+        right: 8px !important;
+        bottom: 72px !important;
+        left: 8px !important;
+    }
+
+    .aw-btn {
+        bottom: 16px;
+        right: 16px;
+        width: 48px;
+        height: 48px;
+        font-size: 20px;
+    }
+}
+
+@media (max-width: 576px) {
+    .aw-panel {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 70vh !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        border-radius: 12px 12px 0 0 !important;
+    }
+
+    .aw-btn {
+        bottom: 12px;
+        right: 12px;
+        width: 44px;
+        height: 44px;
+        font-size: 18px;
+    }
+
+    .aw-header {
+        padding: 10px 12px;
+    }
+
+    .aw-title {
+        font-size: 14px;
+    }
+
+    .aw-messages {
+        padding: 10px;
+    }
+
+    .aw-input-area {
+        padding: 10px;
+    }
+}
+
+@media (max-height: 500px) {
+    .aw-panel {
+        height: 85vh !important;
+        max-height: 400px !important;
+    }
 }

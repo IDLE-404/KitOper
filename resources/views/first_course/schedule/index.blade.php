@@ -1,6 +1,5 @@
 @extends('layouts.app')
 @push('styles')
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="{{ asset('css/schedule/main.css') }}">
 <style>
     .holiday-banner {
@@ -48,9 +47,9 @@
         background-color: #fff9c2;
     }
     .pair-cell.highlighted {
-        border: 2px solid #4f7cff;
-        box-shadow: 0 12px 22px rgba(79, 124, 255, 0.25);
-        background: #eef2ff;
+        border: 2px solid #7f56d9;
+        box-shadow: 0 12px 22px rgba(127, 86, 217, 0.2);
+        background: rgba(127, 86, 217, 0.06);
     }
     .pair-cell.filled {
         cursor: pointer;
@@ -72,10 +71,6 @@
         width: 100% !important;
     }
     .schedule-shell.compact {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-    }
-    .ko-main-inner {
         padding-left: 0 !important;
         padding-right: 0 !important;
     }
@@ -168,7 +163,7 @@
         height: 36px;
     }
     .header-search .btn-primary {
-        background: #4f7cff;
+        background: #7f56d9;
         color: #fff;
         border: none;
     }
@@ -179,8 +174,8 @@
         gap: 12px;
         padding: 8px 10px;
         border-radius: 12px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
+        background: #f7f7f8;
+        border: 1px solid #e5e7eb;
     }
     .nav-left,
     .nav-right {
@@ -350,6 +345,7 @@
     .day-grid-cell {
         padding: 0;
         background: #fff;
+        overflow: hidden;
     }
     .day-grid-cell .pair-cell {
         border: 0;
@@ -365,6 +361,7 @@
     }
     .day-grid-cell .pair-cell.filled {
         margin: 6px;
+        height: calc(100% - 12px);
         border: 1px solid #e2e8f0;
         border-radius: 10px;
         background: #ffffff;
@@ -2532,7 +2529,7 @@
 }
 .form-check { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
 .btn-primary {
-    background: linear-gradient(135deg, #4f7cff, #7a6bff);
+    background: linear-gradient(135deg, #7f56d9, #6941c6);
     border: none;
     color: #fff;
     font-weight: 700;
@@ -2952,7 +2949,7 @@
         html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">';
         if (data.counts.danger)  html += `<span style="padding:4px 12px;border-radius:999px;background:#fee2e2;color:#991b1b;font-size:12px;font-weight:600">🔴 Критичных: ${data.counts.danger}</span>`;
         if (data.counts.warning) html += `<span style="padding:4px 12px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:600">🟡 Предупреждений: ${data.counts.warning}</span>`;
-        if (data.counts.info)    html += `<span style="padding:4px 12px;border-radius:999px;background:#dbeafe;color:#1e40af;font-size:12px;font-weight:600">🔵 Замечаний: ${data.counts.info}</span>`;
+        if (data.counts.info)    html += `<span style="padding:4px 12px;border-radius:999px;background:rgba(127,86,217,0.1);color:#6941c6;font-size:12px;font-weight:600">Замечаний: ${data.counts.info}</span>`;
         html += '</div>';
 
         Object.entries(byType).forEach(([type, items]) => {
@@ -3062,7 +3059,7 @@
                     html += `<div style="font-size:12px;color:#64748b;margin-bottom:4px">${isNextWeek ? '📅 Следующая неделя:' : '📅 Эта неделя:'}</div>
                     <div style="display:flex;gap:6px;flex-wrap:wrap">`;
                     slots.forEach(s => {
-                        html += `<span style="padding:3px 10px;border-radius:6px;background:#dbeafe;color:#1e40af;font-size:12px;font-weight:600">${s.day}, пара ${s.lesson} (${s.date})</span>`;
+                        html += `<span style="padding:3px 10px;border-radius:6px;background:rgba(127,86,217,0.08);color:#6941c6;font-size:12px;font-weight:600">${s.day}, пара ${s.lesson} (${s.date})</span>`;
                     });
                     html += `</div>`;
                 }

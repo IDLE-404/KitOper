@@ -8,14 +8,22 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap">
+    <link rel="stylesheet" href="/css/app.css">
     <link rel="stylesheet" href="/css/sidebar/main.css">
     <link rel="stylesheet" href="/css/sidebar/ai-chat-widget.css">
     @stack('styles')
 </head>
 <body class="ko-body">
     @php($currentUser = auth()->user())
+
+    {{-- Mobile sidebar toggle --}}
+    <button class="ko-sidebar-toggle" id="koSidebarToggle" aria-label="Открыть меню">
+        <i class="bi bi-list"></i>
+    </button>
+    <div class="ko-sidebar-overlay" id="koSidebarOverlay"></div>
+
     <div class="ko-app">
-        <aside class="ko-sidebar">
+        <aside class="ko-sidebar" id="koSidebar">
 
             {{-- Brand --}}
             <div class="ko-brand">
@@ -155,18 +163,52 @@
 
         <div class="ko-content">
             <div class="ko-main">
-                <div class="ko-main-inner">
-                    @if (session('success'))
-                        <div class="alert alert-success">{{ session('success') }}</div>
-                    @endif
-
-                    @yield('content')
-                </div>
+                @if (session('success'))
+                    <div class="app-alert app-alert-success" style="margin-bottom:16px">
+                        <i class="bi bi-check-circle"></i>
+                        {{ session('success') }}
+                    </div>
+                @endif
+                @if (session('error'))
+                    <div class="app-alert app-alert-danger" style="margin-bottom:16px">
+                        <i class="bi bi-exclamation-circle"></i>
+                        {{ session('error') }}
+                    </div>
+                @endif
+                @yield('content')
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (function () {
+        var btn = document.getElementById('koSidebarToggle');
+        var sidebar = document.getElementById('koSidebar');
+        var overlay = document.getElementById('koSidebarOverlay');
+        if (!btn || !sidebar) return;
+
+        function open() {
+            sidebar.classList.add('is-open');
+            if (overlay) overlay.classList.add('is-active');
+            btn.querySelector('i').className = 'bi bi-x-lg';
+        }
+        function close() {
+            sidebar.classList.remove('is-open');
+            if (overlay) overlay.classList.remove('is-active');
+            btn.querySelector('i').className = 'bi bi-list';
+        }
+        btn.addEventListener('click', function () {
+            sidebar.classList.contains('is-open') ? close() : open();
+        });
+        if (overlay) overlay.addEventListener('click', close);
+        sidebar.querySelectorAll('.ko-nav-item').forEach(function (link) {
+            link.addEventListener('click', function () {
+                if (window.innerWidth < 992) close();
+            });
+        });
+    })();
+    </script>
     @stack('scripts')
     @if(auth()->user()?->isDispatcher())
         @include('components.ai-widget')

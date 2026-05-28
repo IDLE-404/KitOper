@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Support\CourseContext;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class AuditLogController extends Controller
@@ -53,9 +56,43 @@ class AuditLogController extends Controller
         ]);
     }
 
-    public function clear(Request $request): \Illuminate\Http\RedirectResponse
+    public function rollback(int $id): RedirectResponse
+    {
+        $log = AuditLog::findOrFail($id);
+
+        if ($log->route_name !== 'schedule.generate.store') {
+            return back()->withErrors(['rollback' => 'Откат возможен только для генерации расписания.']);
+        }
+
+        $payload = is_string($log->payload)
+            ? json_decode($log->payload, true)
+            : (array) ($log->payload ?? []);
+
+        $groupId  = (int) ($payload['group_id'] ?? 0);
+        $course   = CourseContext::normalize((int) ($payload['course'] ?? 1));
+        $weekDate = $payload['template_week'] ?? null;
+
+        if (!$groupId || !$weekDate) {
+            return back()->withErrors(['rollback' => 'Недостаточно данных для отката (нет group_id или template_week).']);
+        }
+
+        $tables  = CourseContext::tables($course);
+        $deleted = DB::table($tables['schedules'])
+            ->where('group_id', $groupId)
+            ->whereDate('week_start', $weekDate)
+            ->delete();
+
+        if ($deleted === 0) {
+            return back()->with('success', 'Расписание уже было удалено или не найдено.');
+        }
+
+        return back()->with('success', "Откат выполнен: удалено {$deleted} строк расписания для группы #{$groupId} на неделю {$weekDate}.");
+    }
+
+    public function clear(Request $request): RedirectResponse
     {
         $days = (int) $request->input('days', 0);
+
 
         if ($days > 0) {
             AuditLog::query()->where('created_at', '<', now()->subDays($days))->delete();
@@ -108,7 +145,9 @@ class AuditLogController extends Controller
             'subjects.store' => 'Добавлена дисциплина',
             'subjects.update' => 'Изменена дисциплина',
             'subjects.destroy' => 'Удалена дисциплина',
-            'users.update_role' => 'Изменена роль пользователя',
+            'users.update_role'         => 'Изменена роль пользователя',
+            'schedule.generate.store'   => 'Сгенерировано расписание',
+            'audit_logs.rollback'       => 'Откат генерации расписания',
         ];
 
         $label = $map[$routeName] ?? null;

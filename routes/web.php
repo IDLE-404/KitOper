@@ -72,6 +72,7 @@ Route::middleware(['auth', 'audit'])->group(function () {
 
         Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit_logs.index');
         Route::post('/audit-logs/clear', [AuditLogController::class, 'clear'])->name('audit_logs.clear');
+        Route::post('/audit-logs/{id}/rollback', [AuditLogController::class, 'rollback'])->name('audit_logs.rollback');
 
         Route::get('/schedule/generate', [ScheduleGeneratorController::class, 'index'])->name('schedule.generate.index');
         Route::post('/schedule/generate', [ScheduleGeneratorController::class, 'store'])->name('schedule.generate.store');

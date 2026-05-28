@@ -110,14 +110,28 @@
                             <div class="td-muted" style="margin-top:2px">{{ $log->duration_ms }} мс</div>
                         </td>
                         <td>
-                            @if($log->payload)
-                                <details>
-                                    <summary style="cursor:pointer;color:var(--c-primary);font-size:12px">Показать</summary>
-                                    <pre style="font-size:11px;color:var(--c-text-2);margin:6px 0 0;white-space:pre-wrap;word-break:break-all">{{ json_encode($log->payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
-                                </details>
-                            @else
-                                <span class="td-muted">—</span>
-                            @endif
+                            <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+                                @if($log->payload)
+                                    <details>
+                                        <summary style="cursor:pointer;color:var(--c-primary);font-size:12px">► Показать</summary>
+                                        <pre style="font-size:11px;color:var(--c-text-2);margin:6px 0 0;white-space:pre-wrap;word-break:break-all">{{ json_encode($log->payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                    </details>
+                                @else
+                                    <span class="td-muted">—</span>
+                                @endif
+
+                                @if($log->route_name === 'schedule.generate.store' && $log->status_code < 400)
+                                    <form method="POST"
+                                          action="{{ route('audit_logs.rollback', $log->id) }}"
+                                          onsubmit="return confirm('Удалить сгенерированное расписание для этой записи?')">
+                                        @csrf
+                                        <button type="submit"
+                                                style="font-size:11px;padding:2px 8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;cursor:pointer">
+                                            ↩ Откатить
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                 @empty

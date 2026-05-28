@@ -2816,6 +2816,23 @@ class FirstCourseSchedulePageController extends Controller
             $roomSlots[] = ['room' => $denRoom2, 'mode' => 'denominator'];
         }
 
+        // Запрет одного преподавателя на подгруппу 1 и подгруппу 2 одновременно
+        $tid1Num = $data['teacher_id']    ?? null;
+        $tid2Num = $data['teacher_id_2']  ?? null;
+        $tid1Den = $denTeacher1           ?? null;
+        $tid2Den = $denTeacher2           ?? null;
+
+        if ($tid1Num && $tid2Num && (int) $tid1Num === (int) $tid2Num) {
+            return response()->json([
+                'message' => 'Один преподаватель не может вести обе подгруппы одновременно (числитель).',
+            ], 422);
+        }
+        if ($tid1Den && $tid2Den && (int) $tid1Den === (int) $tid2Den) {
+            return response()->json([
+                'message' => 'Один преподаватель не может вести обе подгруппы одновременно (знаменатель).',
+            ], 422);
+        }
+
         try {
             $this->validateRoomsOrFail(
                 $groupId,

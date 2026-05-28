@@ -58,12 +58,18 @@ class ScheduleGeneratorService
         $result   = $this->evolve($demand, $teacherMap, $maxDay, $maxPairs, $params);
         $inserted = $this->persist($groupId, $templateWeek, $result['placed'], $tables);
 
+        // Считаем уникальные слоты (не строки): subgroup-пара = 1 слот, 2 строки
+        $uniqueSlots = count(array_unique(array_map(
+            fn ($p) => $p['study_day'] . '|' . $p['lesson_number'] . '|' . $p['mode_flag'],
+            $result['placed']
+        )));
+
         return [
             'placed'   => $result['placed'],
             'unplaced' => $result['unplaced'],
             'stats'    => [
                 'total_demand'  => $totalDemand,
-                'placed'        => count($result['placed']),
+                'placed'        => $uniqueSlots,
                 'skipped'       => count($result['unplaced']),
                 'weeks_count'   => $weeks,
                 'inserted_rows' => $inserted,
@@ -285,14 +291,30 @@ class ScheduleGeneratorService
             ->pluck('teacher_id', 'subject_id');
 
         // Fallback 2: последнее расписание группы — самый актуальный источник
-        $teacherBySubjectSchedule = DB::table($tables['schedules'])
+        $schedRows = DB::table($tables['schedules'])
             ->where('group_id', $groupId)
-            ->whereNotNull('teacher_id')
             ->whereNotNull('subject_id')
             ->orderByDesc('week_start')
-            ->get(['subject_id', 'teacher_id'])
+            ->get(['subject_id', 'teacher_id', 'subgroup']);
+
+        $teacherBySubjectSchedule = $schedRows
+            ->filter(fn ($r) => !empty($r->teacher_id) && empty($r->subgroup))
             ->unique('subject_id')
             ->pluck('teacher_id', 'subject_id');
+
+        // Подгруппы: предметы которые делятся (subgroup=1 и subgroup=2 в расписании)
+        // Структура: [subject_id => ['teacher1' => tid, 'teacher2' => tid]]
+        $subgroupMap = [];
+        $sub1 = $schedRows->filter(fn ($r) => (string) ($r->subgroup ?? '') === '1')
+            ->unique('subject_id');
+        $sub2 = $schedRows->filter(fn ($r) => (string) ($r->subgroup ?? '') === '2')
+            ->unique('subject_id');
+        foreach ($sub1 as $r) {
+            $subgroupMap[(int) $r->subject_id]['teacher1'] = $r->teacher_id ? (int) $r->teacher_id : null;
+        }
+        foreach ($sub2 as $r) {
+            $subgroupMap[(int) $r->subject_id]['teacher2'] = $r->teacher_id ? (int) $r->teacher_id : null;
+        }
 
         $demand = [];
         foreach ($normatives as $norm) {
@@ -311,8 +333,24 @@ class ScheduleGeneratorService
                 continue;
             }
 
-            // Приоритет: норматив → расписание группы → teacher_subjects
-            $sid       = (int) $norm->subject_id;
+            $sid = (int) $norm->subject_id;
+
+            // Подгруппный предмет?
+            if (isset($subgroupMap[$sid])) {
+                $demand[] = [
+                    'subject_id'      => $sid,
+                    'subject_name'    => $subjectNames[$sid] ?? "Предмет #{$sid}",
+                    'teacher_id'      => $subgroupMap[$sid]['teacher1'] ?? null,
+                    'teacher_id_2'    => $subgroupMap[$sid]['teacher2'] ?? null,
+                    'has_subgroups'   => true,
+                    'hours_per_class' => $hpc,
+                    'pairs_num'       => $pairsNum,
+                    'pairs_den'       => $pairsDen,
+                ];
+                continue;
+            }
+
+            // Обычный предмет — приоритет: норматив → расписание → teacher_subjects
             $teacherId = $norm->teacher_id
                 ? (int) $norm->teacher_id
                 : ($teacherBySubjectSchedule[$sid] ?? $teacherBySubjectGlobal[$sid] ?? null);
@@ -321,6 +359,8 @@ class ScheduleGeneratorService
                 'subject_id'      => $sid,
                 'subject_name'    => $subjectNames[$sid] ?? "Предмет #{$sid}",
                 'teacher_id'      => $teacherId ? (int) $teacherId : null,
+                'teacher_id_2'    => null,
+                'has_subgroups'   => false,
                 'hours_per_class' => $hpc,
                 'pairs_num'       => $pairsNum,
                 'pairs_den'       => $pairsDen,
@@ -411,7 +451,9 @@ class ScheduleGeneratorService
                 $slot = $this->pickBestSlot($item, 'both', $grid, $teacherMap, $maxDay, $maxPairs);
                 if ($slot) {
                     $this->placeInGrid($grid, $slot['day'], $slot['lesson'], 'both', $item);
-                    $placed[] = $this->makeRow($slot['day'], $slot['lesson'], 'both', $item);
+                    foreach ($this->makeRow($slot['day'], $slot['lesson'], 'both', $item) as $r) {
+                        $placed[] = $r;
+                    }
                 } else {
                     $unplaced[] = ['subject_name' => $item['subject_name'], 'mode' => 'both'];
                 }
@@ -422,7 +464,9 @@ class ScheduleGeneratorService
                 $slot = $this->pickBestSlot($item, 'num', $grid, $teacherMap, $maxDay, $maxPairs);
                 if ($slot) {
                     $this->placeInGrid($grid, $slot['day'], $slot['lesson'], 'num', $item);
-                    $placed[] = $this->makeRow($slot['day'], $slot['lesson'], 'num', $item);
+                    foreach ($this->makeRow($slot['day'], $slot['lesson'], 'num', $item) as $r) {
+                        $placed[] = $r;
+                    }
                 } else {
                     $unplaced[] = ['subject_name' => $item['subject_name'], 'mode' => 'num'];
                 }
@@ -433,7 +477,9 @@ class ScheduleGeneratorService
                 $slot = $this->pickBestSlot($item, 'den', $grid, $teacherMap, $maxDay, $maxPairs);
                 if ($slot) {
                     $this->placeInGrid($grid, $slot['day'], $slot['lesson'], 'den', $item);
-                    $placed[] = $this->makeRow($slot['day'], $slot['lesson'], 'den', $item);
+                    foreach ($this->makeRow($slot['day'], $slot['lesson'], 'den', $item) as $r) {
+                        $placed[] = $r;
+                    }
                 } else {
                     $unplaced[] = ['subject_name' => $item['subject_name'], 'mode' => 'den'];
                 }
@@ -472,7 +518,9 @@ class ScheduleGeneratorService
 
     private function pickBestSlot(array $item, string $mode, array $grid, array $teacherMap, int $maxDay, int $maxPairs): ?array
     {
-        $candidates = [];
+        $candidates  = [];
+        $hasSubgroup = $item['has_subgroups'] ?? false;
+        $tid2        = $hasSubgroup ? ($item['teacher_id_2'] ?? null) : null;
 
         for ($d = 1; $d <= $maxDay; $d++) {
             for ($l = 1; $l <= $maxPairs; $l++) {
@@ -480,6 +528,10 @@ class ScheduleGeneratorService
                     continue;
                 }
                 if (!$this->teacherFree($teacherMap, $d, $l, $item['teacher_id'])) {
+                    continue;
+                }
+                // Для подгрупп: второй учитель тоже должен быть свободен
+                if ($hasSubgroup && !$this->teacherFree($teacherMap, $d, $l, $tid2)) {
                     continue;
                 }
                 $candidates[] = [
@@ -606,6 +658,7 @@ class ScheduleGeneratorService
 
     private function placeInGrid(array &$grid, int $day, int $lesson, string $mode, array $item): void
     {
+        // Для подгрупп помечаем оба учителя занятыми в этом слоте
         $data = ['subject_id' => $item['subject_id'], 'teacher_id' => $item['teacher_id']];
         if ($mode === 'both' || $mode === 'num') {
             $grid[$day][$lesson]['num'] = $data;
@@ -615,15 +668,31 @@ class ScheduleGeneratorService
         }
     }
 
+    /**
+     * Для подгрупп возвращает МАССИВ из двух строк (subgroup 1 и 2).
+     * Для обычных предметов — массив из одной строки.
+     */
     private function makeRow(int $day, int $lesson, string $mode, array $item): array
     {
-        return [
+        $base = [
             'study_day'     => self::DAY_NAMES[$day],
             'lesson_number' => $lesson,
             'subject_id'    => $item['subject_id'],
             'teacher_id'    => $item['teacher_id'],
-            'mode_flag'     => $mode, // 'both','num','den'
+            'mode_flag'     => $mode,
+            'subgroup'      => null,
+            'teacher_id_2'  => null,
         ];
+
+        if (!empty($item['has_subgroups'])) {
+            $base['subgroup']     = '1';
+            $row2                 = $base;
+            $row2['subgroup']     = '2';
+            $row2['teacher_id']   = $item['teacher_id_2'] ?? $item['teacher_id'];
+            return [$base, $row2];
+        }
+
+        return [$base];
     }
 
     // -------------------------------------------------------------------------
@@ -641,31 +710,26 @@ class ScheduleGeneratorService
 
         foreach ($placed as $p) {
             $modeFlag = $p['mode_flag'];
+            $subgroup = $p['subgroup'] ?? null;
 
-            // mode='single' → одинаково в обе недели (числитель и знаменатель одинаковые)
-            // mode='numerator' → только числитель заполнен
-            // mode='numerator' с den-полями → числитель пуст, знаменатель заполнен
-            $row = [
+            $rows[] = [
                 'week_start'             => $templateWeek->toDateString(),
                 'study_day'              => $p['study_day'],
                 'lesson_number'          => $p['lesson_number'],
                 'group_id'               => $groupId,
-                'subgroup'               => null,
+                'subgroup'               => $subgroup ?: null,
                 // Числитель
                 'subject_id'             => $modeFlag !== 'den' ? $p['subject_id'] : null,
                 'teacher_id'             => $modeFlag !== 'den' ? $p['teacher_id'] : null,
                 // Знаменатель
                 'subject_id_denominator' => $modeFlag !== 'num' ? $p['subject_id'] : null,
                 'teacher_id_denominator' => $modeFlag !== 'num' ? $p['teacher_id'] : null,
-                // Остальные поля
                 'room_id'                => null,
                 'room_id_denominator'    => null,
                 'is_replacement'         => 0,
                 'created_at'             => $now,
                 'updated_at'             => $now,
             ];
-
-            $rows[] = $row;
         }
 
         // Вставляем чанками по 50

@@ -280,6 +280,20 @@ class ScheduleGeneratorService
         $subjectNames = DB::table($tables['subjects'])
             ->pluck('subject_name', 'id');
 
+        // Fallback 1: teacher_subjects — глобальная привязка предмет→преподаватель
+        $teacherBySubjectGlobal = DB::table($tables['teacher_subjects'])
+            ->pluck('teacher_id', 'subject_id');
+
+        // Fallback 2: последнее расписание группы — самый актуальный источник
+        $teacherBySubjectSchedule = DB::table($tables['schedules'])
+            ->where('group_id', $groupId)
+            ->whereNotNull('teacher_id')
+            ->whereNotNull('subject_id')
+            ->orderByDesc('week_start')
+            ->get(['subject_id', 'teacher_id'])
+            ->unique('subject_id')
+            ->pluck('teacher_id', 'subject_id');
+
         $demand = [];
         foreach ($normatives as $norm) {
             $hpc          = max(1, (int) ($norm->hours_per_class ?: 2));
@@ -297,13 +311,19 @@ class ScheduleGeneratorService
                 continue;
             }
 
+            // Приоритет: норматив → расписание группы → teacher_subjects
+            $sid       = (int) $norm->subject_id;
+            $teacherId = $norm->teacher_id
+                ? (int) $norm->teacher_id
+                : ($teacherBySubjectSchedule[$sid] ?? $teacherBySubjectGlobal[$sid] ?? null);
+
             $demand[] = [
-                'subject_id'   => (int) $norm->subject_id,
-                'subject_name' => $subjectNames[$norm->subject_id] ?? "Предмет #{$norm->subject_id}",
-                'teacher_id'   => $norm->teacher_id ? (int) $norm->teacher_id : null,
+                'subject_id'      => $sid,
+                'subject_name'    => $subjectNames[$sid] ?? "Предмет #{$sid}",
+                'teacher_id'      => $teacherId ? (int) $teacherId : null,
                 'hours_per_class' => $hpc,
-                'pairs_num'    => $pairsNum,
-                'pairs_den'    => $pairsDen,
+                'pairs_num'       => $pairsNum,
+                'pairs_den'       => $pairsDen,
             ];
         }
 

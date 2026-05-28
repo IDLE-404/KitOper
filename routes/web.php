@@ -42,6 +42,7 @@ Route::middleware(['auth', 'audit'])->group(function () {
     Route::middleware('role:dispatcher')->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::put('/users/{user}/role', [UserController::class, 'updateRole'])->name('users.update_role');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
         Route::get('/teachers/workload', [TeacherWorkloadController::class, 'index'])->name('teachers.workload');
 
@@ -69,6 +70,7 @@ Route::middleware(['auth', 'audit'])->group(function () {
         Route::delete('/teacher-absences/{id}', [TeacherAbsenceController::class, 'destroy'])->name('teacher_absences.destroy');
 
         Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit_logs.index');
+        Route::post('/audit-logs/clear', [AuditLogController::class, 'clear'])->name('audit_logs.clear');
 
         Route::get('/ai-agent', [AiAgentController::class, 'index'])->name('ai_agent.index');
         Route::post('/ai-agent/chat', [AiAgentController::class, 'chat'])->name('ai_agent.chat');

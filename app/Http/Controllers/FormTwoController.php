@@ -154,10 +154,14 @@ class FormTwoController extends Controller
         $ghostSemester = $activeSemester;
         $ghostCells = [];
         $ghostConflicts = [];
+        $ghostPrevAccum = [];
         if ($ghostMode && $groupId) {
             $ghostResult = $this->ghostService->ghostMonthData($groupId, $year, $month, $course);
             $ghostCells = $ghostResult['cells'] ?? [];
             $ghostConflicts = $ghostResult['conflicts'] ?? [];
+            $ghostPrevAccum = $this->ghostService->ghostAccumulatedBeforeMonth(
+                $groupId, $year, $month, $course, $activeSemester
+            );
         }
 
         return view('first_course.form_two', [
@@ -190,6 +194,7 @@ class FormTwoController extends Controller
             'ghostSemester' => $ghostSemester,
             'ghostCells' => $ghostCells,
             'ghostConflicts' => $ghostConflicts,
+            'ghostPrevAccum' => $ghostPrevAccum,
         ]);
     }
 

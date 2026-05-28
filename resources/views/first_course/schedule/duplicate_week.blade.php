@@ -16,8 +16,14 @@
     }
     .dup-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        grid-template-columns: repeat(3, 1fr);
         gap: 14px;
+    }
+    .dup-grid-dates {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+        margin-top: 14px;
     }
     .dup-field label {
         display: block;
@@ -83,6 +89,8 @@
                     <label for="templateWeekStart">Неделя-шаблон</label>
                     <input class="search-input" id="templateWeekStart" type="date" name="template_week_start" value="{{ old('template_week_start', $templateWeekStart ?? '') }}" required>
                 </div>
+            </div>
+            <div class="dup-grid-dates">
                 <div class="dup-field">
                     <label for="periodStart">Начало периода</label>
                     <input class="search-input" id="periodStart" type="date" name="period_start" value="{{ old('period_start', $periodStart ?? '') }}" required>

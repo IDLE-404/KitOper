@@ -61,4 +61,22 @@ class UserController extends Controller
 
         return back()->with('success', 'Роль обновлена.');
     }
+
+    public function destroy(User $user): RedirectResponse
+    {
+        if ($user->id === auth()->id()) {
+            return back()->withErrors(['delete' => 'Нельзя удалить свой аккаунт.']);
+        }
+
+        if ($user->role === User::ROLE_DISPATCHER) {
+            $dispatchers = User::query()->where('role', User::ROLE_DISPATCHER)->count();
+            if ($dispatchers <= 1) {
+                return back()->withErrors(['delete' => 'Нельзя удалить последнего диспетчера.']);
+            }
+        }
+
+        $user->delete();
+
+        return back()->with('success', 'Пользователь удалён.');
+    }
 }

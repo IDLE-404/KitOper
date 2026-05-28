@@ -53,6 +53,21 @@ class AuditLogController extends Controller
         ]);
     }
 
+    public function clear(Request $request): \Illuminate\Http\RedirectResponse
+    {
+        $days = (int) $request->input('days', 0);
+
+        if ($days > 0) {
+            AuditLog::query()->where('created_at', '<', now()->subDays($days))->delete();
+            $msg = "Записи старше {$days} дней удалены.";
+        } else {
+            AuditLog::query()->truncate();
+            $msg = 'Журнал полностью очищен.';
+        }
+
+        return redirect()->route('audit_logs.index')->with('success', $msg);
+    }
+
     private function humanLabel(?string $routeName, string $method, array $payload): string
     {
         $map = [

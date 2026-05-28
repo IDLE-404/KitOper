@@ -1251,43 +1251,31 @@ class AiAgentController extends Controller
 
     private function loadDbContext(): string
     {
-        return Cache::remember('ai_db_context', 300, function () {
+        return Cache::remember('ai_db_context_v2', 300, function () {
             $lines = [];
 
-            // Teachers
-            $teachers = DB::table('teachers')->orderBy('teacher_name')->pluck('teacher_name')->all();
-            if ($teachers) {
-                $lines[] = 'Преподаватели (' . count($teachers) . '): ' . implode(', ', $teachers);
+            $teacherCount = DB::table('teachers')->count();
+            if ($teacherCount) {
+                $lines[] = "Преподавателей в системе: {$teacherCount}";
             }
 
-            // Groups by course
             foreach ([1 => 'first', 2 => 'second', 3 => 'third', 4 => 'fourth'] as $num => $prefix) {
-                $table = "{$prefix}_course_group";
                 try {
-                    $groups = DB::table($table)->orderBy('group_name')->pluck('group_name')->all();
-                    if ($groups) {
-                        $lines[] = "Группы {$num} курса (" . count($groups) . '): ' . implode(', ', $groups);
-                    }
+                    $cnt = DB::table("{$prefix}_course_group")->count();
+                    if ($cnt) $lines[] = "Групп {$num} курса: {$cnt}";
                 } catch (\Exception $e) {}
             }
 
-            // Subjects by course
             foreach ([1 => 'first', 2 => 'second', 3 => 'third', 4 => 'fourth'] as $num => $prefix) {
-                $table = "{$prefix}_course_subjects";
                 try {
-                    $subjects = DB::table($table)->orderBy('subject_name')->pluck('subject_name')->all();
-                    if ($subjects) {
-                        $lines[] = "Дисциплины {$num} курса (" . count($subjects) . '): ' . implode(', ', $subjects);
-                    }
+                    $cnt = DB::table("{$prefix}_course_subjects")->count();
+                    if ($cnt) $lines[] = "Дисциплин {$num} курса: {$cnt}";
                 } catch (\Exception $e) {}
             }
 
-            // Rooms
             try {
-                $rooms = DB::table('rooms')->orderBy('code')->get(['code', 'title'])->map(fn($r) => trim($r->code . ($r->title ? " ({$r->title})" : '')))->all();
-                if ($rooms) {
-                    $lines[] = 'Аудитории (' . count($rooms) . '): ' . implode(', ', $rooms);
-                }
+                $cnt = DB::table('rooms')->count();
+                if ($cnt) $lines[] = "Аудиторий: {$cnt}";
             } catch (\Exception $e) {}
 
             return implode("\n", $lines);
@@ -2303,15 +2291,17 @@ PROMPT;
                 'prompt' => $prompt,
                 'stream' => false,
                 'options' => [
-                    'temperature'   => 0.7,
-                    'top_p'         => 0.9,
-                    'top_k'         => 40,
+                    'temperature'    => 0.7,
+                    'top_p'          => 0.9,
+                    'top_k'          => 40,
                     'repeat_penalty' => 1.1,
+                    'num_ctx'        => 3072,
+                    'num_predict'    => 512,
                 ],
             ]),
             CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 180,
+            CURLOPT_TIMEOUT        => 600,
             CURLOPT_CONNECTTIMEOUT => 10,
         ]);
         $response = curl_exec($ch);

@@ -230,6 +230,91 @@ class SemesterGhostService
         return $row ? Carbon::parse($row)->startOfWeek(Carbon::MONDAY) : null;
     }
 
+    /**
+     * Накапливает количество ghost-уроков (не покрытых реальными записями) за все месяцы
+     * семестра ДО текущего. Возвращает ['subjectId|teacherId|subgroup' => lesson_count].
+     * Умножь на hours_per_class чтобы получить часы.
+     */
+    public function ghostAccumulatedBeforeMonth(
+        int $groupId,
+        int $year,
+        int $month,
+        int $course,
+        int $activeSemester
+    ): array {
+        $tables      = CourseContext::tables($course);
+        $prevMonths  = $this->semesterMonthsBefore($month, $year, $activeSemester);
+
+        if (empty($prevMonths)) {
+            return [];
+        }
+
+        $accum = [];
+
+        foreach ($prevMonths as [$mYear, $m]) {
+            $result = $this->ghostMonthData($groupId, $mYear, $m, $course);
+            $cells  = $result['cells'] ?? [];
+            if (empty($cells)) {
+                continue;
+            }
+
+            $monthStart = Carbon::create($mYear, $m, 1)->toDateString();
+            $monthEnd   = Carbon::create($mYear, $m, 1)->endOfMonth()->toDateString();
+
+            // Реальные записи за этот месяц — исключаем уже проведённые пары
+            $realRecords = DB::table($tables['form_two_records'])
+                ->where('group_id', $groupId)
+                ->whereBetween('class_date', [$monthStart, $monthEnd])
+                ->whereIn('status', ['normal', 'replacement'])
+                ->select('subject_id', 'teacher_id', 'class_date', 'lesson_number', 'subgroup')
+                ->get();
+
+            $realSlots = [];
+            foreach ($realRecords as $rec) {
+                $day = (int) Carbon::parse($rec->class_date)->day;
+                $sg  = in_array($rec->subgroup ?? null, ['2', 'B', 2], true) ? 2 : 1;
+                $realSlots["{$rec->subject_id}|{$rec->teacher_id}|{$sg}|{$day}|{$rec->lesson_number}"] = true;
+            }
+
+            foreach ($cells as $key => $dayMap) {
+                [$sid, $tid, $sg] = explode('|', $key);
+                foreach ($dayMap as $day => $lessons) {
+                    foreach ($lessons as $lessonNum) {
+                        if (!isset($realSlots["{$sid}|{$tid}|{$sg}|{$day}|{$lessonNum}"])) {
+                            $accum[$key] = ($accum[$key] ?? 0) + 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $accum;
+    }
+
+    /**
+     * Возвращает список [year, month] для всех месяцев семестра ДО текущего.
+     */
+    private function semesterMonthsBefore(int $month, int $year, int $activeSemester): array
+    {
+        $allMonths = $activeSemester === 1
+            ? [9, 10, 11, 12, 1]
+            : [2, 3, 4, 5, 6];
+
+        $result = [];
+        foreach ($allMonths as $m) {
+            if ($m === $month) {
+                break;
+            }
+            // Для 1 семестра: январь текущего года → сен-дек были в предыдущем году
+            $mYear = ($activeSemester === 1 && $month === 1 && $m >= 9)
+                ? $year - 1
+                : $year;
+            $result[] = [$mYear, $m];
+        }
+
+        return $result;
+    }
+
     protected function dowToRussian(int $dow): ?string
     {
         return [

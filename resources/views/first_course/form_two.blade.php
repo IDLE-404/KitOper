@@ -30,6 +30,7 @@
     $ghostSemester  = $ghostSemester ?? $activeSemester;
     $ghostCells     = $ghostCells ?? [];
     $ghostConflicts = $ghostConflicts ?? [];
+    $ghostPrevAccum = $ghostPrevAccum ?? [];
 
     // Месяцы каждого семестра
     $semesterMonths = [
@@ -53,7 +54,35 @@
         return $lessons ? 'Пара ' . implode(', ', $lessons) : '';
     };
 
-    // Пересчёт итогов с учётом ghost-часов (прогноз семестра)
+    // Вычитаем ghost-часы из прошлых месяцев, чтобы остаток переходил корректно
+    if ($ghostMode && !empty($ghostPrevAccum)) {
+        foreach ($rows as &$row) {
+            $hpc  = (float)($row['hours_per_class'] ?? 2);
+            $key  = "{$row['subject_id']}|{$row['teacher_id']}|1";
+            $prev = ($ghostPrevAccum[$key] ?? 0) * $hpc;
+            if ($prev <= 0) continue;
+            $row['total_hours']      = max(0, ($row['total_hours'] ?? 0) - $prev);
+            $row['hours_left_start'] = $row['total_hours'];
+            $row['hours_left']       = max(0, ($row['hours_left'] ?? 0) - $prev);
+            $columnTotals['used']    = ($columnTotals['used'] ?? 0) + $prev;
+            $columnTotals['left']    = ($columnTotals['left'] ?? 0) - $prev;
+        }
+        unset($row);
+        foreach ($subgroupTwoRows as &$row) {
+            $hpc  = (float)($row['hours_per_class'] ?? 2);
+            $key  = "{$row['subject_id']}|{$row['teacher_id']}|2";
+            $prev = ($ghostPrevAccum[$key] ?? 0) * $hpc;
+            if ($prev <= 0) continue;
+            $row['total_hours']      = max(0, ($row['total_hours'] ?? 0) - $prev);
+            $row['hours_left_start'] = $row['total_hours'];
+            $row['hours_left']       = max(0, ($row['hours_left'] ?? 0) - $prev);
+            $subgroupTwoColumnTotals['used'] = ($subgroupTwoColumnTotals['used'] ?? 0) + $prev;
+            $subgroupTwoColumnTotals['left'] = ($subgroupTwoColumnTotals['left'] ?? 0) - $prev;
+        }
+        unset($row);
+    }
+
+    // Пересчёт итогов с учётом ghost-часов текущего месяца (прогноз семестра)
     if ($ghostMode && !empty($ghostCells)) {
         // Основные строки (подгруппа 1)
         foreach ($rows as &$row) {

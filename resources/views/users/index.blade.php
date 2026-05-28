@@ -60,16 +60,26 @@
                             <span class="app-badge {{ $roleClass }}">{{ $roles[$user->role] ?? $user->role }}</span>
                         </td>
                         <td>
-                            <form method="POST" action="{{ route('users.update_role', $user->id) }}" style="display:flex;gap:8px;align-items:center">
-                                @csrf
-                                @method('PUT')
-                                <select class="field-input" name="role" style="width:auto">
-                                    @foreach($roles as $value => $label)
-                                        <option value="{{ $value }}" @selected($user->role === $value)>{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                                <button class="btn btn-secondary btn-sm" type="submit">Сохранить</button>
-                            </form>
+                            <div style="display:flex;gap:8px;align-items:center">
+                                <form method="POST" action="{{ route('users.update_role', $user->id) }}" style="display:flex;gap:8px;align-items:center">
+                                    @csrf
+                                    @method('PUT')
+                                    <select class="field-input" name="role" style="width:auto">
+                                        @foreach($roles as $value => $label)
+                                            <option value="{{ $value }}" @selected($user->role === $value)>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                    <button class="btn btn-secondary btn-sm" type="submit">Сохранить</button>
+                                </form>
+                                @if($user->id !== auth()->id())
+                                <form method="POST" action="{{ route('users.destroy', $user->id) }}"
+                                      onsubmit="return confirm('Удалить пользователя {{ addslashes($user->name) }}?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5" type="submit">Удалить</button>
+                                </form>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                 @empty

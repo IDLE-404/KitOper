@@ -485,6 +485,7 @@ class ScheduleToFormTwoSyncService
         }
 
         $tables = \App\Support\CourseContext::tables($course);
+        $semester = ($date->month >= 9 || $date->month === 1) ? 1 : 2;
 
         $row = \Illuminate\Support\Facades\DB::table($tables['form_two_normatives'])
             ->where('group_id', $groupId)
@@ -492,21 +493,28 @@ class ScheduleToFormTwoSyncService
             ->when($teacherId, fn ($q) => $q->where(function ($qq) use ($teacherId) {
                 $qq->where('teacher_id', $teacherId)->orWhereNull('teacher_id');
             }))
-            ->where('year', $date->year)
-            ->where('month', $date->month)
-            ->orderByRaw('teacher_id is null') // предпочитаем точное совпадение
+            ->where('semester', $semester)
+            ->orderByRaw('teacher_id is null')
             ->first();
 
+        // Попытка без фильтра семестра если в текущем семестре нет записи
+        if (!$row) {
+            $row = \Illuminate\Support\Facades\DB::table($tables['form_two_normatives'])
+                ->where('group_id', $groupId)
+                ->where('subject_id', $subjectId)
+                ->when($teacherId, fn ($q) => $q->where(function ($qq) use ($teacherId) {
+                    $qq->where('teacher_id', $teacherId)->orWhereNull('teacher_id');
+                }))
+                ->orderByRaw('teacher_id is null')
+                ->first();
+        }
+
         return [
-            'total_hours' => $row->total_hours ?? 0,
+            'total_hours'    => $row->total_hours ?? 0,
             'hours_per_class' => $row->hours_per_class ?? 2,
         ];
     }
 
-    /**
-     * Получает ID учителя из нормативов для данного предмета и группы
-     * Ищет в текущем месяце и предыдущих месяцах учебного года
-     */
     protected function getNormativeTeacherId(int $groupId, ?int $subjectId, Carbon $date, int $course = 1): ?int
     {
         if (!$subjectId) {
@@ -514,42 +522,26 @@ class ScheduleToFormTwoSyncService
         }
 
         $tables = \App\Support\CourseContext::tables($course);
-
-        // Учебный год начинается 1 сентября
-        $studyYearStart = $date->month >= 9
-            ? Carbon::create($date->year, 9, 1)
-            : Carbon::create($date->year - 1, 9, 1);
+        $semester = ($date->month >= 9 || $date->month === 1) ? 1 : 2;
 
         $row = \Illuminate\Support\Facades\DB::table($tables['form_two_normatives'])
             ->where('group_id', $groupId)
             ->where('subject_id', $subjectId)
             ->whereNotNull('teacher_id')
-            ->where(function ($q) use ($date, $studyYearStart) {
-                $q->where(function ($qStart) use ($studyYearStart) {
-                    $qStart->where('year', '>', $studyYearStart->year)
-                        ->orWhere(function ($q2) use ($studyYearStart) {
-                            $q2->where('year', $studyYearStart->year)
-                                ->where('month', '>=', $studyYearStart->month);
-                        });
-                })->where(function ($qEnd) use ($date) {
-                    $qEnd->where('year', '<', $date->year)
-                        ->orWhere(function ($q3) use ($date) {
-                            $q3->where('year', $date->year)
-                                ->where('month', '<=', $date->month);
-                        });
-                });
-            })
-            ->orderBy('year', 'desc')
-            ->orderBy('month', 'desc')
+            ->where('semester', $semester)
             ->first();
+
+        if (!$row) {
+            $row = \Illuminate\Support\Facades\DB::table($tables['form_two_normatives'])
+                ->where('group_id', $groupId)
+                ->where('subject_id', $subjectId)
+                ->whereNotNull('teacher_id')
+                ->first();
+        }
 
         return $row->teacher_id ?? null;
     }
 
-    /**
-     * Получает ID предмета из нормативов для данного учителя и группы
-     * Ищет в текущем месяце и предыдущих месяцах учебного года
-     */
     protected function getNormativeSubjectId(int $groupId, ?int $teacherId, Carbon $date, int $course = 1): ?int
     {
         if (!$teacherId) {
@@ -557,34 +549,22 @@ class ScheduleToFormTwoSyncService
         }
 
         $tables = \App\Support\CourseContext::tables($course);
-
-        // Учебный год начинается 1 сентября
-        $studyYearStart = $date->month >= 9
-            ? Carbon::create($date->year, 9, 1)
-            : Carbon::create($date->year - 1, 9, 1);
+        $semester = ($date->month >= 9 || $date->month === 1) ? 1 : 2;
 
         $row = \Illuminate\Support\Facades\DB::table($tables['form_two_normatives'])
             ->where('group_id', $groupId)
             ->where('teacher_id', $teacherId)
             ->whereNotNull('subject_id')
-            ->where(function ($q) use ($date, $studyYearStart) {
-                $q->where(function ($qStart) use ($studyYearStart) {
-                    $qStart->where('year', '>', $studyYearStart->year)
-                        ->orWhere(function ($q2) use ($studyYearStart) {
-                            $q2->where('year', $studyYearStart->year)
-                                ->where('month', '>=', $studyYearStart->month);
-                        });
-                })->where(function ($qEnd) use ($date) {
-                    $qEnd->where('year', '<', $date->year)
-                        ->orWhere(function ($q3) use ($date) {
-                            $q3->where('year', $date->year)
-                                ->where('month', '<=', $date->month);
-                        });
-                });
-            })
-            ->orderBy('year', 'desc')
-            ->orderBy('month', 'desc')
+            ->where('semester', $semester)
             ->first();
+
+        if (!$row) {
+            $row = \Illuminate\Support\Facades\DB::table($tables['form_two_normatives'])
+                ->where('group_id', $groupId)
+                ->where('teacher_id', $teacherId)
+                ->whereNotNull('subject_id')
+                ->first();
+        }
 
         return $row->subject_id ?? null;
     }

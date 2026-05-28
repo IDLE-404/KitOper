@@ -6,6 +6,21 @@
         <h1 class="page-title">Журнал изменений</h1>
         <p class="page-subtitle">Фиксируются все изменения по данным и расписанию</p>
     </div>
+    <div style="display:flex;gap:8px;align-items:center">
+        <form method="POST" action="{{ route('audit_logs.clear') }}"
+              onsubmit="return confirm('Удалить старые записи журнала?')">
+            @csrf
+            <select name="days" class="field-input" style="width:auto;display:inline-block">
+                <option value="30">Старше 30 дней</option>
+                <option value="90">Старше 90 дней</option>
+                <option value="180">Старше 180 дней</option>
+                <option value="0">Весь журнал</option>
+            </select>
+            <button class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;margin-left:6px" type="submit">
+                Очистить
+            </button>
+        </form>
+    </div>
 </div>
 
 <div class="surface surface-p" style="margin-bottom:16px">

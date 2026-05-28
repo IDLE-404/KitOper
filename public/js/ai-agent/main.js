@@ -450,10 +450,10 @@
 
         abortController = new AbortController();
 
-        // Timeout after 120 seconds
+        // Timeout after 5 minutes (CPU inference is slow)
         const timeoutId = setTimeout(() => {
             abortController.abort();
-        }, 120000);
+        }, 300000);
 
         fetch(chatUrl, {
             method:  'POST',
@@ -509,8 +509,13 @@
             isTyping = false;
             abortController = null;
             setStopMode(false);
-            // Если пользователь сам остановил — не показываем ошибку
-            if (err.name === 'AbortError') return;
+            if (err.name === 'AbortError') {
+                const msg = '⏱ Модель не успела ответить за 5 минут. Попробуйте задать более короткий вопрос.';
+                addMessage('assistant', msg);
+                history.push({ role: 'assistant', content: msg, ts: Date.now() });
+                saveCurrentSession();
+                return;
+            }
             const errorText = '⚠ Ошибка соединения: ' + err.message;
             addMessage('assistant', errorText);
             history.push({ role: 'assistant', content: errorText, ts: Date.now() });

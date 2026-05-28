@@ -337,12 +337,31 @@ class ScheduleGeneratorService
 
             // Подгруппный предмет?
             if (isset($subgroupMap[$sid])) {
+                $t1 = $subgroupMap[$sid]['teacher1'] ?? null;
+                $t2 = $subgroupMap[$sid]['teacher2'] ?? null;
+
+                // Если оба учителя известны и разные → реальный подгрупповой предмет
+                if ($t1 && $t2 && $t1 !== $t2) {
+                    $demand[] = [
+                        'subject_id'      => $sid,
+                        'subject_name'    => $subjectNames[$sid] ?? "Предмет #{$sid}",
+                        'teacher_id'      => $t1,
+                        'teacher_id_2'    => $t2,
+                        'has_subgroups'   => true,
+                        'hours_per_class' => $hpc,
+                        'pairs_num'       => $pairsNum,
+                        'pairs_den'       => $pairsDen,
+                    ];
+                    continue;
+                }
+
+                // Один учитель для обоих подгрупп → ставим как обычный предмет
                 $demand[] = [
                     'subject_id'      => $sid,
                     'subject_name'    => $subjectNames[$sid] ?? "Предмет #{$sid}",
-                    'teacher_id'      => $subgroupMap[$sid]['teacher1'] ?? null,
-                    'teacher_id_2'    => $subgroupMap[$sid]['teacher2'] ?? null,
-                    'has_subgroups'   => true,
+                    'teacher_id'      => $t1 ?? $t2,
+                    'teacher_id_2'    => null,
+                    'has_subgroups'   => false,
                     'hours_per_class' => $hpc,
                     'pairs_num'       => $pairsNum,
                     'pairs_den'       => $pairsDen,
@@ -445,12 +464,13 @@ class ScheduleGeneratorService
         $unplaced = [];
 
         foreach ($demand as $item) {
-            // Пары, нужные в оба режима сразу
             $bothCount = min($item['pairs_num'], $item['pairs_den']);
+
             for ($i = 0; $i < $bothCount; $i++) {
                 $slot = $this->pickBestSlot($item, 'both', $grid, $teacherMap, $maxDay, $maxPairs);
                 if ($slot) {
                     $this->placeInGrid($grid, $slot['day'], $slot['lesson'], 'both', $item);
+                    $this->markTeachers($teacherMap, $slot['day'], $slot['lesson'], $item);
                     foreach ($this->makeRow($slot['day'], $slot['lesson'], 'both', $item) as $r) {
                         $placed[] = $r;
                     }
@@ -459,11 +479,11 @@ class ScheduleGeneratorService
                 }
             }
 
-            // Лишние числитель-пары
             for ($i = $bothCount; $i < $item['pairs_num']; $i++) {
                 $slot = $this->pickBestSlot($item, 'num', $grid, $teacherMap, $maxDay, $maxPairs);
                 if ($slot) {
                     $this->placeInGrid($grid, $slot['day'], $slot['lesson'], 'num', $item);
+                    $this->markTeachers($teacherMap, $slot['day'], $slot['lesson'], $item);
                     foreach ($this->makeRow($slot['day'], $slot['lesson'], 'num', $item) as $r) {
                         $placed[] = $r;
                     }
@@ -472,11 +492,11 @@ class ScheduleGeneratorService
                 }
             }
 
-            // Лишние знаменатель-пары
             for ($i = $bothCount; $i < $item['pairs_den']; $i++) {
                 $slot = $this->pickBestSlot($item, 'den', $grid, $teacherMap, $maxDay, $maxPairs);
                 if ($slot) {
                     $this->placeInGrid($grid, $slot['day'], $slot['lesson'], 'den', $item);
+                    $this->markTeachers($teacherMap, $slot['day'], $slot['lesson'], $item);
                     foreach ($this->makeRow($slot['day'], $slot['lesson'], 'den', $item) as $r) {
                         $placed[] = $r;
                     }
@@ -487,6 +507,18 @@ class ScheduleGeneratorService
         }
 
         return ['placed' => $placed, 'unplaced' => $unplaced];
+    }
+
+    // Обновляем teacherMap после каждого размещения — предотвращает конфликты внутри генерации
+    private function markTeachers(array &$teacherMap, int $day, int $lesson, array $item): void
+    {
+        if ($item['teacher_id']) {
+            $teacherMap[$item['teacher_id']][$day][$lesson] = true;
+        }
+        if (!empty($item['has_subgroups']) && !empty($item['teacher_id_2'])
+            && $item['teacher_id_2'] !== $item['teacher_id']) {
+            $teacherMap[$item['teacher_id_2']][$day][$lesson] = true;
+        }
     }
 
     // Сначала размещаем предметы у преподавателей с наименьшим кол-вом свободных слотов

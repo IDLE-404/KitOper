@@ -212,6 +212,19 @@ class AiAgentController extends Controller
             return "Не могу выполнить — нужно точнее указать запись (например, полное имя или ID).";
         }
 
+        // Деструктивные операции требуют подтверждения пользователя
+        if (in_array($act, ['update', 'delete'], true)) {
+            try {
+                request()->session()->put(self::SESSION_PENDING_ACTION, [
+                    'action' => $normalizedAction,
+                    'ts'     => time(),
+                ]);
+            } catch (\Throwable) {
+                // В тестах сессия может быть недоступна — продолжаем без сохранения
+            }
+            return $this->buildConfirmationMessage($normalizedAction);
+        }
+
         return $this->executeDbAction($normalizedAction, $rawResponse);
     }
 

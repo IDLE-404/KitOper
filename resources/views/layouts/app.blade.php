@@ -46,6 +46,11 @@
                             <span>Дубликат недели</span>
                         </a>
 
+                        <a class="ko-nav-item {{ request()->routeIs('schedule.generate.*') ? 'is-active' : '' }}" href="{{ route('schedule.generate.index', ['course' => request()->integer('course') ?: 1]) }}">
+                            <i class="bi bi-magic"></i>
+                            <span>Генератор</span>
+                        </a>
+
                         <div class="ko-divider"></div>
 
                         <a class="ko-nav-item {{ request()->routeIs('groups.*') ? 'is-active' : '' }}" href="{{ route('groups.index') }}">

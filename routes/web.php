@@ -17,6 +17,7 @@ use App\Http\Controllers\FormTwoTemplateController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AiAgentController;
+use App\Http\Controllers\ScheduleGeneratorController;
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -71,6 +72,9 @@ Route::middleware(['auth', 'audit'])->group(function () {
 
         Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit_logs.index');
         Route::post('/audit-logs/clear', [AuditLogController::class, 'clear'])->name('audit_logs.clear');
+
+        Route::get('/schedule/generate', [ScheduleGeneratorController::class, 'index'])->name('schedule.generate.index');
+        Route::post('/schedule/generate', [ScheduleGeneratorController::class, 'store'])->name('schedule.generate.store');
 
         Route::get('/ai-agent', [AiAgentController::class, 'index'])->name('ai_agent.index');
         Route::post('/ai-agent/chat', [AiAgentController::class, 'chat'])->name('ai_agent.chat');

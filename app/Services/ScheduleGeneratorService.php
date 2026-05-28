@@ -55,8 +55,9 @@ class ScheduleGeneratorService
             ];
         }
 
-        $result   = $this->evolve($demand, $teacherMap, $maxDay, $maxPairs, $params);
-        $inserted = $this->persist($groupId, $templateWeek, $result['placed'], $tables);
+        $assignRooms = (bool) ($params['assign_rooms'] ?? false);
+        $result      = $this->evolve($demand, $teacherMap, $maxDay, $maxPairs, $params);
+        $inserted    = $this->persist($groupId, $templateWeek, $result['placed'], $tables, $assignRooms);
 
         // Считаем уникальные слоты (не строки): subgroup-пара = 1 слот, 2 строки
         $uniqueSlots = count(array_unique(array_map(
@@ -731,18 +732,43 @@ class ScheduleGeneratorService
     // Запись в БД
     // -------------------------------------------------------------------------
 
-    private function persist(int $groupId, Carbon $templateWeek, array $placed, array $tables): int
+    private function persist(int $groupId, Carbon $templateWeek, array $placed, array $tables, bool $assignRooms = false): int
     {
         if (empty($placed)) {
             return 0;
         }
 
+        $roomMap = $assignRooms ? $this->buildRoomPreferenceMap($tables) : [];
+
         $rows = [];
         $now  = now();
+
+        // Карта занятых кабинетов per slot: [day|lesson => [roomCode => true]]
+        $occupiedRooms = [];
 
         foreach ($placed as $p) {
             $modeFlag = $p['mode_flag'];
             $subgroup = $p['subgroup'] ?? null;
+            $tid      = $p['teacher_id'] ?? null;
+
+            // Числитель: только для num и both — mode='single' если den пустой
+            $numSubject = $modeFlag !== 'den' ? $p['subject_id'] : null;
+            $numTeacher = $modeFlag !== 'den' ? $p['teacher_id'] : null;
+
+            // Знаменатель: только для den — иначе null → mode='single'
+            $denSubject = $modeFlag === 'den' ? $p['subject_id'] : null;
+            $denTeacher = $modeFlag === 'den' ? $p['teacher_id'] : null;
+
+            // Кабинет
+            $roomId = null;
+            $roomIdDen = null;
+            if ($assignRooms && $numTeacher) {
+                $slotKey = $p['study_day'] . '|' . $p['lesson_number'];
+                $roomId  = $this->pickFreeRoom($roomMap, $occupiedRooms[$slotKey] ?? [], $numTeacher);
+                if ($roomId) {
+                    $occupiedRooms[$slotKey][$roomId] = true;
+                }
+            }
 
             $rows[] = [
                 'week_start'             => $templateWeek->toDateString(),
@@ -750,25 +776,102 @@ class ScheduleGeneratorService
                 'lesson_number'          => $p['lesson_number'],
                 'group_id'               => $groupId,
                 'subgroup'               => $subgroup ?: null,
-                // Числитель
-                'subject_id'             => $modeFlag !== 'den' ? $p['subject_id'] : null,
-                'teacher_id'             => $modeFlag !== 'den' ? $p['teacher_id'] : null,
-                // Знаменатель
-                'subject_id_denominator' => $modeFlag !== 'num' ? $p['subject_id'] : null,
-                'teacher_id_denominator' => $modeFlag !== 'num' ? $p['teacher_id'] : null,
-                'room_id'                => null,
-                'room_id_denominator'    => null,
+                'subject_id'             => $numSubject,
+                'teacher_id'             => $numTeacher,
+                'subject_id_denominator' => $denSubject,
+                'teacher_id_denominator' => $denTeacher,
+                'room_id'                => $roomId,
+                'room_id_denominator'    => $roomIdDen,
                 'is_replacement'         => 0,
                 'created_at'             => $now,
                 'updated_at'             => $now,
             ];
         }
 
-        // Вставляем чанками по 50
         foreach (array_chunk($rows, 50) as $chunk) {
             DB::table($tables['schedules'])->insert($chunk);
         }
 
         return count($rows);
+    }
+
+    // -------------------------------------------------------------------------
+    // Кабинеты
+    // -------------------------------------------------------------------------
+
+    /**
+     * Строит карту предпочтений: teacherId → [preferred_room_code, ...]
+     * Приоритет: teachers.default_room_id → история расписания
+     */
+    private function buildRoomPreferenceMap(array $tables): array
+    {
+        $map = [];
+
+        // 1. default_room_id у учителя
+        $hasDefaultRoom = \Illuminate\Support\Facades\Schema::hasColumn('teachers', 'default_room_id');
+        if ($hasDefaultRoom) {
+            $defaults = DB::table('teachers as t')
+                ->leftJoin('rooms as r', 'r.id', '=', 't.default_room_id')
+                ->whereNotNull('t.default_room_id')
+                ->select('t.id as tid', 'r.code as code')
+                ->get();
+            foreach ($defaults as $d) {
+                if ($d->code) {
+                    $map[(int) $d->tid][] = $d->code;
+                }
+            }
+        }
+
+        // 2. История расписания — самые частые кабинеты учителя
+        $history = DB::table($tables['schedules'])
+            ->whereNotNull('teacher_id')
+            ->whereNotNull('room_id')
+            ->select('teacher_id', 'room_id', DB::raw('COUNT(*) as cnt'))
+            ->groupBy('teacher_id', 'room_id')
+            ->orderByDesc('cnt')
+            ->get();
+        foreach ($history as $h) {
+            $tid = (int) $h->teacher_id;
+            if (!isset($map[$tid])) {
+                $map[$tid] = [];
+            }
+            if (!in_array($h->room_id, $map[$tid], true)) {
+                $map[$tid][] = $h->room_id;
+            }
+        }
+
+        // 3. Список всех активных кабинетов (фоллбэк)
+        $allRooms = DB::table('rooms')
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('rooms', 'is_active'),
+                fn ($q) => $q->where('is_active', true))
+            ->orderBy('code')
+            ->pluck('code')
+            ->all();
+        $map['__all__'] = $allRooms;
+
+        return $map;
+    }
+
+    /**
+     * Выбирает свободный кабинет для учителя в данном слоте.
+     * Предпочитает его "родной" кабинет, если он свободен.
+     */
+    private function pickFreeRoom(array $roomMap, array $occupiedInSlot, ?int $teacherId): ?string
+    {
+        if (!$teacherId) {
+            return null;
+        }
+
+        $preferred = $roomMap[$teacherId] ?? [];
+        $all       = $roomMap['__all__'] ?? [];
+        $candidates = array_unique(array_merge($preferred, $all));
+
+        foreach ($candidates as $room) {
+            if (!isset($occupiedInSlot[$room])) {
+                return $room;
+            }
+        }
+
+        return null; // все кабинеты заняты
     }
 }

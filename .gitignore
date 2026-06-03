@@ -14,5 +14,3 @@ oldApp/node_modules/
 # Claude memory
 .claude/
 
-# Скриншоты (тяжёлые, не нужны в репо)
-plan/screenshots/

@@ -168,3 +168,7 @@
     @endif
 </div>
 @endsection
+
+@push('scripts')
+<script src="{{ asset('js/tours/audit.js') }}"></script>
+@endpush

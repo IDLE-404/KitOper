@@ -132,3 +132,7 @@
     </div>
 @endforeach
 @endsection
+
+@push('scripts')
+<script src="{{ asset('js/tours/holidays.js') }}"></script>
+@endpush

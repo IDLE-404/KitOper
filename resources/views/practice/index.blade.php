@@ -169,3 +169,7 @@
     toggleRoom();
 </script>
 @endpush
+
+@push('scripts')
+<script src="{{ asset('js/tours/practice.js') }}"></script>
+@endpush

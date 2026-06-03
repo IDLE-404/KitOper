@@ -3097,3 +3097,15 @@
 </script>
 @endpush
 @endpush
+
+@push('scripts')
+<script>
+(function() {
+    var s = document.createElement('script');
+    s.src = window.location.pathname.indexOf('/schedule/day') !== -1
+        ? '{{ asset("js/tours/schedule-day.js") }}'
+        : '{{ asset("js/tours/schedule-index.js") }}';
+    document.head.appendChild(s);
+})();
+</script>
+@endpush

@@ -1171,3 +1171,7 @@
     });
 </script>
 @endpush
+
+@push('scripts')
+<script src="{{ asset('js/tours/schedule-week.js') }}"></script>
+@endpush

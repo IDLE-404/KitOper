@@ -1537,3 +1537,7 @@
     }
 </script>
 @endpush
+
+@push('scripts')
+<script src="{{ asset('js/tours/form-two.js') }}"></script>
+@endpush

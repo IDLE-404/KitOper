@@ -164,3 +164,7 @@
     });
 </script>
 @endpush
+
+@push('scripts')
+<script src="{{ asset('js/tours/subjects.js') }}"></script>
+@endpush

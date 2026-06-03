@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/css/app.css">
     <link rel="stylesheet" href="/css/sidebar/main.css">
     <link rel="stylesheet" href="/css/sidebar/ai-chat-widget.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.css">
     @stack('styles')
 </head>
 <body class="ko-body">
@@ -115,6 +116,10 @@
                             <i class="bi bi-chat-dots"></i>
                             <span>ИИ-Агент</span>
                         </a>
+                        <a class="ko-nav-item {{ request()->routeIs('docs.index') ? 'is-active' : '' }}" href="{{ route('docs.index') }}">
+                            <i class="bi bi-book"></i>
+                            <span>Документация</span>
+                        </a>
                     @elseif($currentUser?->isTeacher())
                         <a class="ko-nav-item {{ request()->routeIs('teacher.today') ? 'is-active' : '' }}" href="{{ route('teacher.today') }}">
                             <i class="bi bi-calendar3"></i>
@@ -186,6 +191,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.js.iife.js"></script>
     <script>
     (function () {
         var btn = document.getElementById('koSidebarToggle');
@@ -218,5 +224,31 @@
     @if(auth()->user()?->isDispatcher())
         @include('components.ai-widget')
     @endif
+
+    {{-- Tour help button (shown by each page's tour script) --}}
+    <button id="tourHelpBtn" type="button" style="display:none" title="Интерактивная помощь">
+        <i class="bi bi-question-circle"></i> Помощь
+    </button>
+    <style>
+    #tourHelpBtn {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 9000;
+        background: #7f56d9;
+        color: #fff;
+        border: none;
+        border-radius: 999px;
+        padding: 10px 18px;
+        font-size: 14px;
+        font-weight: 600;
+        box-shadow: 0 4px 14px rgba(127,86,217,0.35);
+        cursor: pointer;
+        transition: background 0.15s, transform 0.1s;
+        display: none;
+    }
+    #tourHelpBtn:hover { background: #6941c6; transform: translateY(-1px); }
+    #tourHelpBtn i { margin-right: 4px; }
+    </style>
 </body>
 </html>

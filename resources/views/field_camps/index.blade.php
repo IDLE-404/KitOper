@@ -140,3 +140,7 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script src="{{ asset('js/tours/field-camps.js') }}"></script>
+@endpush

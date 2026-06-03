@@ -222,3 +222,7 @@
     });
 </script>
 @endpush
+
+@push('scripts')
+<script src="{{ asset('js/tours/absences.js') }}"></script>
+@endpush

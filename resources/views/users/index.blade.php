@@ -100,3 +100,7 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script src="{{ asset('js/tours/users.js') }}"></script>
+@endpush

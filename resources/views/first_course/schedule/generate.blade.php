@@ -233,3 +233,7 @@
     });
 </script>
 @endpush
+
+@push('scripts')
+<script src="{{ asset('js/tours/generate.js') }}"></script>
+@endpush

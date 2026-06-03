@@ -134,3 +134,7 @@
     });
 </script>
 @endpush
+
+@push('scripts')
+<script src="{{ asset('js/tours/week-duplicate.js') }}"></script>
+@endpush

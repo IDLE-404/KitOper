@@ -525,3 +525,7 @@
     });
 </script>
 @endpush
+
+@push('scripts')
+<script src="{{ asset('js/tours/teachers.js') }}"></script>
+@endpush

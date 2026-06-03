@@ -183,3 +183,7 @@
     </div>
 @endforelse
 @endsection
+
+@push('scripts')
+<script src="{{ asset('js/tours/form-two-templates.js') }}"></script>
+@endpush

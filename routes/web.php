@@ -30,6 +30,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->n
 
 Route::middleware(['auth', 'audit'])->group(function () {
     Route::get('/', [FirstCourseSchedulePageController::class, 'index'])->name('home');
+    Route::get('/docs', fn() => view('docs.index'))->name('docs.index');
 
     Route::middleware('role:teacher')->group(function () {
         Route::get('/teacher/today', [TeacherDashboardController::class, 'today'])->name('teacher.today');

@@ -128,3 +128,7 @@
 @push('scripts')
     <script src="{{ asset('js/ai-agent/main.js') }}?v={{ filemtime(public_path('js/ai-agent/main.js')) }}"></script>
 @endpush
+
+@push('scripts')
+<script src="{{ asset('js/tours/ai-agent.js') }}"></script>
+@endpush

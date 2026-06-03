@@ -112,10 +112,6 @@
                             <i class="bi bi-clipboard-data"></i>
                             <span>Журнал изменений</span>
                         </a>
-                        <a class="ko-nav-item {{ request()->routeIs('ai_agent.*') ? 'is-active' : '' }}" href="{{ route('ai_agent.index') }}">
-                            <i class="bi bi-chat-dots"></i>
-                            <span>ИИ-Агент</span>
-                        </a>
                         <a class="ko-nav-item {{ request()->routeIs('docs.index') ? 'is-active' : '' }}" href="{{ route('docs.index') }}">
                             <i class="bi bi-book"></i>
                             <span>Документация</span>

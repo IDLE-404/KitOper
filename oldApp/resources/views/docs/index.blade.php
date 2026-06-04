@@ -137,7 +137,7 @@
             </div>
 
             <div class="docs-img-wrap">
-                <img src="/plan/screenshots/doc-login.png" alt="Экран входа" loading="lazy">
+                <img src="/img/docs/doc-login.png" alt="Экран входа" loading="lazy">
                 <div class="docs-img-caption"><i class="bi bi-image"></i> Экран входа в KitOper. Выберите тип аккаунта перед вводом пароля.</div>
             </div>
         </section>
@@ -190,7 +190,7 @@
 
             <div class="docs-img-wrap">
                 <div class="docs-annotated">
-                    <img src="/plan/screenshots/doc-schedule-main.png" alt="Расписание" loading="lazy" style="width:100%">
+                    <img src="/img/docs/doc-schedule-main.png" alt="Расписание" loading="lazy" style="width:100%">
                     <div class="docs-ann purple" style="top:3%;left:1%;width:12%;height:7%">
                         <span class="docs-ann-badge">1</span>
                     </div>
@@ -270,7 +270,7 @@
             <p class="docs-lead">Нажмите <span class="docs-ui-btn"><i class="bi bi-pencil"></i> ✏️</span> на любой ячейке — откроется диалог редактирования.</p>
 
             <div class="docs-img-wrap">
-                <img src="/plan/screenshots/doc-pair-modal.png" alt="Диалог редактирования пары" loading="lazy">
+                <img src="/img/docs/doc-pair-modal.png" alt="Диалог редактирования пары" loading="lazy">
                 <div class="docs-img-caption"><i class="bi bi-image"></i> Диалог редактирования пары. Здесь настраивается всё для одного конкретного урока.</div>
             </div>
 
@@ -338,7 +338,7 @@
             </div>
 
             <div class="docs-img-wrap">
-                <img src="/plan/screenshots/doc-schedule-week.png" alt="Редактор шаблона недели" loading="lazy">
+                <img src="/img/docs/doc-schedule-week.png" alt="Редактор шаблона недели" loading="lazy">
                 <div class="docs-img-caption"><i class="bi bi-image"></i> Редактор шаблона недели. Каждая строка — одна пара, столбцы A и B — числитель и знаменатель.</div>
             </div>
 
@@ -495,7 +495,7 @@
             <p class="docs-lead">Официальный журнал фактически проведённых часов. Заполняется автоматически из расписания. Ручное редактирование — только при ошибках.</p>
 
             <div class="docs-img-wrap">
-                <img src="/plan/screenshots/doc-form-two.png" alt="Форма 2" loading="lazy">
+                <img src="/img/docs/doc-form-two.png" alt="Форма 2" loading="lazy">
                 <div class="docs-img-caption"><i class="bi bi-image"></i> Форма 2 за выбранный месяц. Каждая строка — предмет, каждый столбец — день месяца.</div>
             </div>
 
@@ -647,7 +647,7 @@
             <p class="docs-lead">Добавьте всех преподавателей до составления расписания. Без преподавателя в справочнике его невозможно поставить на пару.</p>
 
             <div class="docs-img-wrap">
-                <img src="/plan/screenshots/doc-teachers.png" alt="Справочник преподавателей" loading="lazy">
+                <img src="/img/docs/doc-teachers.png" alt="Справочник преподавателей" loading="lazy">
                 <div class="docs-img-caption"><i class="bi bi-image"></i> Список преподавателей с возможностью развернуть назначенные предметы.</div>
             </div>
 
@@ -697,7 +697,7 @@
             <p class="docs-lead">Добавьте все учебные группы. Каждая группа получает своё расписание и свою Форму 2.</p>
 
             <div class="docs-img-wrap">
-                <img src="/plan/screenshots/doc-groups.png" alt="Справочник групп" loading="lazy">
+                <img src="/img/docs/doc-groups.png" alt="Справочник групп" loading="lazy">
                 <div class="docs-img-caption"><i class="bi bi-image"></i> Список групп с фильтром по курсам.</div>
             </div>
 

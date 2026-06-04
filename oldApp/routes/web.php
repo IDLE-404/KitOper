@@ -91,6 +91,7 @@ Route::middleware(['auth', 'audit'])->group(function () {
             Route::get('/schedule/week-duplicate', [FirstCourseSchedulePageController::class, 'duplicateWeekPage'])->name('first.schedule.week.duplicate');
             Route::get('/schedule/availability', [FirstCourseSchedulePageController::class, 'availability'])->name('first.schedule.availability');
             Route::get('/schedule/health', [FirstCourseSchedulePageController::class, 'scheduleHealth'])->name('first.schedule.health');
+            Route::get('/schedule/replacements-summary', [FirstCourseSchedulePageController::class, 'replacementsSummary'])->name('first.schedule.replacements_summary');
             Route::get('/schedule/holiday-compensation', [FirstCourseSchedulePageController::class, 'holidayCompensation'])->name('first.schedule.holiday_compensation');
             Route::get('/schedule/free-teachers', [FirstCourseSchedulePageController::class, 'freeTeachers'])->name('first.schedule.free_teachers');
             Route::get('/schedule/free-rooms', [FirstCourseSchedulePageController::class, 'freeRooms'])->name('first.schedule.free_rooms');

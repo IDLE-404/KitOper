@@ -158,6 +158,31 @@
         background: #fef2f2 !important;
         box-shadow: inset 0 0 0 1px #fecaca;
     }
+    .drag-handle {
+        cursor: grab;
+        font-size: 15px;
+        color: #cbd5e1;
+        padding: 2px 3px;
+        border-radius: 4px;
+        user-select: none;
+        line-height: 1;
+        transition: color 0.12s;
+        display: inline-flex;
+        align-items: center;
+    }
+    .drag-handle:hover { color: #64748b; }
+    .drag-handle:active { cursor: grabbing; }
+    .pair-row.dragging { opacity: 0.4; }
+    .pair-row.drag-over > td {
+        background: #ede9fe !important;
+        outline: 2px dashed #7c3aed;
+        outline-offset: -2px;
+    }
+    .pair-row.swap-flash > td { animation: swapFlash 0.4s ease; }
+    @keyframes swapFlash {
+        0%   { background: #d1fae5 !important; }
+        100% { background: transparent; }
+    }
 </style>
 @endpush
 
@@ -255,9 +280,10 @@
                                         $rowB = $existing[$dayKey][$pair]['2'] ?? $existing[$dayKey][$pair]['B'] ?? null;
                                         $showPair = (bool) ($rowA || $rowB);
                                     @endphp
-                                    <tr class="pair-row {{ $showPair ? '' : 'd-none' }}" data-day="{{ $dayKey }}" data-pair="{{ $pair }}">
+                                    <tr class="pair-row {{ $showPair ? '' : 'd-none' }}" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" draggable="true">
                                     <td>
                                         <div class="pair-actions">
+                                            <span class="drag-handle" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" title="Перетащить пару">⠿</span>
                                             <span class="pill-badge">{{ $pair }}</span>
                                             <button type="button" class="remove-pair-btn" data-day="{{ $dayKey }}" data-pair="{{ $pair }}" title="Убрать пару">
                                                 X
@@ -437,6 +463,35 @@
                 <button class="btn-save" type="submit">Сохранить расписание</button>
             </div>
         </form>
+
+        {{-- Semester expand confirm modal --}}
+        <div class="modal fade" id="semesterExpandModal" tabindex="-1" aria-labelledby="semesterExpandModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title" id="semesterExpandModalLabel">
+                            <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Развернуть расписание?
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body pt-3">
+                        <div id="semesterExpandDetails" style="background:#f8fafc;border-radius:8px;padding:12px 16px;font-size:14px;line-height:1.8;margin-bottom:10px;"></div>
+                        <div id="semesterExpandWarning" class="text-danger small">
+                            <i class="bi bi-exclamation-circle me-1"></i>Все существующие пары за этот период будут <strong>перезаписаны</strong>.
+                        </div>
+                        <div id="semesterExpandSafe" class="text-success small d-none">
+                            <i class="bi bi-check-circle me-1"></i>Недели, где уже есть расписание, будут <strong>пропущены</strong>.
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Отмена</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="semesterExpandConfirmBtn">
+                            <i class="bi bi-play-fill me-1"></i>Да, развернуть
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <div class="semester-expand" id="semesterExpandSection">
             <h2>Развернуть на семестр</h2>
@@ -1098,17 +1153,27 @@
             .forEach(row => row.classList.remove('conflict-highlight'));
     };
 
+    const highlightRowIfBusy = (field, payload) => {
+        if (payload?.status !== 'busy') return;
+        const day = field.dataset.day;
+        const pair = field.dataset.pair;
+        if (!day || !pair) return;
+        document.querySelectorAll(
+            `tr.pair-row[data-day="${day}"][data-pair="${pair}"], tr.subgroup-row[data-day="${day}"][data-pair="${pair}"]`
+        ).forEach(row => row.classList.add('conflict-highlight'));
+    };
+
     document.querySelectorAll('.availability-check').forEach(field => {
         if (field.dataset.type === 'room') {
             field.addEventListener('input', () => {
                 clearConflictForField(field);
                 debouncedRoomCheck(field);
             });
-            field.addEventListener('blur', () => requestAvailability(field));
+            field.addEventListener('blur', () => requestAvailability(field).then(p => highlightRowIfBusy(field, p)));
         } else {
             field.addEventListener('change', () => {
                 clearConflictForField(field);
-                requestAvailability(field);
+                requestAvailability(field).then(p => highlightRowIfBusy(field, p));
             });
         }
     });
@@ -1168,6 +1233,144 @@
         }
 
         weekForm.submit();
+    });
+
+    // ── Semester expand confirmation ────────────────────────────────────────
+    const semesterExpandForm = document.querySelector('.semester-expand-form');
+    const semesterExpandModal = document.getElementById('semesterExpandModal');
+    const semesterExpandConfirmBtn = document.getElementById('semesterExpandConfirmBtn');
+    let semesterExpandReady = false;
+
+    semesterExpandForm?.addEventListener('submit', e => {
+        e.preventDefault();
+        const groupSel = document.getElementById('expandGroup');
+        const groupName = groupSel ? groupSel.options[groupSel.selectedIndex]?.text : '?';
+        const templateWeek = document.getElementById('templateWeek')?.value || '?';
+        const start = document.getElementById('semesterStart')?.value || '?';
+        const end = document.getElementById('semesterEnd')?.value || '?';
+        const skipExisting = document.getElementById('skipExisting')?.checked;
+
+        const details = document.getElementById('semesterExpandDetails');
+        if (details) {
+            details.innerHTML =
+                `<div><span style="color:#64748b">Группа:</span> <strong>${groupName}</strong></div>` +
+                `<div><span style="color:#64748b">Эталонная неделя:</span> <strong>${templateWeek}</strong></div>` +
+                `<div><span style="color:#64748b">Период:</span> <strong>${start}</strong> — <strong>${end}</strong></div>`;
+        }
+
+        const warn = document.getElementById('semesterExpandWarning');
+        const safe = document.getElementById('semesterExpandSafe');
+        if (skipExisting) {
+            warn?.classList.add('d-none');
+            safe?.classList.remove('d-none');
+        } else {
+            warn?.classList.remove('d-none');
+            safe?.classList.add('d-none');
+        }
+
+        semesterExpandReady = true;
+        new bootstrap.Modal(semesterExpandModal).show();
+    });
+
+    semesterExpandConfirmBtn?.addEventListener('click', () => {
+        bootstrap.Modal.getInstance(semesterExpandModal)?.hide();
+        if (semesterExpandReady) {
+            semesterExpandReady = false;
+            semesterExpandForm.submit();
+        }
+    });
+
+    // ── Drag-and-drop pair reordering ──────────────────────────────────────
+    let _dragDay = null, _dragPair = null;
+
+    function getPairSnapshot(day, pair) {
+        const snap = {};
+        ['subj', 'teach', 'room'].forEach(f => {
+            ['a', 'a-den', 'b', 'b-den'].forEach(v => {
+                const el = document.getElementById(`${f}-${day}-${pair}-${v}`);
+                if (el) snap[`${f}-${v}`] = el.value;
+            });
+        });
+        const split = document.getElementById(`split-${day}-${pair}`);
+        snap.split = split ? split.checked : false;
+        const pRow = document.querySelector(`tr.pair-row[data-day="${day}"][data-pair="${pair}"]`);
+        snap.visible = pRow ? !pRow.classList.contains('d-none') : false;
+        const sRow = document.querySelector(`tr.subgroup-row[data-day="${day}"][data-pair="${pair}"]`);
+        snap.subVisible = sRow ? !sRow.classList.contains('d-none') : false;
+        return snap;
+    }
+
+    function applyPairSnapshot(day, pair, snap) {
+        ['subj', 'teach', 'room'].forEach(f => {
+            ['a', 'a-den', 'b', 'b-den'].forEach(v => {
+                const el = document.getElementById(`${f}-${day}-${pair}-${v}`);
+                if (el) el.value = snap[`${f}-${v}`] ?? '';
+            });
+        });
+        // clear stale filter inputs
+        document.querySelectorAll(
+            `tr.pair-row[data-day="${day}"][data-pair="${pair}"] .filter-input,
+             tr.subgroup-row[data-day="${day}"][data-pair="${pair}"] .filter-input`
+        ).forEach(inp => inp.value = '');
+        const split = document.getElementById(`split-${day}-${pair}`);
+        if (split) {
+            split.checked = snap.split ?? false;
+            split.dispatchEvent(new Event('change'));
+        }
+        const pRow = document.querySelector(`tr.pair-row[data-day="${day}"][data-pair="${pair}"]`);
+        if (pRow) pRow.classList.toggle('d-none', !snap.visible);
+        const sRow = document.querySelector(`tr.subgroup-row[data-day="${day}"][data-pair="${pair}"]`);
+        if (sRow) sRow.classList.toggle('d-none', !snap.subVisible);
+    }
+
+    function swapPairs(day, p1, p2) {
+        if (String(p1) === String(p2)) return;
+        const snap1 = getPairSnapshot(day, p1);
+        const snap2 = getPairSnapshot(day, p2);
+        applyPairSnapshot(day, p1, snap2);
+        applyPairSnapshot(day, p2, snap1);
+        [p1, p2].forEach(p => {
+            const row = document.querySelector(`tr.pair-row[data-day="${day}"][data-pair="${p}"]`);
+            if (row && !row.classList.contains('d-none')) {
+                row.classList.remove('swap-flash');
+                void row.offsetWidth;
+                row.classList.add('swap-flash');
+            }
+        });
+        updateAddButtons();
+    }
+
+    document.querySelectorAll('tr.pair-row').forEach(row => {
+        row.addEventListener('dragstart', e => {
+            if (row.classList.contains('d-none')) { e.preventDefault(); return; }
+            _dragDay = row.dataset.day;
+            _dragPair = row.dataset.pair;
+            e.dataTransfer.effectAllowed = 'move';
+            setTimeout(() => row.classList.add('dragging'), 0);
+        });
+        row.addEventListener('dragend', () => {
+            row.classList.remove('dragging');
+            document.querySelectorAll('.pair-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+            _dragDay = null;
+            _dragPair = null;
+        });
+        row.addEventListener('dragover', e => {
+            if (!_dragDay || row.dataset.day !== _dragDay) return;
+            if (row.classList.contains('d-none')) return;
+            if (row.dataset.pair === _dragPair) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            document.querySelectorAll('.pair-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+            row.classList.add('drag-over');
+        });
+        row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+        row.addEventListener('drop', e => {
+            e.preventDefault();
+            row.classList.remove('drag-over');
+            if (_dragDay && _dragPair && row.dataset.day === _dragDay && row.dataset.pair !== _dragPair) {
+                swapPairs(_dragDay, _dragPair, row.dataset.pair);
+            }
+        });
     });
 </script>
 @endpush

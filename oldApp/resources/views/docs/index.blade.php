@@ -6,7 +6,13 @@
     <title>Документация — KitOper</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css">
     <link rel="stylesheet" href="/css/docs/main.css">
+    <style>
+        .docs-img-wrap img { cursor: zoom-in; transition: opacity 0.15s; }
+        .docs-img-wrap img:hover { opacity: 0.9; }
+        .docs-img-wrap a { display: block; }
+    </style>
 </head>
 <body class="docs-root" style="margin:0;background:#fff">
 
@@ -1034,6 +1040,23 @@ navLinks.forEach(link => {
         }
     });
 });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+<script>
+// Wrap all docs images in lightbox anchors automatically
+document.querySelectorAll('.docs-img-wrap img').forEach(img => {
+    const a = document.createElement('a');
+    a.href = img.src;
+    a.className = 'glightbox';
+    const section = img.closest('.docs-section');
+    if (section?.id) a.dataset.gallery = section.id;
+    const caption = img.closest('.docs-img-wrap')?.querySelector('.docs-img-caption');
+    if (caption) a.dataset.description = caption.textContent.trim().replace(/^\s*[\S]+\s*/, '');
+    img.parentNode.insertBefore(a, img);
+    a.appendChild(img);
+});
+GLightbox({ selector: '.glightbox', touchNavigation: true, loop: true });
 </script>
 
 </body>

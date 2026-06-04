@@ -95,6 +95,47 @@
             min-width: 100%;
         }
     }
+    @media (max-width: 768px) {
+        .header-actions {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .header-actions__secondary {
+            margin-left: 0;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .btn-pill {
+            font-size: 12px;
+            padding: 6px 12px;
+        }
+        .header-controls {
+            gap: 6px;
+        }
+        .schedule-wrap, .grid-outer {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .page-title {
+            font-size: 1.2rem !important;
+        }
+    }
+    @media (max-width: 480px) {
+        .header-top {
+            flex-direction: column;
+            gap: 8px;
+        }
+        .header-actions__secondary .btn-pill:not(#scheduleHealthBtn):not(#replacementsJournalBtn) {
+            display: none;
+        }
+        .header-actions__secondary::after {
+            content: 'Все инструменты — в меню «Дополнительно»';
+            font-size: 11px;
+            color: #94a3b8;
+            width: 100%;
+        }
+    }
     .day-grid-table {
         min-width: 0 !important;
         width: 100% !important;
@@ -586,6 +627,12 @@
                     style="position:relative">
                     Анализ недели
                     <span id="healthBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 3px"></span>
+                </button>
+                <button type="button" class="btn-pill ghost" id="replacementsJournalBtn"
+                    data-url="{{ route('first.schedule.replacements_summary') }}"
+                    style="position:relative">
+                    <i class="bi bi-arrow-left-right"></i> Замены
+                    <span id="replacementsBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#7f56d9;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 3px"></span>
                 </button>
                 @if(!empty($weeklyHolidays))
                     <button type="button" class="btn-pill ghost" id="holidayCompBtn"
@@ -2421,6 +2468,10 @@
 
 @push('styles')
 <style>
+@keyframes toastIn {
+    from { opacity:0; transform:translateX(-50%) translateY(12px); }
+    to   { opacity:1; transform:translateX(-50%) translateY(0); }
+}
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -2938,6 +2989,22 @@
     </form>
 </div>
 
+{{-- ─── Модал: Журнал замен ────────────────────────────────────────────────── --}}
+<div id="replacementsModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);overflow-y:auto">
+    <div style="max-width:700px;margin:48px auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.18)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+            <div>
+                <h3 style="margin:0;font-size:1.1rem;font-weight:700"><i class="bi bi-arrow-left-right"></i> Замены на неделю</h3>
+                <div id="replacementsSubtitle" style="font-size:12px;color:#64748b;margin-top:2px"></div>
+            </div>
+            <button id="replacementsModalClose" style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b">&times;</button>
+        </div>
+        <div id="replacementsModalBody">
+            <div style="text-align:center;padding:24px;color:#64748b">Загрузка...</div>
+        </div>
+    </div>
+</div>
+
 {{-- ─── Модал: Анализ расписания ──────────────────────────────────────────── --}}
 <div id="scheduleHealthModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);overflow-y:auto">
     <div style="max-width:640px;margin:48px auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.18)">
@@ -3056,7 +3123,78 @@
     healthClose?.addEventListener('click', () => { healthModal.style.display = 'none'; });
     healthModal?.addEventListener('click', e => { if (e.target === healthModal) healthModal.style.display = 'none'; });
 
-    // Автоматически подгружаем бейдж при загрузке страницы
+    // ── Журнал замен ────────────────────────────────────────────────────────
+    const replBtn   = document.getElementById('replacementsJournalBtn');
+    const replModal = document.getElementById('replacementsModal');
+    const replBody  = document.getElementById('replacementsModalBody');
+    const replClose = document.getElementById('replacementsModalClose');
+    const replSub   = document.getElementById('replacementsSubtitle');
+    const replBadge = document.getElementById('replacementsBadge');
+
+    const DAY_ICONS = { 'Понедельник':'Пн','Вторник':'Вт','Среда':'Ср','Четверг':'Чт','Пятница':'Пт','Суббота':'Сб' };
+
+    function renderReplacements(data) {
+        if (!replBody) return;
+        if (data.count === 0) {
+            replBody.innerHTML = '<div style="text-align:center;padding:32px;color:#22c55e;font-size:1rem;font-weight:600">✅ Замен на эту неделю нет</div>';
+            return;
+        }
+        if (replSub) replSub.textContent = `Всего ${data.count} замен`;
+        if (replBadge) { replBadge.textContent = data.count; replBadge.style.display = 'block'; }
+
+        let currentDay = null;
+        let html = '<div style="display:flex;flex-direction:column;gap:6px">';
+        data.items.forEach(item => {
+            if (item.day !== currentDay) {
+                currentDay = item.day;
+                html += `<div style="font-size:11px;font-weight:700;color:#7f56d9;text-transform:uppercase;letter-spacing:.5px;margin-top:10px;margin-bottom:4px">${item.day}</div>`;
+            }
+            html += `<div style="display:grid;grid-template-columns:40px 1fr 1fr 1fr;gap:8px;align-items:center;padding:10px 14px;background:#f8fafc;border-radius:8px;font-size:13px">
+                <div style="text-align:center;background:#ede9fe;color:#6941c6;border-radius:6px;padding:4px;font-weight:700;font-size:12px">${item.pair} пара</div>
+                <div><div style="font-size:11px;color:#64748b">Группа</div><div style="font-weight:600">${item.group}</div></div>
+                <div><div style="font-size:11px;color:#64748b">Отсутствует</div><div style="color:#ef4444">${item.absent_teacher}</div></div>
+                <div><div style="font-size:11px;color:#64748b">Заменяет</div><div style="color:#15803d;font-weight:600">${item.repl_teacher}</div></div>
+            </div>`;
+        });
+        html += '</div>';
+        replBody.innerHTML = html;
+    }
+
+    function openReplacementsModal() {
+        if (!replModal || !replBtn) return;
+        replModal.style.display = 'block';
+        if (replBody) replBody.innerHTML = '<div style="text-align:center;padding:24px;color:#64748b">Загрузка...</div>';
+
+        const url = new URL(replBtn.dataset.url, location.href);
+        url.searchParams.set('week_start', weekStart);
+        url.searchParams.set('course', getCourse());
+        fetch(url.toString(), { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json())
+            .then(data => renderReplacements(data))
+            .catch(() => { if (replBody) replBody.innerHTML = '<div style="color:#ef4444;padding:16px">Ошибка загрузки</div>'; });
+    }
+
+    replBtn?.addEventListener('click', openReplacementsModal);
+    replClose?.addEventListener('click', () => { if (replModal) replModal.style.display = 'none'; });
+    replModal?.addEventListener('click', e => { if (e.target === replModal) replModal.style.display = 'none'; });
+
+    // Загружаем бейдж замен при открытии страницы
+    if (replBtn && weekStart) {
+        const url = new URL(replBtn.dataset.url, location.href);
+        url.searchParams.set('week_start', weekStart);
+        url.searchParams.set('course', getCourse());
+        fetch(url.toString(), { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json())
+            .then(data => {
+                if (data.count > 0 && replBadge) {
+                    replBadge.textContent = data.count;
+                    replBadge.style.display = 'block';
+                }
+            })
+            .catch(() => {});
+    }
+
+    // Автоматически подгружаем бейдж при загрузке страницы + тост
     if (healthBtn && weekStart) {
         const url = new URL(healthBtn.dataset.healthUrl, location.href);
         url.searchParams.set('week_start', weekStart);
@@ -3065,13 +3203,34 @@
             .then(r => r.json())
             .then(data => {
                 const badge = document.getElementById('healthBadge');
-                const total = (data.counts?.danger ?? 0) + (data.counts?.warning ?? 0);
+                const danger  = data.counts?.danger  ?? 0;
+                const warning = data.counts?.warning ?? 0;
+                const total   = danger + warning;
                 if (total > 0 && badge) {
                     badge.textContent = total;
                     badge.style.display = 'block';
+                    // Показываем тост только при критичных
+                    if (danger > 0) showConflictToast(danger, warning);
                 }
             })
             .catch(() => {});
+    }
+
+    function showConflictToast(danger, warning) {
+        const existing = document.getElementById('conflictToast');
+        if (existing) existing.remove();
+        const toast = document.createElement('div');
+        toast.id = 'conflictToast';
+        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;background:#1e293b;color:#fff;border-radius:12px;padding:12px 20px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,0.25);max-width:420px;animation:toastIn .25s ease';
+        toast.innerHTML = `
+            <span style="font-size:18px">🔴</span>
+            <div>
+                <div style="font-weight:700;margin-bottom:2px">Конфликты в расписании на эту неделю</div>
+                <div style="opacity:.75;font-size:12px">${danger} критичных${warning ? `, ${warning} предупреждений` : ''} — нажмите «Анализ недели» для подробностей</div>
+            </div>
+            <button onclick="this.closest('#conflictToast').remove()" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:0;margin-left:4px">×</button>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast?.remove(), 8000);
     }
 
     // ─── Holiday compensation modal ─────────────────────────────────────────

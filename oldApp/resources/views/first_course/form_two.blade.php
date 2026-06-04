@@ -1695,6 +1695,18 @@
     let corrActiveTd = null;
     let corrPopTeacherReady = false;
     let corrPopSubjectReady = false;
+    let corrPopLocked = false;
+
+    function corrPopValidate() {
+        if (!corrPopApplyBtn) return;
+        if (corrPopLocked) { corrPopApplyBtn.disabled = true; return; }
+        const activeBtn = corrPop?.querySelector('.corr-status-btn.is-active');
+        const status = activeBtn?.dataset.status || 'empty';
+        let valid = true;
+        if (status === 'replaced' || status === 'replacement') valid = valid && !!corrPopTeacherSel?.value;
+        if (status === 'replacement') valid = valid && !!corrPopSubjectSel?.value;
+        corrPopApplyBtn.disabled = !valid;
+    }
 
     function corrPopoverClose() {
         corrPop?.classList.remove('is-open');
@@ -1721,6 +1733,7 @@
         const needSubject = status === 'replacement';
         corrPopTeacherWrap?.classList.toggle('d-none', !needTeacher);
         corrPopSubjectWrap?.classList.toggle('d-none', !needSubject);
+        corrPopValidate();
         setTimeout(corrPopReposition, 10);
     }
 
@@ -1762,9 +1775,9 @@
         if (corrPopTeacherSel) corrPopTeacherSel.value = teacherSel?.value || '';
         if (corrPopSubjectSel) corrPopSubjectSel.value = subjectSel?.value || '';
         corrPopUpdateFields(curStatus);
+        corrPopValidate();
 
-        if (corrPopApplyBtn) corrPopApplyBtn.disabled = isDisabled;
-
+        corrPopLocked = isDisabled;
         corrActiveTd = td;
 
         // Position near the cell, flip if near viewport edge
@@ -1794,6 +1807,8 @@
             corrPopUpdateFields(btn.dataset.status);
         });
     });
+    corrPopTeacherSel?.addEventListener('change', corrPopValidate);
+    corrPopSubjectSel?.addEventListener('change', corrPopValidate);
 
     corrPopApplyBtn?.addEventListener('click', () => {
         if (!corrActiveTd) return;

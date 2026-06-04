@@ -4190,4 +4190,75 @@ class FirstCourseSchedulePageController extends Controller
             ])
             ->with('success', 'Изменения сохранены (временное хранилище)');
     }
+
+    /**
+     * Журнал замен на неделю: все пары где назначена замена преподавателя.
+     */
+    public function replacementsSummary(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'week_start' => 'required|date',
+            'course'     => 'nullable|integer|min:1|max:4',
+        ]);
+
+        $weekStart = Carbon::parse($request->week_start)->startOfWeek(Carbon::MONDAY);
+        $course    = CourseContext::normalize($request->integer('course') ?? 1);
+        $tables    = CourseContext::tables($course);
+
+        $rows = DB::table($tables['schedules'] . ' as s')
+            ->whereDate('s.week_start', $weekStart->toDateString())
+            ->where(function ($q) {
+                $q->where('s.is_replacement_1_num', 1)
+                  ->orWhere('s.is_replacement_1_den', 1)
+                  ->orWhere('s.is_replacement_2_num', 1)
+                  ->orWhere('s.is_replacement_2_den', 1);
+            })
+            ->get([
+                's.group_id', 's.study_day', 's.lesson_number',
+                's.subject_id', 's.subject_id_denominator',
+                's.teacher_id', 's.teacher_id_denominator',
+                's.is_replacement_1_num', 's.replacement_teacher_id_1_num', 's.replacement_subject_id_1_num',
+                's.is_replacement_1_den', 's.replacement_teacher_id_1_den', 's.replacement_subject_id_1_den',
+                's.is_replacement_2_num', 's.replacement_teacher_id_2_num',
+                's.is_replacement_2_den', 's.replacement_teacher_id_2_den',
+            ]);
+
+        $groups   = DB::table($tables['groups'])->pluck('group_name', 'id');
+        $teachers = DB::table($tables['teachers'])->pluck('teacher_name', 'id');
+        $subjects = DB::table($tables['subjects'])->selectRaw('id, COALESCE(name_ru, subject_name) as name')->pluck('name', 'id');
+
+        $dayOrder = ['Понедельник' => 1, 'Вторник' => 2, 'Среда' => 3, 'Четверг' => 4, 'Пятница' => 5, 'Суббота' => 6];
+
+        $items = [];
+        foreach ($rows as $row) {
+            $groupName = $groups[$row->group_id] ?? "Группа {$row->group_id}";
+            $variants = [
+                ['flag' => $row->is_replacement_1_num, 'absent_tid' => $row->teacher_id,            'repl_tid' => $row->replacement_teacher_id_1_num, 'subj_id' => $row->subject_id,            'mode' => 'числитель', 'sub' => 1],
+                ['flag' => $row->is_replacement_1_den, 'absent_tid' => $row->teacher_id_denominator,'repl_tid' => $row->replacement_teacher_id_1_den, 'subj_id' => $row->subject_id_denominator, 'mode' => 'знаменатель', 'sub' => 1],
+                ['flag' => $row->is_replacement_2_num, 'absent_tid' => $row->teacher_id,            'repl_tid' => $row->replacement_teacher_id_2_num, 'subj_id' => $row->subject_id,            'mode' => 'числитель', 'sub' => 2],
+                ['flag' => $row->is_replacement_2_den, 'absent_tid' => $row->teacher_id_denominator,'repl_tid' => $row->replacement_teacher_id_2_den, 'subj_id' => $row->subject_id_denominator, 'mode' => 'знаменатель', 'sub' => 2],
+            ];
+            foreach ($variants as $v) {
+                if (!$v['flag']) continue;
+                $items[] = [
+                    'day'             => $row->study_day,
+                    'day_order'       => $dayOrder[$row->study_day] ?? 9,
+                    'pair'            => (int) $row->lesson_number,
+                    'group'           => $groupName,
+                    'mode'            => $v['mode'],
+                    'subject'         => $subjects[$v['subj_id']] ?? '—',
+                    'absent_teacher'  => $teachers[$v['absent_tid']] ?? '—',
+                    'repl_teacher'    => $teachers[$v['repl_tid']] ?? '—',
+                ];
+            }
+        }
+
+        usort($items, fn($a, $b) => $a['day_order'] <=> $b['day_order'] ?: $a['pair'] <=> $b['pair']);
+
+        return response()->json([
+            'week_start' => $weekStart->toDateString(),
+            'count'      => count($items),
+            'items'      => $items,
+        ]);
+    }
 }

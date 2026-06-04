@@ -189,25 +189,8 @@
             <p class="docs-lead">Главная страница системы. Показывает все группы выбранного курса на текущей неделе.</p>
 
             <div class="docs-img-wrap">
-                <div class="docs-annotated">
-                    <img src="/img/docs/doc-schedule-main.png" alt="Расписание" loading="lazy" style="width:100%">
-                    <div class="docs-ann purple" style="top:3%;left:1%;width:12%;height:7%">
-                        <span class="docs-ann-badge">1</span>
-                    </div>
-                    <div class="docs-ann green" style="top:3%;left:22%;width:18%;height:7%">
-                        <span class="docs-ann-badge">2</span>
-                    </div>
-                    <div class="docs-ann yellow" style="top:3%;right:2%;width:22%;height:7%">
-                        <span class="docs-ann-badge">3</span>
-                    </div>
-                </div>
-                <div class="docs-img-caption" style="flex-direction:column;align-items:flex-start;gap:4px;">
-                    <div class="docs-ann-list">
-                        <div class="docs-ann-item"><span class="docs-ann-item-num" style="background:var(--docs-accent)">1</span> <span>Выбор курса — переключает между 1–4 курсами</span></div>
-                        <div class="docs-ann-item"><span class="docs-ann-item-num" style="background:var(--docs-green)">2</span> <span>Метка A/B — показывает числитель или знаменатель текущей недели</span></div>
-                        <div class="docs-ann-item"><span class="docs-ann-item-num" style="background:var(--docs-yellow)">3</span> <span>Навигация по неделям и выбор конкретной даты</span></div>
-                    </div>
-                </div>
+                <img src="/img/docs/doc-schedule-main.png" alt="Расписание" loading="lazy" style="width:100%">
+                <div class="docs-img-caption"><i class="bi bi-image"></i> Главная страница расписания — выбор курса, навигация по неделям, режимы просмотра.</div>
             </div>
 
             <h2 class="docs-h2">Числитель (A) и знаменатель (B)</h2>

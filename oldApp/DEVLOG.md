@@ -367,8 +367,34 @@ const driverFn = window.driver.js.driver;
 ## Страница документации `/docs`
 
 Маршрут: `GET /docs` → `view('docs.index')`, middleware `auth`.  
-View: `resources/views/docs/index.blade.php` — Bootstrap Accordion, 10 разделов.  
 Ссылка в sidebar: `layouts/app.blade.php`, только для диспетчера.
+
+### Архитектура (после редизайна июнь 2026)
+
+View: `resources/views/docs/index.blade.php` — **standalone HTML**, НЕ extends `layouts/app.blade.php`.  
+CSS: `public/css/docs/main.css` (~490 строк).  
+Скриншоты: `public/img/docs/` (использутся inline в разделах).
+
+**Структура страницы:**
+- Фиксированный хедер (brand + поиск + ссылка «В приложение»)
+- Sticky левый сайдбар с 20+ nav-ссылками, сгруппированными по категориям
+- Content area с 16 разделами
+
+**JS без фреймворка:**
+- Client-side поиск — фильтрует `<section>` по текстовому содержимому
+- IntersectionObserver — подсвечивает активный пункт nav при прокрутке
+- Прогресс-бар прокрутки
+- FAQ accordion (toggle `is-open`)
+- Кнопка «Наверх»
+
+**Компоненты:**
+```html
+<div class="docs-callout tip|warning|danger|info">...</div>
+<ol class="docs-steps">...</ol>
+<div class="docs-role-grid">...</div>
+<div class="docs-ann-wrap"><img ...><div class="docs-ann" style="top:%;left:%;width:%;height:%">...</div></div>
+<div class="docs-legend-item"><span class="docs-legend-swatch" style="background:#..."></span>...</div>
+```
 
 ---
 

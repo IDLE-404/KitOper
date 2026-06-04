@@ -404,6 +404,11 @@
             <h1 class="docs-h1">Режим «День» и автоподстановка</h1>
             <p class="docs-lead">Переключитесь в режим «День» — здесь есть особая возможность: автоматически расставить кабинеты за один клик.</p>
 
+            <div class="docs-img-wrap">
+                <img src="/img/docs/page-schedule-day.png" alt="Режим день" loading="lazy">
+                <div class="docs-img-caption"><i class="bi bi-image"></i> Вид расписания в режиме «День» с кнопкой автоподстановки кабинетов.</div>
+            </div>
+
             <div class="docs-steps">
                 <div class="docs-step">
                     <div class="docs-step-left"><div class="docs-step-num">1</div><div class="docs-step-line"></div></div>
@@ -444,6 +449,11 @@
             <span class="docs-section-tag"><i class="bi bi-arrow-left-right"></i> Расписание</span>
             <h1 class="docs-h1">Замены преподавателей</h1>
             <p class="docs-lead">Когда преподаватель заболел или уехал — нужно назначить замену. Это влияет на расписание и Форму 2.</p>
+
+            <div class="docs-img-wrap">
+                <img src="/img/docs/doc-schedule-main.png" alt="Расписание с заменами" loading="lazy">
+                <div class="docs-img-caption"><i class="bi bi-image"></i> Расписание — через кнопку «Анализ расписания» видны пары без замены.</div>
+            </div>
 
             <h2 class="docs-h2">Полный процесс замены</h2>
             <div class="docs-steps">
@@ -534,6 +544,11 @@
             <h1 class="docs-h1">Что означают цвета ячеек</h1>
             <p class="docs-lead">Каждый цвет ячейки несёт смысл. Вот полная расшифровка.</p>
 
+            <div class="docs-img-wrap">
+                <img src="/img/docs/doc-form-two-real.png" alt="Форма 2 с цветными ячейками" loading="lazy">
+                <div class="docs-img-caption"><i class="bi bi-image"></i> Форма 2 — цвета ячеек показывают статус каждого занятия.</div>
+            </div>
+
             <div class="docs-legend">
                 <div class="docs-legend-item">
                     <div class="docs-legend-swatch" style="background:#ede9fe;color:#6941c6;font-size:14px;font-weight:800;">2</div>
@@ -579,6 +594,11 @@
             <h1 class="docs-h1">Прогноз — Ghost-режим 👻</h1>
             <p class="docs-lead">Хотите заранее проверить, успеет ли группа выработать норму часов до конца месяца? Включите Ghost-режим.</p>
 
+            <div class="docs-img-wrap">
+                <img src="/img/docs/doc-form-two-real.png" alt="Ghost режим в Форме 2" loading="lazy">
+                <div class="docs-img-caption"><i class="bi bi-image"></i> Форма 2 — переключатель «👻 Просмотр семестра» над таблицей включает прогноз.</div>
+            </div>
+
             <div class="docs-callout info">
                 <i class="bi bi-info-circle-fill"></i>
                 <div class="docs-callout-body">
@@ -613,6 +633,11 @@
             <span class="docs-section-tag"><i class="bi bi-pen"></i> Форма 2</span>
             <h1 class="docs-h1">Режим коррекции</h1>
             <p class="docs-lead">Если данные в таблице неверны из-за ошибки в расписании — используйте режим коррекции для ручного исправления.</p>
+
+            <div class="docs-img-wrap">
+                <img src="/img/docs/doc-form2-correction.png" alt="Режим коррекции" loading="lazy">
+                <div class="docs-img-caption"><i class="bi bi-image"></i> Режим коррекции включён — ячейки становятся кликабельными, появляется кнопка «Сохранить коррекцию».</div>
+            </div>
 
             <div class="docs-callout danger">
                 <i class="bi bi-shield-exclamation"></i>
@@ -748,6 +773,11 @@
             <h1 class="docs-h1">Справочник дисциплин</h1>
             <p class="docs-lead">Список предметов по каждому курсу. Только из этого списка можно выбирать предмет при составлении расписания.</p>
 
+            <div class="docs-img-wrap">
+                <img src="/img/docs/page-subjects.png" alt="Справочник дисциплин" loading="lazy">
+                <div class="docs-img-caption"><i class="bi bi-image"></i> Список дисциплин с фильтром по курсу.</div>
+            </div>
+
             <h2 class="docs-h2">Как добавить дисциплину</h2>
             <p class="docs-p">Выберите курс → заполните название на русском и казахском → укажите модуль → выберите тип групп (рус / каз / оба) → нажмите «Добавить».</p>
 
@@ -764,6 +794,11 @@
             <span class="docs-section-tag"><i class="bi bi-building"></i> Справочники</span>
             <h1 class="docs-h1">Справочник аудиторий</h1>
             <p class="docs-lead">Список учебных кабинетов. Система следит за занятостью кабинетов и предупреждает о конфликтах.</p>
+
+            <div class="docs-img-wrap">
+                <img src="/img/docs/page-rooms.png" alt="Справочник аудиторий" loading="lazy">
+                <div class="docs-img-caption"><i class="bi bi-image"></i> Список аудиторий — активные доступны при составлении расписания.</div>
+            </div>
 
             <div class="docs-feature-grid">
                 <div class="docs-feature-card">
@@ -790,6 +825,11 @@
             <h1 class="docs-h1">Отсутствия преподавателей</h1>
             <p class="docs-lead">Зафиксируйте дни, когда преподаватель не работает. Система отметит его пары в расписании как требующие замены.</p>
 
+            <div class="docs-img-wrap">
+                <img src="/img/docs/page-absences.png" alt="Отсутствия преподавателей" loading="lazy">
+                <div class="docs-img-caption"><i class="bi bi-image"></i> Страница «Отсутствия» — добавьте период и причину для каждого случая.</div>
+            </div>
+
             <div class="docs-steps">
                 <div class="docs-step">
                     <div class="docs-step-left"><div class="docs-step-num">1</div><div class="docs-step-line"></div></div>
@@ -813,6 +853,11 @@
             <span class="docs-section-tag"><i class="bi bi-calendar-event"></i> Периоды</span>
             <h1 class="docs-h1">Праздники, практика, полевые сборы</h1>
             <p class="docs-lead">Специальные периоды влияют на то, как отображается расписание и Форма 2 в эти дни.</p>
+
+            <div class="docs-img-wrap">
+                <img src="/img/docs/page-holidays.png" alt="Праздники" loading="lazy">
+                <div class="docs-img-caption"><i class="bi bi-image"></i> Страница «Праздники» — добавьте все нерабочие дни до разворачивания семестра.</div>
+            </div>
 
             <div class="docs-feature-grid">
                 <div class="docs-feature-card">
@@ -842,6 +887,11 @@
             <h1 class="docs-h1">Занятость преподавателей</h1>
             <p class="docs-lead">Таблица показывает кто из преподавателей свободен в конкретное время. Незаменима при подборе замены.</p>
 
+            <div class="docs-img-wrap">
+                <img src="/img/docs/page-workload.png" alt="Занятость преподавателей" loading="lazy">
+                <div class="docs-img-caption"><i class="bi bi-image"></i> Матрица занятости — по строкам пары, по столбцам преподаватели.</div>
+            </div>
+
             <div class="docs-feature-grid">
                 <div class="docs-feature-card">
                     <div class="docs-feature-card-title"><i class="bi bi-grid-3x3"></i> Как читать таблицу</div>
@@ -861,6 +911,11 @@
             <span class="docs-section-tag"><i class="bi bi-chat-dots"></i> Инструменты</span>
             <h1 class="docs-h1">ИИ-Агент</h1>
             <p class="docs-lead">Встроенный чат на локальной нейросети. Понимает вопросы о расписании на русском языке.</p>
+
+            <div class="docs-img-wrap">
+                <img src="/img/docs/page-ai-agent.png" alt="ИИ-Агент" loading="lazy">
+                <div class="docs-img-caption"><i class="bi bi-image"></i> Чат с ИИ-агентом — задайте вопрос на русском языке.</div>
+            </div>
 
             <h2 class="docs-h2">Что можно спросить</h2>
             <div class="docs-feature-grid">

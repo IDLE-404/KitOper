@@ -745,6 +745,50 @@
 
 </div>
 
+{{-- Correction popover --}}
+<div id="corrPopover" role="dialog" aria-label="Редактировать ячейку">
+    <div class="corr-pop-header">
+        <span class="corr-pop-day-label">—</span>
+        <button class="corr-pop-close" type="button" aria-label="Закрыть">&times;</button>
+    </div>
+    <div class="corr-pop-body">
+        <div class="corr-pop-status-grid">
+            <button class="corr-status-btn" type="button" data-status="empty">
+                Нет занятия<small>пары не было</small>
+            </button>
+            <button class="corr-status-btn" type="button" data-status="normal">
+                Пара прошла<small>засчитать часы</small>
+            </button>
+            <button class="corr-status-btn" type="button" data-status="replaced">
+                Другой провёл<small>другой преп вместо меня</small>
+            </button>
+            <button class="corr-status-btn" type="button" data-status="replacement">
+                Я провёл чужую<small>бонусные часы</small>
+            </button>
+        </div>
+        <div id="corrPopTeacherWrap" class="d-none">
+            <label class="corr-pop-label">Заменяющий преподаватель</label>
+            <select id="corrPopTeacher" class="corr-pop-select">
+                <option value="">— не выбран</option>
+            </select>
+        </div>
+        <div id="corrPopSubjectWrap" class="d-none">
+            <label class="corr-pop-label">Замещающий предмет</label>
+            <select id="corrPopSubject" class="corr-pop-select">
+                <option value="">— не выбран</option>
+            </select>
+        </div>
+        <div id="corrPopHolidayNote" class="d-none text-warning small mb-1"></div>
+    </div>
+    <div class="corr-pop-footer">
+        <button class="corr-pop-apply" id="corrPopApply" type="button">Применить</button>
+        <button class="corr-pop-cancel" id="corrPopCancel" type="button">Отмена</button>
+    </div>
+    <div class="corr-pop-schedule-note">
+        <i class="bi bi-info-circle"></i> Только Форма 2 — расписание не меняется
+    </div>
+</div>
+
 @endsection
 
 @push('styles')
@@ -979,6 +1023,126 @@
         border: 2px dashed rgba(127, 86, 217, 0.4);
         font-weight: 700;
     }
+
+    /* Correction mode — popover */
+    .day-cell.correction-active { cursor: pointer; position: relative; }
+    .day-cell.correction-active:hover .status-chip:not(.status-practice) {
+        outline: 2px solid #7f56d9;
+        outline-offset: 2px;
+    }
+    .day-cell.cell-dirty .status-chip {
+        outline: 2px solid #f59e0b !important;
+        outline-offset: 2px;
+    }
+    .day-cell.cell-dirty::after {
+        content: '';
+        position: absolute;
+        top: 3px; right: 3px;
+        width: 5px; height: 5px;
+        border-radius: 50%;
+        background: #f59e0b;
+        pointer-events: none;
+    }
+    #corrPopover {
+        position: fixed;
+        z-index: 9999;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        box-shadow: 0 8px 30px rgba(0,0,0,.18);
+        width: 280px;
+        max-height: calc(100vh - 24px);
+        overflow-y: auto;
+        display: none;
+        font-size: 13px;
+    }
+    #corrPopover.is-open { display: block; }
+    .corr-pop-header {
+        padding: 10px 14px 8px;
+        font-weight: 700;
+        font-size: 12px;
+        color: #6941c6;
+        border-bottom: 1px solid #f3f4f6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
+    .corr-pop-day-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .corr-pop-close {
+        background: none; border: none; cursor: pointer;
+        color: #9ca3af; font-size: 18px; padding: 0; line-height: 1; flex-shrink: 0;
+    }
+    .corr-pop-close:hover { color: #374151; }
+    .corr-pop-body { padding: 10px 14px 6px; }
+    .corr-pop-status-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 5px;
+        margin-bottom: 10px;
+    }
+    .corr-status-btn {
+        padding: 7px 6px;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 6px;
+        background: #f9fafb;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 700;
+        text-align: center;
+        transition: border-color .1s, background .1s, color .1s;
+        color: #374151;
+        line-height: 1.2;
+    }
+    .corr-status-btn small {
+        display: block;
+        font-size: 10px;
+        font-weight: 400;
+        opacity: .7;
+        margin-top: 2px;
+    }
+    .corr-status-btn:hover { border-color: #7f56d9; color: #7f56d9; background: #faf5ff; }
+    .corr-status-btn.is-active { border-color: #7f56d9; background: #7f56d9; color: #fff; }
+    .corr-status-btn.is-active small { opacity: .85; }
+    .corr-pop-schedule-note {
+        font-size: 10px;
+        color: #9ca3af;
+        text-align: center;
+        padding: 0 14px 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+    }
+    .corr-pop-label {
+        font-size: 11px; font-weight: 600; color: #6b7280;
+        margin-bottom: 3px; display: block;
+    }
+    .corr-pop-select {
+        width: 100%; font-size: 12px; padding: 4px 6px;
+        border: 1px solid #e5e7eb; border-radius: 6px;
+        background: #fff; margin-bottom: 6px;
+    }
+    .corr-pop-footer {
+        padding: 8px 14px 10px;
+        display: flex; gap: 6px;
+        border-top: 1px solid #f3f4f6;
+    }
+    .corr-pop-apply {
+        flex: 1; background: #7f56d9; color: #fff;
+        border: none; border-radius: 6px; padding: 6px;
+        font-size: 12px; font-weight: 600; cursor: pointer;
+        transition: background .1s;
+    }
+    .corr-pop-apply:hover:not(:disabled) { background: #6941c6; }
+    .corr-pop-apply:disabled { opacity: .5; cursor: not-allowed; }
+    .corr-pop-cancel {
+        flex: 1; background: #f3f4f6; color: #374151;
+        border: none; border-radius: 6px; padding: 6px;
+        font-size: 12px; font-weight: 600; cursor: pointer;
+        transition: background .1s;
+    }
+    .corr-pop-cancel:hover { background: #e5e7eb; }
 </style>
 @endpush
 
@@ -1113,12 +1277,12 @@
         }
         document.querySelectorAll('.manual-norm').forEach(el => el.classList.toggle('d-none', !enabled));
         document.querySelectorAll('.manual-edit').forEach(el => el.classList.toggle('d-none', !enabled));
-        document.querySelectorAll('.manual-status').forEach(el => el.classList.toggle('d-none', !enabled));
-        document.querySelectorAll('.day-cell .status-chip').forEach(el => el.classList.toggle('d-none', enabled));
+        document.querySelectorAll('.day-cell').forEach(el => el.classList.toggle('correction-active', enabled));
         saveBtn?.classList.toggle('d-none', !enabled);
         addSubjectBtn?.classList.toggle('d-none', !enabled);
         addSubgroupTwoSubjectBtn?.classList.toggle('d-none', !enabled);
         document.querySelectorAll('.js-correction-save').forEach(btn => btn.classList.toggle('d-none', !enabled));
+        if (!enabled) corrPopoverClose();
     });
 
     const escapeHtml = (value) => String(value ?? '')
@@ -1517,6 +1681,168 @@
             saveBtn?.click();
         });
     });
+
+    // === Correction Popover ===
+    const corrPop = document.getElementById('corrPopover');
+    const corrPopStatusBtns = corrPop ? Array.from(corrPop.querySelectorAll('.corr-status-btn')) : [];
+    const corrPopTeacherWrap = document.getElementById('corrPopTeacherWrap');
+    const corrPopTeacherSel = document.getElementById('corrPopTeacher');
+    const corrPopSubjectWrap = document.getElementById('corrPopSubjectWrap');
+    const corrPopSubjectSel = document.getElementById('corrPopSubject');
+    const corrPopApplyBtn = document.getElementById('corrPopApply');
+    const corrPopCancelBtn = document.getElementById('corrPopCancel');
+    const corrPopHolidayNote = document.getElementById('corrPopHolidayNote');
+    let corrActiveTd = null;
+    let corrPopTeacherReady = false;
+    let corrPopSubjectReady = false;
+
+    function corrPopoverClose() {
+        corrPop?.classList.remove('is-open');
+        corrActiveTd = null;
+    }
+
+    function corrPopReposition() {
+        if (!corrActiveTd || !corrPop?.classList.contains('is-open')) return;
+        const rect = corrActiveTd.getBoundingClientRect();
+        const popW = 280;
+        const popH = corrPop.scrollHeight;
+        let top = rect.bottom + 6;
+        let left = parseFloat(corrPop.style.left) || rect.left;
+        if (top + popH > window.innerHeight - 12) top = rect.top - popH - 6;
+        if (top < 8) top = 8;
+        if (left + popW > window.innerWidth - 12) left = window.innerWidth - popW - 12;
+        if (left < 8) left = 8;
+        corrPop.style.top = top + 'px';
+        corrPop.style.left = left + 'px';
+    }
+
+    function corrPopUpdateFields(status) {
+        const needTeacher = status === 'replaced' || status === 'replacement';
+        const needSubject = status === 'replacement';
+        corrPopTeacherWrap?.classList.toggle('d-none', !needTeacher);
+        corrPopSubjectWrap?.classList.toggle('d-none', !needSubject);
+        setTimeout(corrPopReposition, 10);
+    }
+
+    function corrPopoverOpen(td) {
+        if (!corrPop || !td) return;
+
+        const statusSel = td.querySelector('.cell-status');
+        const teacherSel = td.querySelector('.cell-repl');
+        const subjectSel = td.querySelector('.cell-repl-subject');
+        const isDisabled = statusSel?.disabled || false;
+
+        const day = statusSel?.dataset.day || '?';
+        const tr = td.closest('tr[data-row]');
+        const subjectName = tr?.querySelector('.row-subject-name')?.textContent?.trim() || '';
+        const dayLabel = corrPop.querySelector('.corr-pop-day-label');
+        if (dayLabel) dayLabel.textContent = `День ${day}${subjectName ? ' · ' + subjectName : ''}`;
+
+        if (corrPopHolidayNote) {
+            const holidayMeta = holidayDays[String(day)] || null;
+            if (holidayMeta || isDisabled) {
+                corrPopHolidayNote.textContent = holidayMeta ? `Праздник: ${holidayMeta.name} — редактирование недоступно` : 'Редактирование недоступно';
+                corrPopHolidayNote.classList.remove('d-none');
+            } else {
+                corrPopHolidayNote.classList.add('d-none');
+            }
+        }
+
+        if (!corrPopTeacherReady) {
+            corrPopTeacherSel?.insertAdjacentHTML('beforeend', teacherOptionsHtml);
+            corrPopTeacherReady = true;
+        }
+        if (!corrPopSubjectReady) {
+            corrPopSubjectSel?.insertAdjacentHTML('beforeend', subjectOptionsHtml);
+            corrPopSubjectReady = true;
+        }
+
+        const curStatus = statusSel?.value || 'empty';
+        corrPopStatusBtns.forEach(btn => btn.classList.toggle('is-active', btn.dataset.status === curStatus));
+        if (corrPopTeacherSel) corrPopTeacherSel.value = teacherSel?.value || '';
+        if (corrPopSubjectSel) corrPopSubjectSel.value = subjectSel?.value || '';
+        corrPopUpdateFields(curStatus);
+
+        if (corrPopApplyBtn) corrPopApplyBtn.disabled = isDisabled;
+
+        corrActiveTd = td;
+
+        // Position near the cell, flip if near viewport edge
+        const rect = td.getBoundingClientRect();
+        const popW = 264;
+        corrPop.style.visibility = 'hidden';
+        corrPop.classList.add('is-open');
+        const popH = corrPop.offsetHeight;
+        corrPop.classList.remove('is-open');
+        corrPop.style.visibility = '';
+
+        let top = rect.bottom + 6;
+        let left = rect.left;
+        if (top + popH > window.innerHeight - 12) top = rect.top - popH - 6;
+        if (top < 8) top = 8;
+        if (left + popW > window.innerWidth - 12) left = window.innerWidth - popW - 12;
+        if (left < 8) left = 8;
+        corrPop.style.top = top + 'px';
+        corrPop.style.left = left + 'px';
+        corrPop.classList.add('is-open');
+    }
+
+    corrPopStatusBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            corrPopStatusBtns.forEach(b => b.classList.remove('is-active'));
+            btn.classList.add('is-active');
+            corrPopUpdateFields(btn.dataset.status);
+        });
+    });
+
+    corrPopApplyBtn?.addEventListener('click', () => {
+        if (!corrActiveTd) return;
+        const statusSel = corrActiveTd.querySelector('.cell-status');
+        const teacherSel = corrActiveTd.querySelector('.cell-repl');
+        const subjectSel = corrActiveTd.querySelector('.cell-repl-subject');
+        const activeBtn = corrPop?.querySelector('.corr-status-btn.is-active');
+        const newStatus = activeBtn?.dataset.status || 'empty';
+
+        if (statusSel) statusSel.value = newStatus;
+        if (teacherSel) teacherSel.value = corrPopTeacherSel?.value || '';
+        if (subjectSel) subjectSel.value = corrPopSubjectSel?.value || '';
+
+        const chip = corrActiveTd.querySelector('.status-chip');
+        if (chip) {
+            const hoursPerClass = corrActiveTd.closest('tr[data-row]')?.querySelector('.row-hours-per-class')?.value || '2';
+            const classMap = { empty: 'status-empty', normal: 'status-normal', replaced: 'status-replaced', replacement: 'status-replacement' };
+            const valMap = { empty: '•', normal: hoursPerClass, replaced: '■', replacement: hoursPerClass };
+            chip.className = 'status-chip ' + (classMap[newStatus] || 'status-empty');
+            const valEl = chip.querySelector('.chip-value');
+            if (valEl) valEl.textContent = valMap[newStatus] ?? '•';
+        }
+        corrActiveTd.classList.add('cell-dirty');
+        corrPopoverClose();
+    });
+
+    corrPopCancelBtn?.addEventListener('click', corrPopoverClose);
+    corrPop?.querySelector('.corr-pop-close')?.addEventListener('click', corrPopoverClose);
+
+    document.addEventListener('mousedown', (e) => {
+        if (corrPop?.classList.contains('is-open') && !corrPop.contains(e.target) && !e.target.closest('.day-cell')) {
+            corrPopoverClose();
+        }
+    });
+
+    [formBody, subgroupTwoBody].forEach(body => {
+        body?.addEventListener('click', (e) => {
+            if (!manualToggle?.checked) return;
+            const td = e.target.closest('.day-cell.correction-active');
+            if (!td) return;
+            e.stopPropagation();
+            if (corrActiveTd === td && corrPop?.classList.contains('is-open')) {
+                corrPopoverClose();
+                return;
+            }
+            corrPopoverOpen(td);
+        });
+    });
+    // === End Correction Popover ===
 
     manualToggle?.dispatchEvent(new Event('change'));
 

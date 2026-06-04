@@ -750,6 +750,8 @@
                                                 data-week-start="{{ $weekStart ?? '' }}"
                                                 data-absent1="{{ ($pair['sub1']['is_absent'] ?? false) ? '1' : '0' }}"
                                                 data-absent2="{{ ($pair['sub2']['is_absent'] ?? false) ? '1' : '0' }}"
+                                                data-absence-type1="{{ $pair['sub1']['absence_type'] ?? '' }}"
+                                                data-absence-type2="{{ $pair['sub2']['absence_type'] ?? '' }}"
                                                 data-replacement1="{{ ($pair['sub1']['is_replacement'] ?? false) ? '1' : '0' }}"
                                                 data-replacement2="0"
                                                 data-replacement-teacher-1="{{ $pair['sub1']['replacement_teacher_id'] ?? '' }}"
@@ -990,6 +992,8 @@
                                             data-week-start="{{ $weekStart ?? '' }}"
                                             data-absent1="{{ ($pair['sub1']['is_absent'] ?? false) ? '1' : '0' }}"
                                             data-absent2="{{ ($pair['sub2']['is_absent'] ?? false) ? '1' : '0' }}"
+                                            data-absence-type1="{{ $pair['sub1']['absence_type'] ?? '' }}"
+                                            data-absence-type2="{{ $pair['sub2']['absence_type'] ?? '' }}"
                                             data-replacement1="{{ ($pair['sub1']['is_replacement'] ?? false) ? '1' : '0' }}"
                                             data-replacement2="0"
                                             data-replacement-teacher-1="{{ $pair['sub1']['replacement_teacher_id'] ?? '' }}"
@@ -1762,6 +1766,36 @@
 
         absent1Hidden.value = data.absent1 === '1' ? '1' : '0';
         absent2Hidden.value = data.absent2 === '1' ? '1' : '0';
+
+        // Absence type hints
+        const subjectReplaceTypes = ['dayoff'];
+        function applyAbsenceHint(hintEl, toggleEl, absenceType, isAbsent) {
+            if (!hintEl) return;
+            hintEl.className = 'absence-hint d-none mb-2';
+            hintEl.innerHTML = '';
+            if (!isAbsent || !absenceType) return;
+            const isSubjectReplace = subjectReplaceTypes.includes(absenceType);
+            const typeLabels = @json(\App\Support\TeacherAbsenceTypes::TYPES);
+            const typeLabel = typeLabels[absenceType] || absenceType;
+            if (isSubjectReplace) {
+                hintEl.classList.add('hint-subject');
+                hintEl.innerHTML = `<i class="bi bi-arrow-left-right"></i><span><strong>${typeLabel}</strong> — выберите другого преподавателя и другой предмет для этой пары</span>`;
+            } else {
+                hintEl.classList.add('hint-teacher');
+                hintEl.innerHTML = `<i class="bi bi-person-fill-x"></i><span><strong>${typeLabel}</strong> — выберите заменяющего преподавателя (предмет остаётся)</span>`;
+            }
+            hintEl.classList.remove('d-none');
+            if (toggleEl && !toggleEl.checked) {
+                toggleEl.checked = true;
+                toggleEl.dispatchEvent(new Event('change'));
+            }
+        }
+        applyAbsenceHint(
+            document.getElementById('absenceHint1'),
+            replacementToggle1,
+            data.absenceType1 || '',
+            data.absent1 === '1'
+        );
         replacement1Hidden.value = data.replacement1 === '1' ? '1' : '0';
         replacementTeacher1.value = data.replacementTeacher1 || '';
         replacementSubject1.value = data.replacementSubject1 || '';
@@ -2476,6 +2510,27 @@
     border-radius: 8px;
     padding: 10px;
 }
+.absence-hint {
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    line-height: 1.4;
+}
+.absence-hint.hint-subject {
+    background: #fefce8;
+    border: 1px solid #fde68a;
+    color: #92400e;
+}
+.absence-hint.hint-teacher {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+}
+.absence-hint i { flex-shrink: 0; margin-top: 1px; }
 .alert-conflict {
     background: #fee2e2;
     border: 1px solid #fecaca;
@@ -2628,6 +2683,7 @@
                     <div class="mt-2">
                         <input type="hidden" name="is_absent_1" id="modalAbsent1Hidden" value="0">
                         <input type="hidden" name="is_replacement_1" id="modalReplacement1Hidden" value="0">
+                        <div id="absenceHint1" class="absence-hint d-none mb-2"></div>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="modalReplacementToggle1">
                             <label class="form-check-label" for="modalReplacementToggle1">Включить замену</label>

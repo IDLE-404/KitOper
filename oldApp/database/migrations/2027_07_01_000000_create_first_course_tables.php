@@ -54,7 +54,7 @@ return new class extends Migration
                 $table->foreignId('teacher_id_denominator')->nullable()->constrained($teacherTable)->nullOnDelete();
                 $table->foreignId('teacher_id_denominator_2')->nullable()->constrained($teacherTable)->nullOnDelete();
                 $table->foreignId('teacher_id_2')->nullable()->constrained($teacherTable)->nullOnDelete();
-                $table->unsignedBigInteger('room_id')->nullable();
+                $table->string('room_id', 50)->nullable();
 
                 $table->boolean('is_absent_1_num')->default(false);
                 $table->boolean('is_replacement_1_num')->default(false);
@@ -62,21 +62,21 @@ return new class extends Migration
                 $table->foreignId('replacement_subject_id_1_num')->nullable()->constrained($subjectTable)->nullOnDelete();
                 $table->string('replacement_comment_1_num', 255)->nullable();
 
-                $table->unsignedBigInteger('room_id_denominator')->nullable();
+                $table->string('room_id_denominator', 50)->nullable();
                 $table->boolean('is_absent_1_den')->default(false);
                 $table->boolean('is_replacement_1_den')->default(false);
                 $table->foreignId('replacement_teacher_id_1_den')->nullable()->constrained($teacherTable)->nullOnDelete();
                 $table->foreignId('replacement_subject_id_1_den')->nullable()->constrained($subjectTable)->nullOnDelete();
                 $table->string('replacement_comment_1_den', 255)->nullable();
 
-                $table->unsignedBigInteger('room_id_denominator_2')->nullable();
+                $table->string('room_id_denominator_2', 50)->nullable();
                 $table->boolean('is_absent_2_den')->default(false);
                 $table->boolean('is_replacement_2_den')->default(false);
                 $table->foreignId('replacement_teacher_id_2_den')->nullable()->constrained($teacherTable)->nullOnDelete();
                 $table->foreignId('replacement_subject_id_2_den')->nullable()->constrained($subjectTable)->nullOnDelete();
                 $table->string('replacement_comment_2_den', 255)->nullable();
 
-                $table->unsignedBigInteger('room_id_2')->nullable();
+                $table->string('room_id_2', 50)->nullable();
                 $table->boolean('is_absent_2_num')->default(false);
                 $table->boolean('is_replacement_2_num')->default(false);
                 $table->foreignId('replacement_teacher_id_2_num')->nullable()->constrained($teacherTable)->nullOnDelete();

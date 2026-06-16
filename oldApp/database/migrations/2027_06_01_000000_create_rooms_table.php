@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('code', 50)->unique();
             $table->string('type', 20)->default('standard');
+            $table->boolean('is_active')->default(true);
             $table->string('title')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();

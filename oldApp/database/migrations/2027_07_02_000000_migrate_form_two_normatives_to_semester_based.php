@@ -34,8 +34,10 @@ return new class extends Migration
                 $t->timestamps();
             });
 
-            // Добавляем индекс с коротким именем
-            DB::statement("ALTER TABLE {$newTable} ADD UNIQUE KEY `uk_norm` (group_id, subject_id, teacher_id, semester)");
+            // Добавляем уникальный индекс (имя уникально по таблице, т.к. в SQLite индексы глобальные)
+            Schema::table($newTable, function (Blueprint $t) use ($newTable) {
+                $t->unique(['group_id', 'subject_id', 'teacher_id', 'semester'], "uk_norm_{$newTable}");
+            });
 
             // Копируем данные: для каждого (group_id, subject_id, teacher_id, semester)
             // берём норматив с наибольшим total_hours (самый полный)

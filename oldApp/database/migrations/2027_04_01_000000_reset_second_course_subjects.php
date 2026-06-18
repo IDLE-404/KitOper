@@ -213,7 +213,9 @@ return new class extends Migration
         unset($subject);
 
         DB::table('second_course_subjects')->insert($subjects);
-        DB::statement('ALTER TABLE second_course_subjects AUTO_INCREMENT = 102');
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE second_course_subjects AUTO_INCREMENT = 102');
+        }
 
         if (!Schema::hasTable('second_course_teacher_subjects')) {
             return;

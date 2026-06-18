@@ -126,6 +126,7 @@ Route::middleware(['auth', 'audit'])->group(function () {
             Route::put('/groups/{id}', [GroupController::class, 'update'])->name('groups.update');
             Route::delete('/groups/{id}', [GroupController::class, 'destroy'])->name('groups.destroy');
             Route::post('/groups/finish-year', [GroupController::class, 'finishYear'])->name('groups.finish_year');
+            Route::post('/groups/finish-year-global', [GroupController::class, 'finishYearGlobal'])->name('groups.finish_year_global');
 
             Route::get('/subjects', [SubjectController::class, 'index'])->name('subjects.index');
             Route::post('/subjects', [SubjectController::class, 'store'])->name('subjects.store');

@@ -287,6 +287,10 @@ return new class extends Migration
             return;
         }
 
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         $constraint = DB::selectOne(
             "SELECT CONSTRAINT_NAME AS name\n" .
             "FROM information_schema.KEY_COLUMN_USAGE\n" .
@@ -306,6 +310,10 @@ return new class extends Migration
     private function foreignKeyExists(string $table, string $column): bool
     {
         if (!Schema::hasTable($table) || !Schema::hasColumn($table, $column)) {
+            return false;
+        }
+
+        if (DB::getDriverName() !== 'mysql') {
             return false;
         }
 

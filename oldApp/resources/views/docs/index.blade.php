@@ -745,11 +745,52 @@
                 </div>
             </div>
 
+            <h2 class="docs-h2">Завершение учебного года</h2>
+            <p class="docs-p">
+                Кнопка <strong>«Завершить учебный год»</strong> находится на странице
+                <a href="{{ route('first.schedule.index') }}">Расписание</a>
+                — в правой части шапки, в одну строку с «Обзор по всем группам» и «Сейчас показывается: неделя…», рядом с кнопкой «Показать неделю».
+                Кнопка видна только диспетчеру.
+            </p>
+
+            <div class="docs-img-wrap">
+                <div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:16px 20px;font-size:13px;color:#495057">
+                    <strong>Путь:</strong> Боковое меню → <em>Расписание</em> → правая часть шапки → кнопка <span style="border:1px solid #ef4444;color:#ef4444;padding:2px 8px;border-radius:4px;font-size:12px">Завершить учебный год</span> (рядом с «Показать неделю»)
+                </div>
+            </div>
+
+            <p class="docs-p">При нажатии система <strong>за один раз</strong> обрабатывает все курсы:</p>
+            <table class="docs-table">
+                <thead><tr><th>Что было</th><th>Что стало</th></tr></thead>
+                <tbody>
+                    <tr><td>ПО-133 (1 курс)</td><td>→ ПО-233 (2 курс)</td></tr>
+                    <tr><td>ПО-233 (2 курс)</td><td>→ ПО-333 (3 курс)</td></tr>
+                    <tr><td>ПО-333 (3 курс)</td><td>→ выпуск, группа удаляется</td></tr>
+                    <tr><td>ТЭ-333 (3 курс)</td><td>→ ТЭ-433 (4 курс) — ТЭ учится 4 года</td></tr>
+                    <tr><td>ТЭ-433 (4 курс)</td><td>→ выпуск, группа удаляется</td></tr>
+                </tbody>
+            </table>
+
+            <div class="docs-callout info">
+                <i class="bi bi-info-circle-fill"></i>
+                <div class="docs-callout-body">
+                    <div class="docs-callout-title">Что сохраняется после завершения года</div>
+                    <ul style="margin:6px 0 0;padding-left:18px">
+                        <li><strong>Преподаватели</strong> — хранятся в общей таблице, никуда не деваются</li>
+                        <li><strong>Дисциплины</strong> — остаются в таблицах каждого курса для следующего потока</li>
+                        <li><strong>Студенты</strong> — группы не удаляются, просто переименовываются и переходят на следующий курс</li>
+                        <li><strong>Расписание прошлого года</strong> — остаётся в архиве (привязано к датам)</li>
+                    </ul>
+                </div>
+            </div>
+
             <div class="docs-callout danger">
                 <i class="bi bi-exclamation-circle-fill"></i>
                 <div class="docs-callout-body">
                     <div class="docs-callout-title">«Завершить учебный год» — необратимо</div>
-                    Нажимайте эту кнопку <strong>один раз в год</strong> — когда группа переходит на следующий курс. Система переведёт группу и очистит шаблон расписания. Отменить нельзя.
+                    Нажимайте <strong>один раз в год</strong> — в конце учебного года, перед набором нового расписания.
+                    Перед нажатием появится диалог подтверждения. После завершения группы первого курса
+                    освобождаются — туда вносятся новые поступившие.
                 </div>
             </div>
         </section>

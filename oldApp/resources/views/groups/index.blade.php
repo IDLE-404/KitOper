@@ -21,11 +21,6 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start">
         <a href="{{ route('first.schedule.index', ['course' => $course ?? 1]) }}" class="btn btn-secondary">К расписанию</a>
         <a href="{{ route('first.schedule.form_two', ['course' => $course ?? 1]) }}" class="btn btn-secondary">Форма 2</a>
-        <form method="POST" action="{{ route('groups.finish_year') }}" onsubmit="return confirm('Завершить учебный год для этого курса?')">
-            @csrf
-            <input type="hidden" name="course" value="{{ $course ?? 1 }}">
-            <button type="submit" class="btn btn-danger">Завершить учебный год</button>
-        </form>
     </div>
 </div>
 

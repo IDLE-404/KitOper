@@ -146,6 +146,87 @@ class GroupController extends Controller
             ->with('success', 'Группа удалена.');
     }
 
+    /**
+     * Глобальное завершение учебного года: группы переводятся из таблицы
+     * текущего курса в таблицу следующего курса с переименованием (233→333).
+     * Группы последнего года обучения удаляются (выпуск).
+     * Учителя и дисциплины не затрагиваются — они хранятся в отдельных
+     * таблицах и автоматически доступны в новом учебном году.
+     */
+    public function finishYearGlobal(Request $request)
+    {
+        $stats = ['promoted' => 0, 'graduated' => 0];
+        $now   = now();
+
+        DB::transaction(function () use (&$stats, $now) {
+            // Обрабатываем с конца, чтобы освободить таблицу следующего курса
+            // до того, как туда переместятся группы предыдущего
+            for ($course = 4; $course >= 1; $course--) {
+                $tables      = CourseContext::tables($course);
+                $groupsTable = $tables['groups'];
+
+                if (!Schema::hasTable($groupsTable)) {
+                    continue;
+                }
+
+                $groups = DB::table($groupsTable)->get();
+
+                foreach ($groups as $group) {
+                    $groupNumber = (int) ($group->group_number ?? 0);
+
+                    // Группы без курсового префикса в номере (< 100) пропускаем
+                    if ($groupNumber < 100) {
+                        continue;
+                    }
+
+                    $firstDigit = intdiv($groupNumber, 100);
+                    $prefix     = $this->groupPrefix((string) ($group->group_name ?? ''));
+                    $maxYear    = $prefix === 'ТЭ' ? 4 : 3;
+
+                    // 4-й курс или группа достигла максимального года → выпуск
+                    if ($course === 4 || $firstDigit >= $maxYear) {
+                        DB::table($groupsTable)->where('id', $group->id)->delete();
+                        $stats['graduated']++;
+                        continue;
+                    }
+
+                    $tail      = $groupNumber % 100;
+                    $newNumber = ($firstDigit + 1) * 100 + $tail;
+                    $newName   = $this->replaceLastNumber((string) ($group->group_name ?? ''), $newNumber);
+
+                    $nextTables      = CourseContext::tables($course + 1);
+                    $nextGroupsTable = $nextTables['groups'];
+
+                    $payload = [
+                        'group_name'   => $newName,
+                        'group_number' => $newNumber,
+                        'created_at'   => $now,
+                        'updated_at'   => $now,
+                    ];
+
+                    // Переносим необязательные атрибуты группы, если они есть в целевой таблице
+                    foreach (['subgroup', 'group_type', 'has_subgroups'] as $col) {
+                        if (Schema::hasColumn($nextGroupsTable, $col) && property_exists($group, $col)) {
+                            $payload[$col] = $group->{$col};
+                        }
+                    }
+
+                    DB::table($nextGroupsTable)->insert($payload);
+                    DB::table($groupsTable)->where('id', $group->id)->delete();
+                    $stats['promoted']++;
+                }
+            }
+        });
+
+        return redirect()
+            ->route('groups.index')
+            ->with('success', sprintf(
+                'Учебный год завершён: переведено %d групп, выпущено %d групп.',
+                $stats['promoted'],
+                $stats['graduated']
+            ));
+    }
+
     public function finishYear(Request $request)
     {
         $course = CourseContext::normalize($request->integer('course') ?? 1);

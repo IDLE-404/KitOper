@@ -564,6 +564,13 @@
                 <input type="search" id="groupSearch" class="search-input" placeholder="Поиск по группе или предмету">
                 <input type="date" id="weekStartInput" class="search-input" value="{{ $requestedWeekStart ?? '' }}" style="width:auto;">
                 <button type="button" class="btn-pill primary btn-primary" id="weekStartApply">Показать неделю</button>
+                @if(auth()->user()?->isDispatcher())
+                <form method="POST" action="{{ route('groups.finish_year_global') }}"
+                      onsubmit="return confirm('Завершить учебный год для ВСЕХ курсов?\n\nГруппы будут переведены на следующий курс (ПО-233 → ПО-333), выпускники удалены. Учителя и дисциплины сохранятся.')">
+                    @csrf
+                    <button type="submit" class="btn-pill ghost" style="border-color:#ef4444;color:#ef4444;">Завершить учебный год</button>
+                </form>
+                @endif
             </div>
         </div>
         <div class="header-controls">

@@ -28,6 +28,8 @@ class User extends Authenticatable
         'password',
         'role',
         'teacher_id',
+        'group_id',
+        'group_course',
     ];
 
     /**
@@ -63,8 +65,18 @@ class User extends Authenticatable
         return $this->role === self::ROLE_TEACHER;
     }
 
+    public function isStudent(): bool
+    {
+        return $this->role === self::ROLE_STUDENT;
+    }
+
     public function teacher(): BelongsTo
     {
         return $this->belongsTo(Teacher::class, 'teacher_id');
+    }
+
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\FirstCourseGroup::class, 'group_id');
     }
 }

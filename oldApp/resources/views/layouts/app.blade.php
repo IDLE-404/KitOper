@@ -217,10 +217,6 @@
     })();
     </script>
     @stack('scripts')
-    @if(auth()->user()?->isDispatcher())
-        @include('components.ai-widget')
-    @endif
-
     {{-- Tour help button (shown by each page's tour script) --}}
     <button id="tourHelpBtn" type="button" style="display:none" title="Интерактивная помощь">
         <i class="bi bi-question-circle"></i> Помощь

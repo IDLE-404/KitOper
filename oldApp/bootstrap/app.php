@@ -14,8 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Доверяем всем прокси чтобы Laravel видел HTTPS
         $middleware->trustProxies(at: '*');
 
+        // Security headers на все ответы
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+
         $middleware->alias([
-            'role' => \App\Http\Middleware\EnsureRole::class,
+            'role'  => \App\Http\Middleware\EnsureRole::class,
             'audit' => \App\Http\Middleware\AuditLogMiddleware::class,
         ]);
     })

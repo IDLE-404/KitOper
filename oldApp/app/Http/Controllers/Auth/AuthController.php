@@ -52,53 +52,69 @@ class AuthController extends Controller
 
     public function showRegister(): View
     {
-        return view('auth.register');
+        $groups = $this->getAllGroups();
+        return view('auth.register', compact('groups'));
     }
 
     public function register(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email',
-            'password' => ['required', 'confirmed', Password::min(8)],
-            'role' => 'required|in:' . implode(',', [User::ROLE_STUDENT, User::ROLE_TEACHER, User::ROLE_DISPATCHER]),
-            'teacher_surname' => 'nullable|string|max:255',
+            'name'       => 'required|string|max:255',
+            'email'      => 'required|email|max:255|unique:users,email',
+            'password'   => ['required', 'confirmed', Password::min(8)],
+            'group_key'  => ['required', 'string', 'regex:/^\d+:\d+$/'],
         ]);
 
-        $role = $data['role'] ?? User::ROLE_STUDENT;
-        $teacherId = null;
-        if ($role === User::ROLE_TEACHER) {
-            $surname = trim((string) ($data['teacher_surname'] ?? ''));
-            if ($surname === '') {
-                return back()->withErrors([
-                    'teacher_surname' => 'Для роли преподавателя укажите фамилию.',
-                ])->withInput();
-            }
-            $teacherId = $this->resolveTeacherIdBySurname($surname);
-            if (!$teacherId) {
-                return back()->withErrors([
-                    'teacher_surname' => 'Преподаватель по этой фамилии не найден. Укажите так же, как в справочнике преподавателей.',
-                ])->withInput();
-            }
+        [$course, $groupId] = explode(':', $data['group_key'], 2);
+        $course   = (int) $course;
+        $groupId  = (int) $groupId;
+
+        $table = $this->groupTable($course);
+        if (!$table || !DB::table($table)->where('id', $groupId)->exists()) {
+            return back()->withErrors(['group_key' => 'Выбранная группа не найдена.'])->withInput();
         }
 
-        $createPayload = [
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-            'role' => $role,
-        ];
-
-        if (Schema::hasColumn('users', 'teacher_id')) {
-            $createPayload['teacher_id'] = $teacherId;
-        }
-
-        $user = User::create($createPayload);
+        $user = User::create([
+            'name'         => $data['name'],
+            'email'        => $data['email'],
+            'password'     => Hash::make($data['password']),
+            'role'         => User::ROLE_STUDENT,
+            'group_id'     => $groupId,
+            'group_course' => $course,
+        ]);
 
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route($this->routeForRole($user->role));
+        return redirect()->route('home');
+    }
+
+    /** Все группы всех курсов, сгруппированные по курсу. */
+    private function getAllGroups(): array
+    {
+        $result = [];
+        for ($course = 1; $course <= 4; $course++) {
+            $table = $this->groupTable($course);
+            if (!$table || !Schema::hasTable($table)) {
+                continue;
+            }
+            $rows = DB::table($table)->orderBy('group_name')->get(['id', 'group_name']);
+            if ($rows->isNotEmpty()) {
+                $result[$course] = $rows;
+            }
+        }
+        return $result;
+    }
+
+    private function groupTable(int $course): ?string
+    {
+        return match ($course) {
+            1 => 'first_course_group',
+            2 => 'second_course_group',
+            3 => 'third_course_group',
+            4 => 'fourth_course_group',
+            default => null,
+        };
     }
 
     public function logout(Request $request): RedirectResponse

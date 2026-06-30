@@ -21,9 +21,9 @@ use App\Http\Controllers\ScheduleGeneratorController;
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AuthController::class, 'login'])->name('login.submit');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login')->name('login.submit');
     Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
-    Route::post('/register', [AuthController::class, 'register'])->name('register.submit');
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register')->name('register.submit');
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
@@ -36,13 +36,14 @@ Route::middleware(['auth', 'audit'])->group(function () {
         Route::get('/teacher/today', [TeacherDashboardController::class, 'today'])->name('teacher.today');
     });
 
-    Route::prefix('first-course')->group(function () {
+    Route::prefix('first-course')->middleware('throttle:student-view')->group(function () {
         Route::get('/schedule', [FirstCourseSchedulePageController::class, 'index'])->name('first.schedule.index');
         Route::get('/schedule/day', [FirstCourseSchedulePageController::class, 'day'])->name('first.schedule.day');
     });
 
     Route::middleware('role:dispatcher')->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
         Route::put('/users/{user}/role', [UserController::class, 'updateRole'])->name('users.update_role');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 

@@ -545,9 +545,17 @@
     <div class="header-block">
         <div class="header-top">
             <div class="header-context">
-                <h1 class="page-title">Расписание — {{ $course ?? 1 }} курс</h1>
+                <h1 class="page-title">
+                    @if($isStudentView ?? false)
+                        Расписание
+                    @else
+                        Расписание — {{ $course ?? 1 }} курс
+                    @endif
+                </h1>
                 @if($isDayView)
                     <div class="header-subline">Только {{ $dayDisplay ?? 'день недели' }}</div>
+                @elseif($isStudentView ?? false)
+                    <div class="header-subline">{{ array_values($groups ?? [])[0] ?? 'Ваша группа' }}</div>
                 @else
                     <div class="header-subline">Обзор по всем группам</div>
                 @endif
@@ -561,7 +569,9 @@
                 @endif
             </div>
             <div class="header-search">
-                <input type="search" id="groupSearch" class="search-input" placeholder="Поиск по группе или предмету">
+                @if(!($isStudentView ?? false))
+                    <input type="search" id="groupSearch" class="search-input" placeholder="Поиск по группе или предмету">
+                @endif
                 <input type="date" id="weekStartInput" class="search-input" value="{{ $requestedWeekStart ?? '' }}" style="width:auto;">
                 <button type="button" class="btn-pill primary btn-primary" id="weekStartApply">Показать неделю</button>
                 @if(auth()->user()?->isDispatcher())
@@ -574,6 +584,7 @@
             </div>
         </div>
         <div class="header-controls">
+            @if(!($isStudentView ?? false))
             <div class="control-group">
                 <label class="control-label">Курс</label>
                 <select id="courseSelect" class="search-input" style="width:auto;">
@@ -582,6 +593,7 @@
                     @endfor
                 </select>
             </div>
+            @endif
             @if($isDayView)
                 <div class="control-group">
                     <label class="control-label">День</label>
@@ -620,6 +632,7 @@
                 @endif
             </div>
         </div>
+        @if(!($isStudentView ?? false))
         <div class="header-actions">
             <div class="header-actions__primary">
                 @if($isDayView)
@@ -665,6 +678,7 @@
                 </details>
             </div>
         </div>
+        @endif
     </div>
     @if(!empty($weeklyHolidays))
         <div class="holiday-banner">
@@ -777,6 +791,7 @@
                                                 </div>
                                             @endif
                                         @elseif(!$holidayMeta)
+                                            @if(!($isStudentView ?? false))
                                             <a href="#"
                                                class="cell-edit"
                                                title="Редактировать"
@@ -828,6 +843,7 @@
                                                 data-teacher-conflict2="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? '1' : '0' }}"
                                                 data-teacher-conflict2-groups="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub2']['teacher_conflict_groups'] ?? []) : '' }}"
                                             >✏️</a>
+                                            @endif
                                         @else
                                             <div class="holiday-lock" title="Праздник — {{ $holidayMeta['name'] }} ({{ $holidayMeta['label'] }})">
                                                 🎉 {{ $holidayMeta['label'] }} ({{ $holidayMeta['day'] ?? '' }})
@@ -940,8 +956,10 @@
                 @php $groupItems = $groupData['days'] ?? []; @endphp
             <div class="group-compact" id="group-{{ $groupId }}">
                 <div class="group-compact__head">
-                    <h2 class="group-compact__title">Группа: {{ $groupData['name'] ?? 'Без названия' }}</h2>
+                    <h2 class="group-compact__title">{{ $isStudentView ?? false ? '' : 'Группа: ' }}{{ $groupData['name'] ?? 'Без названия' }}</h2>
+                    @if(!($isStudentView ?? false))
                     <a href="{{ route('first.schedule.week') }}" class="link-edit">Редактировать</a>
+                    @endif
                 </div>
                 <div class="grid-table-wrap">
                 <div class="grid-table">
@@ -1019,6 +1037,7 @@
                                             </div>
                                         @endif
                                     @elseif(!$holidayMeta)
+                                        @if(!($isStudentView ?? false))
                                         <a href="#"
                                            class="cell-edit"
                                            title="Редактировать"
@@ -1070,6 +1089,7 @@
                                             data-teacher-conflict2="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? '1' : '0' }}"
                                             data-teacher-conflict2-groups="{{ ($pair['sub2']['teacher_conflict'] ?? false) ? implode(', ', $pair['sub2']['teacher_conflict_groups'] ?? []) : '' }}"
                                         >✏️</a>
+                                        @endif
                                     @else
                                         <div class="holiday-lock" title="Праздник — {{ $holidayMeta['name'] }} ({{ $holidayMeta['label'] }})">
                                             🎉 {{ $holidayMeta['label'] }} ({{ $holidayMeta['day'] ?? '' }})

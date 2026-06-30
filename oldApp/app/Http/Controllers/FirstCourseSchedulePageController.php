@@ -28,7 +28,17 @@ class FirstCourseSchedulePageController extends Controller
      */
     public function index()
     {
-        $course = CourseContext::normalize(request()->integer('course') ?? 1);
+        /** @var \App\Models\User|null $authUser */
+        $authUser = auth()->user();
+        $isStudentEarly = $authUser && $authUser->isStudent();
+
+        // Для ученика курс берётся из его группы, игнорируем параметр URL
+        if ($isStudentEarly && $authUser->group_course) {
+            $course = CourseContext::normalize((int) $authUser->group_course);
+        } else {
+            $course = CourseContext::normalize(request()->integer('course') ?? 1);
+        }
+
         $tables = CourseContext::tables($course);
         $vacancyTeacherId = $this->findVacancyTeacherId($tables);
 
@@ -497,6 +507,30 @@ class FirstCourseSchedulePageController extends Controller
         }
         $isDayView = (bool) $dayFilter;
 
+        // Для ученика — только его группа, без редактирования
+        $isStudentView = $isStudentEarly;
+        if ($isStudentView && $authUser->group_id) {
+            $studentGroupId = (int) $authUser->group_id;
+            $schedule = isset($schedule[$studentGroupId])
+                ? [$studentGroupId => $schedule[$studentGroupId]]
+                : [];
+            $groups = isset($groups[$studentGroupId])
+                ? [$studentGroupId => $groups[$studentGroupId]]
+                : [];
+
+            // Если расписания для этой недели нет и неделя не задана вручную —
+            // ищем ближайшую неделю с данными и редиректим на неё
+            if (empty($schedule) && !request()->has('week_start')) {
+                $nearestWeek = DB::table($tables['schedules'])
+                    ->where('group_id', $studentGroupId)
+                    ->orderBy('week_start', 'desc')
+                    ->value('week_start');
+                if ($nearestWeek) {
+                    return redirect()->route('first.schedule.index', ['week_start' => $nearestWeek]);
+                }
+            }
+        }
+
         return view('first_course.schedule.index', [
             'schedule' => $schedule,
             'subjects' => $subjectsForView,
@@ -522,6 +556,7 @@ class FirstCourseSchedulePageController extends Controller
             'dayKey' => $dayKey,
             'isDayView' => $isDayView,
             'absenceLabels' => TeacherAbsenceTypes::labels(),
+            'isStudentView' => $isStudentView,
         ]);
     }
 

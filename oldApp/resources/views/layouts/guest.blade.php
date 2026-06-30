@@ -160,7 +160,7 @@
             --active-index: 0;
             position: relative;
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(var(--role-count, 3), minmax(0, 1fr));
             gap: 0;
             border: 1px solid var(--auth-border);
             border-radius: 14px;
@@ -176,7 +176,7 @@
             top: 4px;
             bottom: 4px;
             left: 4px;
-            width: calc((100% - 8px) / 3);
+            width: calc((100% - 8px) / var(--role-count, 3));
             border-radius: 10px;
             background: linear-gradient(135deg, #7f56d9 0%, #6941c6 100%);
             box-shadow: 0 6px 16px rgba(127, 86, 217, 0.3);
